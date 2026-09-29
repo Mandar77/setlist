@@ -54,6 +54,9 @@ Organization does the same thing immediately.
 
 ## Commands
 
+On this machine `make` is `mingw32-make` (GNU Make, `C:/MinGW/bin`); CI uses real
+`make` on Linux. The Makefile is the single definition of every gate.
+
 ```bash
 make setup        # toolchains + all workspace packages
 make verify       # the full local gate; must run in <5 min and without Docker

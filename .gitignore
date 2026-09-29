@@ -38,6 +38,21 @@ secrets.json
 Thumbs.db
 *.swp
 
+# Consented golden data (ADR-006). This repository is PUBLIC: plaintext scans of
+# people's handwriting must never be committed. Only the age-encrypted .age files and
+# the pointer indexes are tracked.
+golden/private/incoming/
+golden/private/**/*.jpg
+golden/private/**/*.jpeg
+golden/private/**/*.png
+golden/private/**/*.heic
+golden/private/**/*.webp
+!golden/private/**/*.age
+!golden/private/**/INDEX.md
+
+# Generated golden data - CI regenerates it deterministically from the seed catalog.
+golden/ocr-generated/
+
 # Local scratch
 .scratch/
 tmp/

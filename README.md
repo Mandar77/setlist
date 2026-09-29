@@ -56,10 +56,15 @@ the pinned Python 3.13 itself.
 ```bash
 pip install uv          # one time
 make setup              # Python 3.13 + all workspace packages
-make test               # 233 tests
-make lint types         # ruff + mypy --strict
-make test-accuracy      # golden-set F1 gate
+make verify             # the full local gate: lint, types, 233 tests, accuracy, hygiene
 ```
+
+> **Windows note.** `make` is not on this machine's PATH, but GNU Make is present as
+> `mingw32-make` (`C:/MinGW/bin`). Either add an alias once —
+> `echo "alias make=mingw32-make" >> ~/.bashrc` — or substitute `mingw32-make` in the
+> commands below. CI runs on Linux with real `make`, so the Makefile is the single
+> definition either way.
+
 
 ## Layout
 
@@ -107,4 +112,4 @@ Apple Music, Amazon Music and native iOS are out of scope at $0. Spotify is
 conditional on the owner holding Premium (dev mode caps the app at 5 users).
 
 See [`CLAUDE.md`](CLAUDE.md) for conventions and the non-negotiable cost guardrails,
-and [`docs/hitl.md`](docs/hitl.md) for the manual steps no agent can do.
+and [`docs/hitl/`](docs/hitl/) for the manual steps no agent can do.
