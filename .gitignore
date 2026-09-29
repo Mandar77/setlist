@@ -53,6 +53,10 @@ golden/private/**/*.webp
 # Generated golden data - CI regenerates it deterministically from the seed catalog.
 golden/ocr-generated/
 
+# Downloaded tooling: the pinned 2MS binary the pre-push gate fetches.
+# 13 MB, reproducible from the pinned tag, and platform-specific.
+.cache/
+
 # Local scratch
 .scratch/
 tmp/

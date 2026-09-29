@@ -1,4 +1,7 @@
 {
+  "env": {
+    "PYTHONUTF8": "1"
+  },
   "permissions": {
     "deny": [
       "Bash(aws *)",
@@ -27,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'root=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}\"; exec bash \"$root/.claude/hooks/guard-bash.sh\"'"
+            "command": "bash -c 'root=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}\"; g=\"$root/.claude/hooks/guard-bash.sh\"; if [ ! -f \"$g\" ]; then echo \"Blocked: the autopilot guard could not be located (ADR-005).\" >&2; exit 2; fi; exec bash \"$g\"'"
           }
         ]
       }

@@ -51,6 +51,26 @@ bash scripts/hitl/github-setup.sh --dry-run   # look first
 bash scripts/hitl/github-setup.sh
 ```
 
+**Before it pushes anything it runs a full-history secret scan** (Checkmarx 2MS,
+pinned to v5.4.0). If the scan finds anything, or cannot run at all, nothing is
+pushed — an unscanned repository is not a clean one.
+
+You can run that scan on its own at any time:
+
+```bash
+bash scripts/hitl/scan-secrets.sh --dry-run   # what it would do
+bash scripts/hitl/scan-secrets.sh             # actually scan
+```
+
+It needs a 2MS binary. It will find one on your `PATH`, or download the pinned release
+and verify its SHA-256 before running it, or fall back to Docker. If none of those
+work it refuses rather than skipping. To use your own copy, set `SETLIST_2MS_BIN`.
+
+**If it finds a secret:** rotate it first and treat it as compromised — assume it is
+already public. Then remove it from history with `git filter-repo` before pushing.
+Deleting the file in a new commit does *not* remove it from history, and this
+repository is public.
+
 It will:
 - push `main` and `develop`;
 - add rulesets — `main` requires a pull request and forbids force pushes; `develop`
@@ -91,11 +111,29 @@ deploy without any long-lived keys, plus the budgets and the deny guardrails.
 5. **Check your email and confirm the SNS subscription.** An unconfirmed subscription
    means the billing alarm fires into a void — this step is load-bearing.
 
+The stack creates, so you do not have to: the GitHub OIDC provider, per-environment
+deploy roles, a read-only diagnostics role, the deny guardrails, a **zero-spend budget
+and a forecast budget** (one with an IAM-deny action), the billing SNS topic, and a
+**Cost Anomaly Detection monitor**. Never add a third action-enabled budget — the first
+two are free, after which they are billed.
+
 ## 5. Free Tier alerts (2 min)
 
 **Billing and Cost Management → Preferences → Free Tier usage alerts** → enable.
 
 This is a second, independent warning path from the budgets in the stack. Both are free.
+
+## 5b. Lambda concurrency quota (2 min)
+
+New AWS accounts sometimes start with a much lower Lambda concurrency limit than the
+usual 1,000, which would throttle dev and stage for no good reason.
+
+**Service Quotas → AWS Lambda → Concurrent executions.** If it reads below 1,000,
+request an increase to 1,000. The increase is free — this is a quota, not a purchase,
+and the design never approaches it.
+
+Note what it says either way in the H1 issue, so the free-tier estimator can be checked
+against the real ceiling rather than an assumed one.
 
 ## 6. Tell CI the account id (2 min)
 

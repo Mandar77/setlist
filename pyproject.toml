@@ -35,7 +35,16 @@ default-groups = ["dev"]
 target-version = "py313"
 line-length = 100
 src = ["packages/core/src", "services", "tests"]
-extend-exclude = ["cdk.out", "node_modules"]
+extend-exclude = [
+    "cdk.out",
+    "node_modules",
+    # Ruff formats Python fenced inside markdown. These two files are transcriptions of
+    # external documents, so reformatting them would silently rewrite quoted spec text
+    # away from its source. Fidelity to the original wins over house style here; the
+    # code inside them is illustrative, never executed.
+    "docs/PRD.md",
+    "docs/PED.md",
+]
 
 [tool.ruff.lint]
 select = [

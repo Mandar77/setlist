@@ -6,8 +6,15 @@ serverless backend running on a **single** AWS account at a hard $0/month.
 **How work is chosen and done: [`docs/plan/AUTOPILOT.md`](docs/plan/AUTOPILOT.md).**
 The ledger is `docs/plan/TASKS.yaml`; current position is `docs/plan/STATE.md`.
 
-**Precedence:** `docs/plan/AUTOPILOT.md` and `docs/adr/` > PED > PRD. When they
-conflict, amend the losing spec in the same change (`docs/spec-amendments.md`).
+**Precedence:** [`docs/plan/AUTOPILOT.md`](docs/plan/AUTOPILOT.md) and
+[`docs/adr/`](docs/adr/) > [PED](docs/PED.md) > [PRD](docs/PRD.md). When they conflict,
+amend the losing spec inline in the same change and log it in
+[`docs/spec-amendments.md`](docs/spec-amendments.md).
+
+The PRD is largely superseded on architecture, but **§7.7–7.11 remain current**: the
+data model, the provider adapter contract and its verified capability table, and the
+extraction, matching and idempotency algorithms. Those are behaviour, not service
+selection, so the PED does not restate them.
 
 ## COST GUARDRAILS (NON-NEGOTIABLE)
 
@@ -49,6 +56,22 @@ Organization does the same thing immediately.
 - Conventional Commits; `release-please` semver per service.
 - No git hooks — `.husky` and `.pre-commit-config.yaml` are protected paths, so
   `make` and CI do the checking.
+
+### Create and edit files with the file tools, never a shell heredoc
+
+Use Write and Edit. Do not pipe file content through `cat <<EOF`, `echo >`, or a
+`python - <<PY` script. This is not style — heredocs corrupt this repo's content in
+four ways that have all actually happened here:
+
+| What breaks | Example |
+| --- | --- |
+| Backslash escapes get eaten | `C:\MinGW\bin` became `C:\MinGW<0x08>in` — a literal backspace in a committed file |
+| Regex and quote-heavy content fails to parse | a module of `re.compile(...)` patterns silently never reached disk |
+| A missing terminator turns content into commands | the rest of the file gets executed by the shell |
+| The guard hook blocks the call | a heredoc containing `gh secret set` is indistinguishable from running it |
+
+The file tools write bytes literally, so none of that applies. Reserve Bash for
+running things — tests, git, linters — not for authoring them.
 - Every event carries `correlationid` and `idempotencykey`; handlers use Powertools
   `@idempotent`.
 

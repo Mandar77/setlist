@@ -1,3 +1,47 @@
+# Line endings.
+#
+# Everything textual is LF in the index and LF in the working tree. Development
+# happens on Windows and CI runs on Linux, and a CRLF that reaches the index causes
+# failures that look nothing like their cause:
+#   * a shell script or git hook with CRLF fails as "bad interpreter: no such file"
+#   * .claude/hooks/*.sh silently stop guarding
+#   * the parser computes character spans, so CRLF vs LF shifts every offset by one
+#     per preceding line — a whole class of off-by-N bugs that only appear on one OS
+#
+# `eol=lf` (not just `text=auto`) forces LF in the working tree too, so the scripts
+# this repo executes are byte-identical on both platforms.
 * text=auto eol=lf
-*.p8 binary
-*.png binary
+
+# Explicitly binary: never normalised, never diffed as text, never corrupted.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.heic  binary
+*.ico   binary
+*.pdf   binary
+*.zip   binary
+*.gz    binary
+*.onnx  binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+
+# Credentials and encrypted payloads. These must never be normalised, and marking
+# them binary also keeps their contents out of diffs by default.
+*.p8       binary
+*.pem      binary
+*.key      binary
+*.age      binary
+*.keystore binary
+*.jks      binary
+
+# Lockfiles are generated: collapse them in diffs and reviews.
+uv.lock          linguist-generated=true -diff
+pnpm-lock.yaml   linguist-generated=true -diff
+package-lock.json linguist-generated=true -diff
+
+# Golden corpora are data, not prose — keep them out of language statistics.
+golden/**  linguist-detectable=false

@@ -18,6 +18,10 @@ concurrency:
 
 env:
   UV_VERSION: "0.12.20"
+  # Match the Makefile. CI is Linux (UTF-8 by default) and local dev is Windows
+  # (cp1252), so without this the two disagree about encoding and a bug reproduces
+  # in exactly one of them.
+  PYTHONUTF8: "1"
 
 jobs:
   quality:
@@ -90,14 +94,26 @@ jobs:
     name: Secret scanning (2MS)
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0 is load-bearing, not tidiness. 2MS reports a CLEAN exit 0 on a
+      # shallow clone even when history contains a secret, and actions/checkout defaults
+      # to depth 1 — so the default gives a gate that can never fail.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # TODO(M0): pin to a release SHA before this gate is trusted (PED S13).
-      - name: 2MS scan
+
+      # Pinned, and matching scripts/hitl/scan-secrets.sh. The :latest tag lags the
+      # releases badly, and a security gate should not change under you.
+      #
+      # --all-branches: without it only HEAD's ancestry is walked, so a secret on
+      #   another branch passes.
+      # --ignore-on-exit none: the default, but passing it explicitly is what stops an
+      #   inherited 2MS_* environment variable from silently neutralising the scan.
+      # Never `--ignore-on-exit results` — 2MS's own README example uses it because it
+      #   uploads SARIF instead of blocking, and copying that makes the gate a no-op.
+      - name: 2MS full-history scan
         run: |
-          docker run --rm -v "$PWD:/repo" checkmarx/2ms:latest \
-            git /repo --ignore-on-exit none
+          docker run --rm -v "$PWD:/repo" checkmarx/2ms:v5.4.0 \
+            git /repo --all-branches --ignore-on-exit none
 
   codeql:
     name: CodeQL
@@ -111,7 +127,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: github/codeql-action/init@v3
         with:
-          language: ${{ matrix.language }}
+          languages: ${{ matrix.language }}
       - uses: github/codeql-action/analyze@v3
 
   deps:
@@ -146,6 +162,20 @@ jobs:
       - name: Validate the task ledger
         run: uv run --with pyyaml python tools/check_ledger.py
 
+      # The docs cite each other and the specs, and the loop follows those citations.
+      # A dead link is a silent instruction to read something that does not exist.
+      - name: Markdown links and anchors
+        run: uv run python tools/check_links.py --anchors
+
+      # Git normalises on commit, so CRLF in the working tree is invisible to `git
+      # diff` while breaking shebangs, shellcheck and character-span offsets.
+      - name: Line endings
+        run: uv run python tools/check_line_endings.py
+
+      # ADR-005's guarantees are only as good as the guard that enforces them.
+      - name: PreToolUse guard still blocks what it must
+        run: bash tools/test-guard-hook.sh
+
       # A suppression that outlives its expiry is an unreviewed risk, so the build
       # fails rather than quietly carrying it.
       - name: Suppression expiry
@@ -159,7 +189,7 @@ jobs:
       - name: Shell scripts
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
-          shellcheck scripts/hitl/*.sh .claude/hooks/*.sh
+          shellcheck scripts/hitl/*.sh tools/*.sh .claude/hooks/*.sh
 
       - name: Workflow syntax
         run: |

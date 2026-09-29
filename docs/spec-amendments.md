@@ -1,112 +1,55 @@
-# Spec amendments
+# Spec amendment changelog
 
-Precedence is `docs/plan/AUTOPILOT.md` and `docs/adr/` > PED > PRD. When a decision
-overrides a spec, the losing spec is amended in the same change.
+Precedence is [`plan/AUTOPILOT.md`](plan/AUTOPILOT.md) and [`adr/`](adr/) > [PED](PED.md) > [PRD](PRD.md).
+When a decision overrides a spec, the losing spec is amended in the same change.
 
-**The PRD and PED are not yet in the repository** (see `docs/README.md`). Until they
-are, this file holds the exact replacement text. When the specs land, apply each
-amendment below in place, leave a pointer back to its ADR, and reduce this file to an
-index.
+**Every amendment listed here is already applied inline** in [`PRD.md`](PRD.md) and
+[`PED.md`](PED.md), marked at its own section with a callout naming the authorising
+ADR. This file is the index of what changed and when — not a queue of pending edits.
 
----
+To add an amendment: change the spec inline, add a callout there, then add a row here.
 
-## PRD
+## Applied 2026-09-29 — PREP-01
 
-### FR-002 — deterministic parsing patterns
+| # | Spec | Section | Change | Authority |
+|---|---|---|---|---|
+| 1 | PRD | FR-002 | Line orientation is **inferred, not fixed**. Explicit cues, then document convention, then a source-kind prior (`scan_*`/`screenshot` → title first; `paste`/`file` → artist first); below 0.8 the parser emits an `alternate`. Adds orientation-accuracy acceptance criteria (≥90% parser-only, ≥98% post-matching). | [ADR-002](adr/0002-line-orientation.md) |
+| 2 | PRD | §1 Executive summary | Bedrock off by default; one AWS account rather than Organizations; Node/TypeScript rather than Python for Lambdas. | [PED](PED.md) D9/D15, [ADR-004](adr/0004-language-map.md) |
+| 3 | PRD | §2 Non-goals | NG4 reversed — image/screenshot OCR is the PED's headline use case, not a later phase. | [PED](PED.md) §2–4 |
+| 4 | PRD | §4 Platform constraints | Apple Music and Amazon Music out of scope at $0; Spotify conditional on owner Premium. Capability data retained. | [PED](PED.md) §2, D17–18 |
+| 5 | PRD | §5 FR-003 / FR-012 / FR-015 | Bedrock and Glue moved behind flags; OCR promoted to Must. **Span grounding unchanged** and reinforced. | [PED](PED.md) D8/D9, [ADR-007](adr/0007-deterministic-core-and-span-grounding.md) |
+| 6 | PRD | §6 NFR-003/004/007 | Availability 99.9% → 99.5%; KMS CMK → SSM SecureString; standalone WAF → CloudFront flat-rate Free plan; cost target $0.02 → **$0.00**. | [PED](PED.md) D2/D7, §8 |
+| 7 | PRD | §7 System architecture | §7.1–7.6 and §7.12 marked superseded by [PED §10](PED.md#10-microservices-architecture) (the enterprise-profile design). §7.7–7.11 explicitly retained as current: data model, adapter contract, extraction, matching, rate limiting. | [PED](PED.md) §10 |
+| 8 | PRD | §7.8 | Adapter interface is TypeScript, not a Python `Protocol`. Contract and verified capability values unchanged. | [ADR-004](adr/0004-language-map.md) |
+| 9 | PRD | §7.9 | Algorithm unchanged; home moves to `packages/core` (TypeScript + zod). Two refinements made explicit: spans index **normalized** text, and the grounding gate needs a **span-size cap** as well as token coverage. | [ADR-001](adr/0001-parser-home-typescript-core.md), [ADR-007](adr/0007-deterministic-core-and-span-grounding.md) |
+| 10 | PRD | §7.10 | Adds orientation resolution against free catalogs before any provider call, costing zero YouTube quota. MusicBrainz rate limiting becomes load-bearing for correctness. | [ADR-002](adr/0002-line-orientation.md) |
+| 11 | PRD | §8 Environments | One account, per-env stacks — joining an Organization expires Free Tier credits. LocalStack → moto + DynamoDB Local + ElasticMQ. | [PED](PED.md) D15/D19, §11 |
+| 12 | PRD | §9 CI/CD | AppConfig → SSM; synthetic canaries dropped; CodeDeploy canary prod-only. Branch policy fixed: agents push `task/*` and fast-forward `develop`; only the human merges `main`. | [PED](PED.md) §13, [ADR-005](adr/0005-credentials-branches-deploys.md) |
+| 13 | PRD | §10 Testing | Vitest/fast-check/aws-sdk-client-mock for TS, pytest/Hypothesis for the Python exceptions. Mutation targets raised. FIS → flag-based faults. Golden sets generated truth-first. **Regression-gating reasoning retained verbatim.** | [ADR-004](adr/0004-language-map.md), [ADR-006](adr/0006-test-data.md) |
+| 14 | PRD | §11 Metrics | Availability 99.5%, cost/playlist $0.00, MTTR <4 h. Extraction and matching targets retained — they are what the accuracy gate enforces. | [PED](PED.md) §15 |
+| 15 | PRD | §12 Phases | Phase 0–9 replaced by M0–M8 with a Free-Tier Gate at every exit; M0 split at the credential boundary. Apple and Amazon phases cut. | [PED](PED.md) §16, [ADR-003](adr/0003-build-order-m0-first.md) |
+| 16 | PRD | §13 Risks | R2 (YouTube quota) becomes the binding constraint on the whole product; its mitigation is load-bearing rather than an optimisation. | [PED](PED.md) §17 |
+| 17 | PRD | §14 Security | WAF/KMS/Secrets Manager substitutions. **Every provider compliance obligation unchanged.** Adds: no server-side image retention, EXIF/GPS stripped twice, identifiers-only event payloads. | [PED](PED.md) D2/D7/D10–11, §10.6 |
+| 18 | PRD | §15 Implementation guide | Layout expanded; `packages/core` is TypeScript; the hook is a **blocking guard**, not a formatter or preflight wrapper; secrets to SSM. **Guardrail list unchanged and still in force.** | [PED](PED.md) §18, [ADR-005](adr/0005-credentials-branches-deploys.md) |
+| 19 | PRD | §16 Open questions | Amazon/Apple resolved (out of scope); region resolved (us-east-1); Bedrock moot while flagged off. Threshold calibration still open. | [PED](PED.md) §11 |
+| 20 | PED | §4 US-3 | Flagged pending verification: iOS Safari Web Share Target support is unconfirmed; if absent, iOS PWA users import via the file picker. | [ADR-003](adr/0003-build-order-m0-first.md), task M5-03 |
+| 21 | PED | §7 FR-M-007/008 | The parser is `packages/core` (TypeScript + zod), one grammar for device, PWA and Node Lambdas. FR-M-008's substring rule is subsumed by the stronger grounding gate. FR-M-011 additionally requires a resolved orientation. | [ADR-001](adr/0001-parser-home-typescript-core.md), [ADR-002](adr/0002-line-orientation.md) |
+| 22 | PED | §9 | `packages/core` is also imported by `services/extraction` and `services/catalog-matching` as Node Lambdas. Hermes parity proven by the M1-04 self-test screen. | [ADR-001](adr/0001-parser-home-typescript-core.md) |
+| 23 | PED | §10.3 | Runtime language made explicit: Node/TypeScript default; Python only for `ocr` and `packages/etl`. `extraction` and `catalog-matching` import the core rather than reimplementing it. | [ADR-004](adr/0004-language-map.md), [ADR-001](adr/0001-parser-home-typescript-core.md) |
+| 24 | PED | §10.4 | Contracts are zod-first; JSON Schema generated from them for Python consumers. | [ADR-004](adr/0004-language-map.md) |
+| 25 | PED | §10.6 | CloudWatch `GetMetricData` and Logs Insights banned alongside Cost Explorer — billed per call, so a monitoring loop would break the guarantee it watches. | [ADR-005](adr/0005-credentials-branches-deploys.md) |
+| 26 | PED | §13 | 2MS additionally runs locally over full history in `github-setup.sh` before the first push, failing closed. `check_no_secrets.py` is an additional CI check, not a substitute. | [ADR-005](adr/0005-credentials-branches-deploys.md), task PREP-03 |
+| 27 | PED | §14 | Test stack follows the language map; Stryker ≥70% core / ≥65% elsewhere; golden sets generated truth-first from a MusicBrainz seed. | [ADR-004](adr/0004-language-map.md), [ADR-006](adr/0006-test-data.md) |
+| 28 | PED | §15 | Adds orientation targets: ≥90% parser-only, ≥98% post-matching, zero YouTube units spent. | [ADR-002](adr/0002-line-orientation.md) |
+| 29 | PED | §16 | M0 split into M0a / CORE / M0b at the credential boundary. | [ADR-003](adr/0003-build-order-m0-first.md) |
+| 30 | PED | §18 E4 | The `1. Wonderwall – Oasis` example gains an explicit `sourceKind`, plus a second case showing the paste path resolving through MusicBrainz. | [ADR-002](adr/0002-line-orientation.md) |
+| 31 | PED | §18 CLAUDE.md block | "Before ANY deploy: `make preflight`" → "Deploys run only in CI; run `make preflight` before pushing infrastructure changes." | [ADR-005](adr/0005-credentials-branches-deploys.md) |
+| 32 | PED | §18 Tooling | The `PreToolUse` hook is `guard-bash.sh`, which blocks outright rather than wrapping preflight. Adds the `reviewer` subagent and the `/autopilot` and `/run-accuracy` skills. Adds `tools/test-guard-hook.sh` to `make verify`. | [ADR-005](adr/0005-credentials-branches-deploys.md) |
 
-**Authority:** [ADR-002](adr/0002-line-orientation.md)
+## Provenance
 
-> **Was:** "Deterministic parsing of common patterns: *Artist – Title*, *Title by
-> Artist*, numbered/bulleted lists, CSV columns, timestamped DJ tracklists, setlists.
-> AC: golden-set precision ≥0.95 on deterministic-friendly inputs."
-
-> **Now:** "Deterministic parsing of common patterns: separator-delimited
-> artist/title pairs, *Title by Artist*, numbered/bulleted lists, CSV columns,
-> timestamped DJ tracklists, setlists. **Orientation of a separator-delimited line is
-> inferred, not fixed**: explicit cues first, then the document's own convention, then
-> a source-kind prior (`scan_*` and `screenshot` → title first; `paste` and `file` →
-> artist first). Where confidence is below 0.8 the parser emits the swapped reading as
-> `alternate`, and matching resolves it against free catalogs before any provider
-> quota is spent. AC: golden-set precision ≥0.95 on deterministic-friendly inputs;
-> parser-only orientation accuracy ≥90% on bare-dash lines and ≥98% after matching."
-
-### §7.9 / §7.10 — extraction and matching implementation language
-
-**Authority:** [ADR-001](adr/0001-parser-home-typescript-core.md),
-[ADR-004](adr/0004-language-map.md)
-
-The algorithm specs stand unchanged. Replace every implication that they run in
-Python with TypeScript: the grammar lives in `packages/core` (TypeScript + zod) and
-executes on the device, in the browser and in Node Lambdas.
-
----
-
-## PED
-
-### §9 — mobile app architecture
-
-**Authority:** [ADR-001](adr/0001-parser-home-typescript-core.md)
-
-Confirms rather than contradicts: `packages/core` **is** the shared TypeScript
-package. Add that the same package is imported by `services/extraction` and
-`services/catalog-matching` as Node Lambdas, so there is exactly one grammar, and that
-Hermes parity is proven by the M1-04 self-test screen, with NFKC and regex Unicode
-property escapes checked and polyfilled where they differ.
-
-### §10.3 — service catalog
-
-**Authority:** [ADR-001](adr/0001-parser-home-typescript-core.md),
-[ADR-004](adr/0004-language-map.md)
-
-> **Was:** an implied Python fleet, with `extraction` doing "parse + grounding".
-
-> **Now:** Node/TypeScript is the default runtime for every service. Python 3.13
-> remains only for `ocr` (RapidOCR is Python-first; it returns raw lines and contains
-> no grammar) and `packages/etl` (Glue compatibility). `extraction` and
-> `catalog-matching` are Node and import `packages/core` directly.
-
-### §14 — testing strategy
-
-**Authority:** [ADR-004](adr/0004-language-map.md),
-[ADR-006](adr/0006-test-data.md)
-
-> **Was:** "Unit: pytest + moto + Hypothesis; Jest + RNTL. Coverage ≥85% (core ≥90%)
-> … mutmut ≥70%, Stryker ≥65%."
-
-> **Now:** "Unit: Vitest + fast-check + aws-sdk-client-mock for TypeScript; pytest +
-> Hypothesis for the Python exceptions (`services/ocr`, `packages/etl`). Coverage
-> ≥85% (core ≥90%). Mutation: Stryker ≥70% on `packages/core` and ≥65% elsewhere;
-> mutmut ≥70% for the Python parts."
-
-Add [ADR-006](adr/0006-test-data.md): golden sets are generated truth-first from a
-MusicBrainz seed catalog. Expected outputs are never derived from parser output, and
-changing one requires an ADR.
-
-### Epic E4 — extraction
-
-**Authority:** [ADR-002](adr/0002-line-orientation.md)
-
-> **Was:** "*Given* `1. Wonderwall – Oasis`, *then* the result is {Wonderwall, Oasis}
-> with spans."
-
-> **Now:** "*Given* `1. Wonderwall – Oasis` **with `sourceKind: scan_handwriting`**,
-> *then* the result is `{title: Wonderwall, artist: Oasis}` with spans.
-> *Given* the same line with `sourceKind: paste`, *then* the parser emits
-> `{title: Oasis, artist: Wonderwall}` on the artist-first prior **plus an
-> `alternate`**, and matching resolves it to `{title: Wonderwall, artist: Oasis}`
-> against MusicBrainz without spending YouTube quota."
-
-### §18 — implementation addendum
-
-**Authority:** [ADR-003](adr/0003-build-order-m0-first.md),
-[ADR-005](adr/0005-credentials-branches-deploys.md)
-
-- M0 is split into **M0a** (no AWS) and **M0b** (after Session 1); see ADR-003.
-- The CLAUDE.md cost-guardrail block changes its deploy line — deploys run only in CI
-  (ADR-005), so the local rule is to run `make preflight` before *pushing*
-  infrastructure changes, not before deploying.
-- The `PreToolUse` hook is no longer a preflight wrapper on deploy commands. It is
-  `guard-bash.sh`, which blocks `aws`, `cdk/sam deploy|destroy`, force pushes, pushes
-  to `main`, `gh pr merge`, `gh secret` and destructive `gh api` calls outright.
-- Add the subagents `reviewer`, `cost-auditor`, `ocr-evaluator`, `contract-keeper`
-  and `mobile-builder`, and the `/autopilot` skill.
+Neither spec was authored in this repository. Both were transcribed on 2026-09-29 from
+the sources supplied on 2026-09-28 — the PRD from its PDF, the PED from its markdown.
+Each file says so at the top. If a cleaner original exists, replace the file wholesale:
+nothing is generated from either document, and the amendment callouts are the only
+content that would need reapplying.

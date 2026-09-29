@@ -8,6 +8,14 @@
 # run only in CI (ADR-005); preflight is what you run before *pushing* infra changes.
 
 SHELL := /bin/bash
+
+# Python UTF-8 mode, exported to every recipe. Without it, Python on Windows uses the
+# locale codec (cp1252) for stdio and for open() with no explicit encoding, and dies on
+# the first non-Latin-1 byte. This project parses Unicode song titles for a living, so
+# that is a guaranteed failure rather than a theoretical one — and it fails differently
+# on Windows than in Linux CI, which is the worst kind of bug to chase.
+export PYTHONUTF8 := 1
+
 UV := python -m uv
 ENV ?= dev
 PROFILE ?= zero
@@ -15,7 +23,7 @@ M ?=
 
 .DEFAULT_GOAL := help
 .PHONY: help setup verify verify-fast test test-unit test-accuracy lint fmt types cov \
-        mutate ledger suppressions no-secrets secrets-history golden \
+        mutate ledger links eol suppressions guard no-secrets secrets-history golden \
         synth nag kics estimate preflight gate unkill clean
 
 help: ## Show available targets
@@ -28,7 +36,7 @@ setup: ## Install the pinned toolchains and all workspace packages
 
 ## ------------------------------------------------------------------ the gate
 
-verify: lint types test-unit test-accuracy ledger suppressions no-secrets ## Full local gate; no Docker required
+verify: lint types test-unit test-accuracy ledger links eol suppressions guard no-secrets ## Full local gate; no Docker required
 	@echo "verify OK"
 
 verify-fast: lint types test-unit ## Lint, types and unit tests only
@@ -69,8 +77,17 @@ types: ## mypy --strict
 ledger: ## Validate docs/plan/TASKS.yaml (ids, deps, cycles, evidence)
 	$(UV) run --with pyyaml python tools/check_ledger.py
 
+links: ## Every relative markdown link and anchor resolves
+	$(UV) run python tools/check_links.py --anchors
+
+eol: ## No CRLF in the working tree (breaks shebangs, shellcheck and span offsets)
+	$(UV) run python tools/check_line_endings.py
+
 suppressions: ## Fail on expired or undocumented security suppressions
 	$(UV) run --with pyyaml python tools/check_suppressions.py
+
+guard: ## Prove the PreToolUse guard still blocks what ADR-005 says it must
+	bash tools/test-guard-hook.sh
 
 no-secrets: ## Scan the working tree for credentials and personal data
 	$(UV) run python tools/check_no_secrets.py --staged
@@ -87,11 +104,19 @@ nag: synth ## cdk-nag, including the SetlistZeroCostPack
 	cd infra && npx cdk synth --all -c env=$(ENV) -c profile=$(PROFILE) -c nag=true
 
 kics: synth ## KICS scan of the synthesized templates (needs Docker)
-	docker run --rm -v "$(PWD):/path" checkmarx/kics:latest scan \
+	# $(CURDIR), not $(PWD): PWD is exported by a shell, not set by make, so a make
+	# invoked from anywhere but bash expands it to "" and docker gets ":/path".
+	# MSYS_NO_PATHCONV stops git-bash rewriting the container-side /path arguments
+	# into Windows paths before docker ever sees them.
+	MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR):/path" checkmarx/kics:latest scan \
 		-p /path/infra/cdk.out -q /path/security/kics-queries \
 		--fail-on high,critical
 
 estimate: ## Fail if projected usage exceeds the gate in infra/free-tier/budget.yaml
+	@# Built by M0A-05. Named here so `preflight` fails loudly rather than appearing to
+	@# pass a check that does not exist yet.
+	@test -f tools/free_tier_estimate/__main__.py \
+		|| { echo "estimate: tools/free_tier_estimate is not built yet (task M0A-05)"; exit 1; }
 	$(UV) run python -m tools.free_tier_estimate --env $(ENV)
 
 ## preflight: run before PUSHING infrastructure changes. Deploys happen only in CI.
@@ -104,6 +129,9 @@ gate: ## Milestone exit evidence -> docs/reports/$(M).md
 	@echo "gate $(M): report generation lands with M0A-05 (estimator) and M0A-08 (CI evidence)"
 
 unkill: ## Recover from the kill switch (owner confirmation required)
+	@# Built alongside the kill-switch Lambda in M0A-06.
+	@test -f tools/killswitch/__main__.py \
+		|| { echo "unkill: tools/killswitch is not built yet (task M0A-06)"; exit 1; }
 	$(UV) run python -m tools.killswitch --env $(ENV) --restore --confirm
 
 clean:

@@ -22,11 +22,89 @@ humans:
 
 tasks:
 
+# ------------------------------------------------- PREP (before M0A-01, no AWS)
+# Groundwork the rest of M0a stands on: the specs the ledger cites must exist and
+# be current, the toolchain must not corrupt text on Windows, and the public-repo
+# secret gate must be real rather than approximate.
+
+- id: PREP-01
+  milestone: M0
+  title: Land the PRD and PED in docs/ with amendments applied inline
+  deps: []
+  status: done
+  blocked_on: null
+  not_before: null
+  done_when:
+    - docs/PRD.md and docs/PED.md exist and contain every section cited anywhere in the repo
+    - every amendment in docs/spec-amendments.md is applied inline at its own section, each marked with the ADR that authorised it
+    - docs/spec-amendments.md is reduced to a changelog - what changed, where, under which ADR - with no pending replacement text left in it
+    - every PRD and PED reference in TASKS.yaml, CLAUDE.md, docs/README.md and docs/adr/* resolves to a file that exists and a section that exists
+    - no broken relative markdown link in any tracked .md file
+    - docs/hitl.md (superseded by docs/hitl/) is removed and nothing links to it
+    - provenance is recorded - where each spec's text came from, so a cleaner original can replace it without guesswork
+  verify: make verify
+  evidence:
+    - "docs/PRD.md (17 sections, 7.1-7.12 sub-sections) and docs/PED.md (20 sections, 10.1-10.8) written from the supplied sources; provenance stated at the top of each"
+    - "32 amendments applied inline with ADR callouts; spec-amendments.md reduced to a changelog"
+    - "PRD 7.9.1-7.9.6 and 7.10.1-7.10.6 promoted to headings so the 13 code citations resolve"
+    - "tools/check_links.py: 90 relative links + anchors, all resolve; wired into make verify and CI"
+    - "docs/hitl.md removed; its two unique checkpoints (Cost Anomaly monitor, Lambda concurrency quota) recovered into SESSION-1.md"
+    - "every PED/PRD section id cited anywhere in the repo verified present" 
+
+- id: PREP-02
+  milestone: M0
+  title: Windows hardening - UTF-8 mode, LF normalisation, no heredocs
+  deps: []
+  status: done
+  blocked_on: null
+  not_before: null
+  done_when:
+    - PYTHONUTF8=1 exported from the Makefile so every recipe inherits it
+    - PYTHONUTF8=1 set in the env block of .claude/settings.json so Bash tool calls and hooks inherit it
+    - .gitattributes enforces "* text=auto eol=lf" with binary types excluded from normalisation
+    - git add --renormalize . is a no-op afterwards, proven by an empty diff
+    - no Python in the repo decodes subprocess output or reads a file without an explicit utf-8 encoding
+    - guard-bash.sh self-test passes - blocks aws, cdk/sam deploy, force push, push to main, gh pr merge, gh secret and destructive gh api; allows make verify and git push task/*
+    - make verify green after renormalisation
+    - CLAUDE.md carries the rule - create and edit files with the file tools, never shell heredocs
+  verify: make verify
+  evidence:
+    - "PYTHONUTF8=1 exported from the Makefile (verified reaching recipes) and set in .claude/settings.json env"
+    - ".gitattributes expanded: eol=lf plus 21 binary types; git ls-files --eol shows 82/82 i/lf"
+    - "found and fixed 28 files with CRLF in the working tree, written by Python write_text - the exact hazard this task exists to prevent"
+    - "tools/check_line_endings.py added with --fix; wired into make verify and CI"
+    - "tools/test-guard-hook.sh: 30 assertions, 19 must-block and 11 must-allow, all passing; wired into make verify and CI"
+    - "CLAUDE.md documents the heredoc ban with the four concrete failure modes observed" 
+
+- id: PREP-03
+  milestone: M0
+  title: Real 2MS full-history gate in github-setup.sh
+  deps: []
+  status: done
+  blocked_on: null
+  not_before: null
+  done_when:
+    - github-setup.sh runs a real 2MS scan over FULL git history before it pushes anything
+    - it refuses to push, with a non-zero exit, when 2MS reports any finding
+    - it fails CLOSED when 2MS cannot run at all - no Docker and no binary means refuse to push and print the install options, never skip
+    - --dry-run reports exactly what the scan would do without running it and without pushing
+    - tools/check_no_secrets.py stays a separate CI check rather than a substitute, and CI runs both
+    - SESSION-1.md documents the scan, the install options, and what to do when it finds something
+    - shellcheck clean
+  verify: shellcheck scripts/hitl/*.sh
+  evidence:
+    - "scripts/hitl/scan-secrets.sh: 2MS v5.4.0 pinned, SHA-256 verified before unzip or execution, full history + pristine git-archive export of HEAD"
+    - "11/11 gate properties verified empirically against the real binary: history catches deleted secrets, --all-branches required, explicit --ignore-on-exit none beats the env override, errors exit 1 so the gate tests non-zero, shallow clones rejected"
+    - "fail-closed proven with stub scanners: refuses on exit 1, 2 and 3; passes only on 0"
+    - "checksum tamper test: a wrong expected digest refuses to unzip or execute"
+    - "shellcheck 0.11.0: 0 findings across scripts/hitl/*.sh, tools/*.sh, .claude/hooks/*.sh"
+    - "tools/check_no_secrets.py retained as a separate CI check (also catches account ids, ARNs, personal data)" 
+
 # ---------------------------------------------------------------- M0a (no AWS)
 - id: M0A-01
   milestone: M0
   title: Toolchain and Makefile
-  deps: []
+  deps: [PREP-01, PREP-02, PREP-03]
   status: todo
   blocked_on: null
   not_before: null
@@ -182,6 +260,7 @@ tasks:
     - set-provider-secrets.sh reads secrets from hidden prompts only, never from argv or a file
     - all three pass shellcheck with no warnings
     - all three support --dry-run, printing every call without executing it
+    - the PREP-03 2MS full-history gate still runs before any push and still fails closed
     - SESSION-1.md is click-by-click and contains no identifiers
   verify: shellcheck scripts/hitl/*.sh
   evidence: []

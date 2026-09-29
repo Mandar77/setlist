@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Session 1, step 2: prepare the GitHub repository.
 #
-# Adopts the repository if it already exists, creates it if not, pushes main and
-# develop, and applies rulesets, environments, labels and Actions settings.
+# Runs a full-history secret scan FIRST, then adopts or creates the repository, pushes
+# main and develop, and applies rulesets, environments, labels and Actions settings.
+#
+# The scan runs before anything else on purpose: it is the only step whose failure must
+# stop the session, and finding out after forty minutes of setup is no use to anyone.
 #
 # Run this in an ordinary terminal, not in the Claude chat.
 #
@@ -12,15 +15,27 @@ set -euo pipefail
 
 DRY_RUN=0
 REPO_NAME="setlist"
+SKIP_SCAN=0
+
+# The scanner itself — version pinning, resolution and invocation — lives in
+# scripts/hitl/scan-secrets.sh.
 
 usage() {
   cat <<'USAGE'
-Usage: github-setup.sh [--dry-run] [--repo NAME]
+Usage: github-setup.sh [--dry-run] [--repo NAME] [--skip-scan-I-ACCEPT-THE-RISK]
 
   --dry-run   Print every command without executing it.
   --repo      Repository name (default: setlist).
 
-Requires: gh (authenticated), git.
+  --skip-scan-I-ACCEPT-THE-RISK
+              Push without the secret scan. Named to be hard to type by accident.
+              This repository is public; anything pushed is public permanently, and
+              git history is not cleaned by deleting a file later.
+
+Environment:
+  SETLIST_2MS_BIN   Path to an existing 2ms binary, used in preference to downloading.
+
+Requires: gh (authenticated), git, and either a 2ms binary or Docker.
 USAGE
 }
 
@@ -28,10 +43,14 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) DRY_RUN=1; shift ;;
     --repo)    REPO_NAME="${2:?--repo needs a value}"; shift 2 ;;
+    --skip-scan-I-ACCEPT-THE-RISK) SKIP_SCAN=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; usage; exit 2 ;;
   esac
 done
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SCAN="${ROOT}/scripts/hitl/scan-secrets.sh"
 
 run() {
   if [[ $DRY_RUN -eq 1 ]]; then
@@ -41,7 +60,6 @@ run() {
   fi
 }
 
-# gh api calls need the shell-quoted form printed, so they get their own helper.
 run_api() {
   if [[ $DRY_RUN -eq 1 ]]; then
     printf '  [dry-run] gh api %s\n' "$*"
@@ -52,11 +70,40 @@ run_api() {
 
 note() { printf '\n==> %s\n' "$1"; }
 warn() { printf 'WARNING: %s\n' "$1" >&2; }
+die()  { printf '\nREFUSING TO PUSH: %s\n' "$1" >&2; exit 1; }
+
+# ---------------------------------------------------------------- secret gate
+
+# The scan lives in its own script so it can be run on demand — before a force-push,
+# after a history rewrite, or any time you are about to make something public — and so
+# it can be tested without triggering a push.
+scan_secrets() {
+  note "Secret scan (2MS, full history) — before anything is pushed"
+
+  if [[ $SKIP_SCAN -eq 1 ]]; then
+    warn "scan SKIPPED by explicit flag. This repository is public and history is permanent."
+    return 0
+  fi
+
+  [[ -x "$SCAN" ]] || die "${SCAN} is missing or not executable."
+
+  if [[ $DRY_RUN -eq 1 ]]; then
+    bash "$SCAN" --dry-run
+    return 0
+  fi
+
+  # Fails closed: a non-zero exit here aborts the whole session before the first push,
+  # whether that is because secrets were found or because the scan could not run.
+  bash "$SCAN" || die "the secret scan did not pass. Nothing was pushed."
+}
+
+# ---------------------------------------------------------------- preflight
 
 command -v gh  >/dev/null || { echo "gh is not installed. See docs/hitl/SESSION-1.md" >&2; exit 1; }
 command -v git >/dev/null || { echo "git is not installed." >&2; exit 1; }
-
 gh auth status >/dev/null 2>&1 || { echo "Run 'gh auth login' first." >&2; exit 1; }
+
+scan_secrets
 
 OWNER="$(gh api user --jq .login)"
 SLUG="${OWNER}/${REPO_NAME}"
@@ -168,5 +215,6 @@ Next:
 Not done here, on purpose:
   - No secrets were set. Those come from set-provider-secrets.sh, which reads them
     from hidden prompts.
-  - Secret scanning push protection is on by default for public repositories.
+  - Secret scanning push protection is on by default for public repositories; the
+    2MS scan above is the layer that runs before GitHub ever sees the history.
 EOF
