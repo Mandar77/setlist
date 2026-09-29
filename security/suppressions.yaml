@@ -1,0 +1,26 @@
+# Security-finding suppressions.
+#
+# Every entry needs an owner, a reason and an expiry no more than 90 days out. CI
+# fails on an expired entry (tools/check_suppressions.py), which is the point: a
+# suppression is a decision to accept risk for a while, not a way to delete a finding.
+#
+# Adding one is a review conversation, not a config change.
+#
+# `owner` is a GitHub handle, never an email address: this repository is public
+# and ADR-005 keeps personal data out of it.
+
+version: 1
+max_age_days: 90
+
+suppressions: []
+# Example of the required shape:
+#
+#   - id: KICS-a1b2c3d4
+#     tool: kics                 # kics | 2ms | codeql | semgrep | osv | trivy | mobsf | checkmarx
+#     scope: infra/nag/SetlistZeroCostPack.ts
+#     reason: >
+#       Flags the deny-all policy document as overly permissive; it is the kill
+#       switch's deny boundary and is intentionally broad.
+#     owner: <github-handle>
+#     opened: 2026-09-28
+#     expires: 2026-12-27

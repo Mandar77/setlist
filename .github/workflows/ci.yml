@@ -1,0 +1,173 @@
+name: CI
+
+# Public repo on GitHub Free: standard runners are free, so no self-hosted runners and
+# no macOS jobs in the default path.
+on:
+  pull_request:
+  push:
+    # ADR-005: Claude Code pushes task/* and fast-forwards develop, so CI has to
+    # run on both - a task branch is only integrated once its own run is green.
+    branches: [main, develop, 'task/**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.12.20"
+
+jobs:
+  quality:
+    name: Lint, types, tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - name: Install the pinned toolchain
+        run: uv sync --all-packages --frozen
+
+      - name: Lint
+        run: |
+          uv run ruff check . --output-format=github
+          uv run ruff format --check .
+
+      - name: Type check
+        run: uv run mypy
+
+      - name: Unit tests with coverage gate
+        # Fails under 85% line coverage; packages/core is held to 90% separately below.
+        run: uv run pytest --cov --cov-report=term-missing --cov-report=xml -q
+
+      - name: Core coverage gate (>=90%)
+        run: |
+          uv run python - <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          tree = ET.parse("coverage.xml")
+          total = covered = 0
+          for cls in tree.iter("class"):
+              if "setlist_core" not in cls.get("filename", "").replace("\\", "/"):
+                  continue
+              for line in cls.iter("line"):
+                  total += 1
+                  covered += int(line.get("hits", "0")) > 0
+          pct = 100.0 * covered / total if total else 0.0
+          print(f"packages/core line coverage: {pct:.2f}% ({covered}/{total})")
+          if pct < 90.0:
+              sys.exit(f"core coverage {pct:.2f}% is below the 90% gate")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage.xml
+
+  accuracy:
+    name: Extraction accuracy gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv sync --all-packages --frozen
+      # Golden-set F1 is a release gate, not a report: a regression fails the PR.
+      - run: uv run pytest -m accuracy -q
+
+  secrets:
+    name: Secret scanning (2MS)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # TODO(M0): pin to a release SHA before this gate is trusted (PED S13).
+      - name: 2MS scan
+        run: |
+          docker run --rm -v "$PWD:/repo" checkmarx/2ms:latest \
+            git /repo --ignore-on-exit none
+
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    strategy:
+      matrix:
+        language: [python]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          language: ${{ matrix.language }}
+      - uses: github/codeql-action/analyze@v3
+
+  deps:
+    name: Dependency scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+      - run: uv sync --all-packages --frozen
+      - name: OSV scan
+        run: |
+          uv run python -m pip install --quiet osv-scanner || true
+          docker run --rm -v "$PWD:/src" ghcr.io/google/osv-scanner:latest \
+            scan source --recursive /src
+
+  hygiene:
+    name: Ledger, suppressions, secrets, shell
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      # A broken ledger silently breaks the autopilot loop: it picks the wrong next
+      # task, or skips work that was never actually done.
+      - name: Validate the task ledger
+        run: uv run --with pyyaml python tools/check_ledger.py
+
+      # A suppression that outlives its expiry is an unreviewed risk, so the build
+      # fails rather than quietly carrying it.
+      - name: Suppression expiry
+        run: uv run --with pyyaml python tools/check_suppressions.py
+
+      # Complements 2MS: this also catches account ids, ARNs and personal data, which
+      # ADR-005 bans from a public repository and most secret scanners ignore.
+      - name: No secrets or personal data
+        run: uv run python tools/check_no_secrets.py --history
+
+      - name: Shell scripts
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          shellcheck scripts/hitl/*.sh .claude/hooks/*.sh
+
+      - name: Workflow syntax
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color
+
+# Jobs added as their subjects land:
+#   zero-cost  — cdk synth + SetlistZeroCostPack + KICS zero-cost Rego + free-tier estimator
+#   contracts  — producer golden samples verified by every consumer
+#   mobile     — Jest + RNTL, Maestro on an Android emulator, MobSF
+#   checkmarx  — Checkmarx One, gated on the CX_ENABLED secret (dormant until licensed)

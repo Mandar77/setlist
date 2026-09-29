@@ -1,0 +1,149 @@
+# Setlist monorepo root.
+# This project is a uv workspace: each Python package/service under packages/ and
+# services/ is its own distribution, resolved against one shared lockfile.
+[project]
+name = "setlist-workspace"
+version = "0.0.0"
+description = "Setlist — text-to-playlist generator (workspace root; not published)"
+requires-python = ">=3.13,<3.14"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    # Workspace members, installed editable so tests import the working tree.
+    "setlist-core",
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "pytest-randomly>=3.16",
+    "hypothesis>=6.122",
+    "mypy>=1.14",
+    "ruff>=0.9",
+]
+
+[tool.uv.workspace]
+members = ["packages/*", "services/*", "services/adapters/*"]
+
+[tool.uv.sources]
+setlist-core = { workspace = true }
+
+[tool.uv]
+# Keep the dev toolchain identical across every workspace member.
+default-groups = ["dev"]
+
+# ---------------------------------------------------------------- ruff
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+src = ["packages/core/src", "services", "tests"]
+extend-exclude = ["cdk.out", "node_modules"]
+
+[tool.ruff.lint]
+select = [
+    "F",    # pyflakes
+    "E", "W",  # pycodestyle
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # bugbear
+    "A",    # builtins shadowing
+    "C4",   # comprehensions
+    "DTZ",  # naive datetimes
+    "T20",  # no print
+    "PT",   # pytest style
+    "RET",  # returns
+    "SIM",  # simplify
+    "TID",  # tidy imports
+    "PTH",  # pathlib
+    "PL",   # pylint
+    "RUF",
+    "S",    # bandit
+    "ANN",  # annotations
+    "D",    # docstrings
+]
+ignore = [
+    "D100", "D104",  # module/package docstrings not mandatory
+    "D203", "D213",  # conflicting docstring conventions
+    "PLR0913",       # arg count — matching/scoring functions legitimately take many
+]
+
+# Parsing real-world song lists means handling en/em dashes, hyphen bullets and
+# fullwidth forms as first-class input. They appear in patterns and fixtures by
+# design, so RUF001 would be pure noise on exactly the characters that matter.
+allowed-confusables = ["–", "—", "―", "‐", "−", "·", "⁃", "Ａ", "Ｂ"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "D", "ANN", "PLR2004"]   # asserts, docstrings, magic numbers
+"**/conftest.py" = ["D", "ANN"]
+# CLI entrypoints: stdout is the interface. These also shell out to `git` by name,
+# which S603/S607 flag - resolving git from PATH is correct here, and hardcoding an
+# absolute path would be less portable without being safer. No argument is ever
+# built from untrusted input.
+"tools/**" = ["T201", "S603", "S607"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "parents"
+
+[tool.ruff.format]
+docstring-code-format = true
+
+# ---------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unreachable = true
+warn_unused_ignores = true
+disallow_any_explicit = false
+enable_error_code = ["redundant-expr", "possibly-undefined", "truthy-bool", "ignore-without-code"]
+mypy_path = ["packages/core/src"]
+# Add each service directory here as it gains code; mypy errors on empty ones.
+files = ["packages/core/src", "tests"]
+exclude = '(cdk\.out|node_modules)'
+
+# tests/ is a package (see tests/__init__.py) so this pattern resolves.
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_decorators = false
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "-ra",
+]
+markers = [
+    "unit: fast, no I/O, no AWS, no provider calls",
+    "integration: requires deployed AWS resources (dev account)",
+    "contract: validates provider API schemas against recorded fixtures",
+    "accuracy: golden-set extraction/matching regression gates",
+    "e2e: full stack through the UI",
+    "slow: takes more than a second",
+]
+filterwarnings = ["error"]
+
+# ---------------------------------------------------------------- coverage
+[tool.coverage.run]
+branch = true
+source = ["packages/core/src", "services"]
+omit = ["*/tests/*", "*/__main__.py"]
+relative_files = true
+
+[tool.coverage.report]
+# PRD §9 PR quality gates: >=85% line, >=75% branch.
+fail_under = 85
+show_missing = true
+skip_covered = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    '@(abc\.)?abstractmethod',
+    'class .*\(Protocol\):',
+    '^\s*\.\.\.$',
+]

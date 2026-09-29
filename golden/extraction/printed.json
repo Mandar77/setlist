@@ -1,0 +1,95 @@
+{
+  "$comment": "Golden set for deterministic extraction. Printed sources only; handwritten OCR output gets its own file at M2. Grow this whenever a real input is parsed wrong - a regression that is not in here will happen again.",
+  "cases": [
+    {
+      "id": "reddit-numbered-dash",
+      "source": "reddit thread",
+      "kind": "printed",
+      "text": "Best tracks of the summer\n\n1. Daft Punk - One More Time\n2. Justice – Genesis\n3. Kaytranada - 10%\n4. Overmono - So U Kno\n",
+      "expected": [
+        { "title": "One More Time", "artist": "Daft Punk" },
+        { "title": "Genesis", "artist": "Justice" },
+        { "title": "10%", "artist": "Kaytranada" },
+        { "title": "So U Kno", "artist": "Overmono" }
+      ]
+    },
+    {
+      "id": "blog-quoted-by",
+      "source": "blog best-of article",
+      "kind": "printed",
+      "text": "Our picks, compiled by the editorial team.\n\n\"Midnight City\" by M83\n\"Teardrop\" by Massive Attack\n\"Bohemian Rhapsody\" by Queen\n",
+      "expected": [
+        { "title": "Midnight City", "artist": "M83" },
+        { "title": "Teardrop", "artist": "Massive Attack" },
+        { "title": "Bohemian Rhapsody", "artist": "Queen" }
+      ]
+    },
+    {
+      "id": "dj-cue-sheet",
+      "source": "DJ tracklist with timestamps",
+      "kind": "printed",
+      "text": "00:00 Bicep - Glue\n04:12 Overmono - So U Kno\n09:30 Four Tet – Baby\n14:58 Fred again.. - Delilah (pull me out of this)\n",
+      "expected": [
+        { "title": "Glue", "artist": "Bicep" },
+        { "title": "So U Kno", "artist": "Overmono" },
+        { "title": "Baby", "artist": "Four Tet" },
+        { "title": "Delilah (pull me out of this)", "artist": "Fred again.." }
+      ]
+    },
+    {
+      "id": "csv-with-header",
+      "source": "exported CSV",
+      "kind": "printed",
+      "text": "Artist,Title,Album,ISRC\nDaft Punk,Da Funk,Homework,USRC17607839\nJustice,Genesis,Cross,FRUM71200001\nAir,La Femme d'Argent,Moon Safari,FRZ109800012\n",
+      "expected": [
+        { "title": "Da Funk", "artist": "Daft Punk" },
+        { "title": "Genesis", "artist": "Justice" },
+        { "title": "La Femme d'Argent", "artist": "Air" }
+      ]
+    },
+    {
+      "id": "qualifiers-and-credits",
+      "source": "festival setlist",
+      "kind": "printed",
+      "text": "- Arcade Fire - Wake Up (Live at Coachella)\n- Calvin Harris - One Kiss (feat. Dua Lipa)\n- The Beatles – While My Guitar Gently Weeps - Remastered 2009\n- Eric Prydz - Opus (Four Tet Remix)\n",
+      "expected": [
+        { "title": "Wake Up", "artist": "Arcade Fire" },
+        { "title": "One Kiss", "artist": "Calvin Harris" },
+        { "title": "While My Guitar Gently Weeps", "artist": "The Beatles" },
+        { "title": "Opus", "artist": "Eric Prydz" }
+      ]
+    },
+    {
+      "id": "prose-with-noise",
+      "source": "forum post",
+      "kind": "printed",
+      "comment": "Prose lines must not become items. They are residual for the LLM pass; the deterministic pass must claim nothing from them.",
+      "text": "## My set from Friday\n\nHonestly the crowd was dead until the encore, which was a shame.\n\nRadiohead - Idioteque\nBurial – Archangel\n\nhttps://example.com/the-full-thread\n---\n",
+      "expected": [
+        { "title": "Idioteque", "artist": "Radiohead" },
+        { "title": "Archangel", "artist": "Burial" }
+      ]
+    },
+    {
+      "id": "duplicates-collapse",
+      "source": "chat log",
+      "kind": "printed",
+      "text": "Aphex Twin - Xtal\nBoards of Canada - Roygbiv\nAphex Twin - Xtal\naphex twin - xtal!\n",
+      "expected": [
+        { "title": "Xtal", "artist": "Aphex Twin" },
+        { "title": "Roygbiv", "artist": "Boards of Canada" }
+      ]
+    },
+    {
+      "id": "unicode-and-transliteration",
+      "source": "international thread",
+      "kind": "printed",
+      "text": "Sigur Rós - Hoppípolla\nBjörk – Hyperballad\nSébastien Tellier - La Ritournelle\n",
+      "expected": [
+        { "title": "Hoppípolla", "artist": "Sigur Rós" },
+        { "title": "Hyperballad", "artist": "Björk" },
+        { "title": "La Ritournelle", "artist": "Sébastien Tellier" }
+      ]
+    }
+  ]
+}

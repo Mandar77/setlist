@@ -1,0 +1,170 @@
+# Free-tier quota partition (PED S11).
+#
+# Single source of truth, read by BOTH:
+#   * tools/free-tier-estimate  — CI gate, fails a PR above `gate_pct` of any limit
+#   * services/usage-sentinel   — runtime trip at `trip_pct`, fires the kill switch
+#
+# Keeping one file means the number CI enforces and the number production trips on can
+# never drift apart. Editing a limit here is a deliberate act: re-verify it against the
+# official pricing page first and record the check in docs/adr/.
+#
+# Verified against 2025-2026 AWS pages; re-verify at every phase gate (PED S20).
+
+version: 1
+account_type: free_plan          # free_plan | paid_plan | legacy_pre_2025_07_15
+region: us-east-1
+gate_pct: 70                     # CI fails above this share of any allowance
+trip_pct: 85                     # runtime throttles to zero above this share
+
+environments: [prod, stage, dev]
+
+# Always-free monthly allowances, and how they are split across environments.
+# `reserve` is deliberately unallocated headroom - it absorbs an estimate being wrong,
+# which is the failure mode that actually produces a bill.
+limits:
+  lambda_gb_seconds:
+    total: 400000
+    unit: GB-s
+    note: Always free. Excludes functions using provisioned concurrency.
+    split: { prod: 200000, stage: 50000, dev: 30000, reserve: 120000 }
+
+  lambda_requests:
+    total: 1000000
+    unit: requests
+    split: { prod: 500000, stage: 120000, dev: 80000, reserve: 300000 }
+
+  sns_publishes:
+    total: 1000000
+    unit: publishes
+    note: No per-message charge for Lambda or SQS delivery. Messages must stay under 64 KB.
+    split: { prod: 500000, stage: 120000, dev: 80000, reserve: 300000 }
+
+  sqs_requests:
+    total: 1000000
+    unit: requests
+    note: >
+      DLQ receives only. Event source mappings are banned: one poller on a 20 s long
+      poll makes ~130k requests/month on an idle queue, and eight queues across three
+      environments would exceed the allowance with zero traffic (PED S10.5).
+    split: { prod: 20000, stage: 10000, dev: 10000, reserve: 960000 }
+
+  dynamodb_wcu:
+    total: 25
+    unit: WCU
+    note: Provisioned only, shared across every table AND index in the account.
+    split: { prod: 10, stage: 4, dev: 3, reserve: 8 }
+
+  dynamodb_rcu:
+    total: 25
+    unit: RCU
+    split: { prod: 10, stage: 4, dev: 3, reserve: 8 }
+
+  step_functions_transitions:
+    total: 4000
+    unit: state transitions
+    note: Standard only. Express has no free tier and is banned.
+    split: { prod: 2000, stage: 500, dev: 300, reserve: 1200 }
+
+  cognito_mau:
+    total: 10000
+    unit: MAU
+    note: Lite/Essentials tier. Plus has no free tier; M2M is not free.
+    split: { prod: 6000, stage: 500, dev: 500, reserve: 3000 }
+
+  cloudwatch_alarms:
+    total: 10
+    unit: alarms
+    split: { prod: 5, stage: 2, dev: 0, reserve: 3 }
+
+  cloudwatch_metrics:
+    total: 10
+    unit: custom metrics
+    split: { prod: 7, stage: 0, dev: 0, reserve: 3 }
+
+  cloudwatch_logs_gb:
+    total: 5
+    unit: GB ingested
+    note: Retention is mandatory - prod 14 d, stage 7 d, dev 3 d.
+    split: { prod: 2.5, stage: 0.6, dev: 0.4, reserve: 1.5 }
+
+  xray_traces:
+    total: 100000
+    unit: traces recorded
+    note: 5% sampling.
+    split: { prod: 50000, stage: 15000, dev: 5000, reserve: 30000 }
+
+  kms_requests:
+    total: 20000
+    unit: requests
+    note: Calls against AWS-managed keys count. Cache the data key per cold start.
+    split: { prod: 10000, stage: 2000, dev: 2000, reserve: 6000 }
+
+  data_transfer_out_gb:
+    total: 100
+    unit: GB
+    note: Aggregated. All egress goes via CloudFront.
+    split: { prod: 60, stage: 15, dev: 10, reserve: 15 }
+
+# Provider quotas are not AWS limits but bind harder - YouTube binds first overall.
+provider_limits:
+  youtube_units_per_day:
+    total: 10000
+    unit: quota units
+    note: >
+      Cannot be purchased. A 15-song playlist costs 50 + 15*50 = 800 units, so prod's
+      7000/day is ~8 playlists/day (~250/month). This is the binding constraint on the
+      whole system - AWS is nowhere near its limits at that volume.
+    split: { prod: 7000, stage: 1500, dev: 500, reserve: 1000 }
+
+  youtube_search_list_per_day:
+    total: 100
+    unit: search.list calls
+    note: Separate default bucket from the main unit quota (PED D16). Resolve by ISRC first.
+    split: { prod: 70, stage: 20, dev: 10, reserve: 0 }
+
+  spotify_dev_mode_users:
+    total: 5
+    unit: users
+    note: Requires the app owner to hold an active Premium subscription. Prod only.
+    split: { prod: 5, stage: 0, dev: 0, reserve: 0 }
+
+  eas_update_mau:
+    total: 1000
+    unit: MAU
+    note: Expo Free plan. OTA updates stop beyond this; no overage charges.
+    split: { prod: 1000, stage: 0, dev: 0, reserve: 0 }
+
+# CloudFront is not split the same way: prod runs on the flat-rate Free plan (which
+# bundles WAF and has no overages), dev/stage on pay-as-you-go always-free.
+cloudfront:
+  prod:
+    plan: free_flat_rate
+    requests: 1000000
+    data_transfer_gb: 100
+    planned_requests: 350000
+    note: Must be enrolled in the console - CDK has no native support for this.
+  stage: { plan: pay_as_you_go, planned_requests: 40000 }
+  dev: { plan: pay_as_you_go, planned_requests: 20000 }
+
+# Services that must never appear in a synthesized template under profile=zero.
+# Enforced by infra/nag/SetlistZeroCostPack.ts and security/kics-queries/zero-cost/.
+never_use:
+  - NAT Gateway, EC2, RDS, ELB
+  - Lambda VpcConfig
+  - Lambda provisioned concurrency
+  - AWS::KMS::Key (customer-managed)
+  - Secrets Manager
+  - standalone WAFv2
+  - Route 53 hosted zones
+  - API Gateway v1 and v2
+  - custom EventBridge buses
+  - Step Functions Express state machines
+  - SQS event source mappings
+  - DynamoDB PAY_PER_REQUEST, Standard-IA, PITR, global tables
+  - Glue jobs and crawlers (unless batch.glue.enabled)
+  - log groups without retention
+  - S3 buckets without lifecycle rules
+  - ECR and image-packaged Lambdas
+  - CloudWatch Synthetics
+  - more than 7 alarms
+  - FIS, Textract, Bedrock, SES grants

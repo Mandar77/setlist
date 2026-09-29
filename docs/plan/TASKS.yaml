@@ -1,0 +1,984 @@
+# Setlist autopilot ledger.
+#
+# One entry per task in docs/plan/AUTOPILOT.md S5. This file is the memory: if a
+# session dies, the next one resumes from here. Update status and evidence in the SAME
+# commit as the work, never afterwards.
+#
+# status:  todo | doing | blocked | done | needs-rethink
+# deps:    task ids that must be `done` first
+# blocked_on: a human session id (H1..H4) or "issue #N"
+# not_before: ISO date; the task is not selectable before it
+# evidence: commit SHAs, CI run URLs, measured values - required to set `done`
+
+version: 1
+updated: 2026-09-28
+
+# Human sessions, referenced as deps. Details in docs/hitl/SESSION-*.md.
+humans:
+  H1: { title: "GitHub + AWS account + bootstrap stack + Expo token", status: todo, doc: docs/hitl/SESSION-1.md }
+  H2: { title: "Google Cloud OAuth, test account, Firebase, optional Spotify", status: todo, doc: docs/hitl/SESSION-2.md }
+  H3: { title: "Handwrite and photograph 15 song lists", status: todo, doc: docs/hitl/SESSION-3.md }
+  H4: { title: "Add beta testers and send invites", status: todo, doc: docs/hitl/SESSION-4.md }
+
+tasks:
+
+# ---------------------------------------------------------------- M0a (no AWS)
+- id: M0A-01
+  milestone: M0
+  title: Toolchain and Makefile
+  deps: []
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - pnpm workspaces cover packages/*, services/*, mobile, web, infra, tools
+    - uv workspace retained for the Python exceptions (services/ocr, packages/etl, tools/oracle-py)
+    - strict tsconfig (strict, noUncheckedIndexedAccess, exactOptionalPropertyTypes), ESLint + Prettier
+    - ruff and mypy --strict still green on the remaining Python
+    - make targets exist and work: verify, verify-fast, preflight, gate, golden
+    - make verify covers every package, completes in under 5 minutes, and needs no Docker
+    - CI runs the same commands as make verify (no drift between local and CI)
+  verify: make verify
+  evidence: []
+
+- id: M0A-02
+  milestone: M0
+  title: CDK app with profile context and ProfileAwareFactory
+  deps: [M0A-01]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - "cdk synth succeeds offline for profile in {zero, enterprise} x env in {dev, stage, prod}"
+    - no environment-agnostic context lookups; the account comes from the CI session
+    - ProfileAwareFactory selects transport per profile (Function URL vs API Gateway, SNS vs EventBridge, Lambda saga vs Step Functions)
+    - per-env config carries the PED S11 quota shares, read from infra/free-tier/budget.yaml
+    - a unit test asserts the zero profile synthesizes none of the never-use resources
+  verify: make preflight ENV=dev
+  evidence: []
+
+- id: M0A-03
+  milestone: M0
+  title: SetlistZeroCostPack (cdk-nag)
+  deps: [M0A-02]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - one rule per never-use item in PED S12, each with a stable SZC-* id
+    - every rule has BOTH a failing fixture and a passing fixture under infra/nag/test
+    - the platform stack passes the pack cleanly
+    - make preflight ENV=dev rejects tests/fixtures/nat-stack with rule SZC-NAT
+    - the rule list is asserted against infra/free-tier/budget.yaml never_use, so the two cannot drift
+  verify: make preflight ENV=dev
+  evidence: []
+
+- id: M0A-04
+  milestone: M0
+  title: KICS zero-cost Rego queries
+  deps: [M0A-02]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - one Rego query per SZC rule in security/kics-queries/zero-cost/
+    - positive and negative test samples for each query, run by KICS in CI
+    - the default KICS catalog also runs against infra/cdk.out and the workflow files
+    - zero HIGH or CRITICAL findings on the platform stack
+    - the KICS action is pinned to a release SHA
+  verify: make kics
+  evidence: []
+
+- id: M0A-05
+  milestone: M0
+  title: tools/free-tier-estimate
+  deps: [M0A-02]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - reads infra/free-tier/budget.yaml and usage-model.yaml; no numbers hardcoded in the tool
+    - fails with a non-zero exit when any environment exceeds gate_pct (70%) of any allowance
+    - tests reproduce the PED arithmetic exactly - 15-song playlist = 50 + 15*50 = 800 YouTube units; 7000/day / 800 = 8 playlists/day
+    - tests reproduce the PED S10.8 Lambda and CloudFront bindings
+    - emits a markdown table suitable for a PR comment, sorted by percentage of allowance used
+    - also reports which limit binds first, across AWS and provider quotas together
+  verify: make estimate
+  evidence: []
+
+- id: M0A-06
+  milestone: M0
+  title: Platform and guardrail stacks, kill switch, usage sentinel
+  deps: [M0A-03, M0A-04, M0A-05]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - provisioned DynamoDB per env, WCU/RCU sum across all tables and GSIs at or under 17
+    - SNS domain and provider-command topics with message-attribute filtering (never payload filtering)
+    - Cognito user pool on the Lite/Essentials tier only
+    - CloudFront distribution plus Function URL OAC scaffold; prod marked for the flat-rate Free plan
+    - SSM parameters under /setlist/{env}/{config,flags,secrets}; standard tier only
+    - explicit log retention everywhere - prod 14d, stage 7d, dev 3d
+    - at most 7 alarms in total across all environments
+    - kill-switch Lambda; tests prove it sets concurrency to 0 on every app=setlist function, disables event source mappings and schedules, disables the dev and stage distributions, and writes the event record
+    - usage-sentinel Lambda computes shares from free vended metrics only - never GetMetricData, Logs Insights or Cost Explorer
+    - preflight green for dev, stage and prod
+  verify: make preflight ENV=prod
+  evidence: []
+
+- id: M0A-07
+  milestone: M0
+  title: infra/bootstrap/account-bootstrap.yaml
+  deps: [M0A-03]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - GitHub OIDC provider; per-env deploy roles with sub scoped to environment:<env>
+    - read-only diagnostics role
+    - CloudFormation execution policy AND permission boundary that deny every never-use action
+    - zero-spend actual budget and a forecast budget; exactly two action-enabled budgets, never three
+    - IAM-deny budget action attached to the deploy roles
+    - billing SNS topic with an email subscription; Cost Anomaly Detection monitor
+    - cfn-lint clean and KICS clean
+    - a test asserts the deny list matches PED S12 and infra/free-tier/budget.yaml never_use
+    - every parameter documented in the template Metadata and in SESSION-1.md
+    - no account id, ARN or email is committed - all are template parameters
+  verify: make preflight ENV=dev
+  evidence: []
+
+- id: M0A-08
+  milestone: M0
+  title: GitHub Actions workflows
+  deps: [M0A-01]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - "ci: all branches - lint, types, unit, coverage floors, accuracy gate, KICS, 2MS, CodeQL, Semgrep, OSV-Scanner, Trivy, actionlint, suppression expiry"
+    - "deploy: develop -> dev -> stage; main -> prod using the artifact that passed stage, built from the PR head commit and not rebuilt"
+    - "nightly: 2MS over full history, mutation tests, drift detection, contract canaries, not_before resume issues"
+    - "diagnostics: read-only, workflow_dispatch, prints deployed state for Claude Code"
+    - "sync-secrets: copies GitHub environment secrets into SSM SecureString"
+    - "kill-switch-drill: dev and stage only, never prod"
+    - Dependabot with auto-merge into develop
+    - every action pinned to a full-length commit SHA
+    - KICS and 2MS are blocking; Checkmarx One runs only when CX_ENABLED is set
+    - every workflow no-ops safely while the AWS secrets are absent - proven by a run on a fork-like environment
+  verify: actionlint .github/workflows/*.yml
+  evidence: []
+
+- id: M0A-09
+  milestone: M0
+  title: scripts/hitl/*.sh and SESSION-1.md
+  deps: [M0A-07, M0A-08]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - github-setup.sh adopts the existing public repo (Mandar77/setlist) or creates it, pushes, adds rulesets, environments, labels and Actions settings
+    - session1-finish.sh stores the AWS account id as a GitHub secret and never writes it to disk
+    - set-provider-secrets.sh reads secrets from hidden prompts only, never from argv or a file
+    - all three pass shellcheck with no warnings
+    - all three support --dry-run, printing every call without executing it
+    - SESSION-1.md is click-by-click and contains no identifiers
+  verify: shellcheck scripts/hitl/*.sh
+  evidence: []
+
+- id: M0A-10
+  milestone: M0
+  title: Canary fixtures for the policy gate
+  deps: [M0A-03]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - a NAT-gateway stack fixture and an on-demand DynamoDB stack fixture
+    - preflight rejects both, naming the specific rule id (SZC-NAT, SZC-DDB-ONDEMAND)
+    - a test asserts the rejection happens, so a silently disabled pack fails CI
+  verify: make preflight ENV=dev
+  evidence: []
+
+# ---------------------------------------------------------------- CORE (no AWS)
+- id: CORE-01
+  milestone: CORE
+  title: Freeze the Python core as tools/oracle-py with a CLI
+  deps: []
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - packages/core (Python) moved to tools/oracle-py unchanged
+    - CLI reads text on stdin plus --source-kind and prints deterministic JSON
+    - reproduces every current golden output byte for byte
+    - marked frozen in its README; no new features accepted
+  verify: make -C tools/oracle-py verify
+  evidence: []
+
+- id: CORE-02
+  milestone: CORE
+  title: Seed catalog builder (MusicBrainz)
+  deps: []
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - about 2000 rows in golden/seed/recordings.jsonl, committed
+    - ISRCs present on at least 80% of rows
+    - includes live, remaster and feat. variants, and non-Latin names
+    - rate limited to 1 request/s with a User-Agent carrying the repo URL
+    - resumable - re-running continues rather than restarting
+    - a test asserts the rate limiter is never exceeded
+  verify: pnpm -C tools/seed-catalog test
+  evidence: []
+
+- id: CORE-03
+  milestone: CORE
+  title: Truth-first text generator and golden text set
+  deps: [CORE-02]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - at least 300 generated cases; expected outputs derived only from the seed, never from parser output
+    - covers numbered and bulleted lists, by, CSV, timestamps, both dash orders per source kind, chat and Reddit prose, typos, emoji, odd casing, multilingual
+    - deterministic for a fixed seed
+    - the 8 hand-written M0 cases are retained as a readable smoke corpus
+  verify: make golden
+  evidence: []
+
+- id: CORE-04
+  milestone: CORE
+  title: TypeScript core
+  deps: [CORE-01]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - zod schemas, normalization, deterministic grammar, span grounding, confidence, dedupe
+    - ESLint purity rule - no Node, DOM or React Native APIs in packages/core
+    - matches the oracle on 100% of golden cases and on at least 10000 generated inputs
+    - the only permitted differences are listed in golden/diff-allowlist.yaml and are ADR-002 orientation changes
+    - coverage at least 90%, Stryker at least 70%
+    - all ADR-007 porting notes covered by ported regression tests, including the zero-ordinal crash and both M0 precision bugs
+  verify: pnpm -C packages/core test
+  evidence: []
+
+- id: CORE-05
+  milestone: CORE
+  title: Orientation resolution, parser side (ADR-002)
+  deps: [CORE-04]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - the four-step ladder is implemented - explicit cues, document convention, source-kind prior, alternate below 0.8
+    - sourceKind added to the ingestion contract and threaded through
+    - parser-only orientation accuracy at least 90% on bare-dash lines in the generated set
+    - the 8 original golden cases keep their expected outputs unchanged
+    - alternate readings carry spans that still pass grounding
+  verify: pnpm -C packages/core test
+  evidence: []
+
+- id: CORE-06
+  milestone: CORE
+  title: Engine conformance on Node and Chromium
+  deps: [CORE-04]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - identical outputs for the full golden set on Node (Vitest) and Chromium (Playwright)
+    - NFKC and regex Unicode property escape behaviour asserted explicitly on both
+    - the conformance suite is a reusable export, so M1-04 can run it on Hermes
+  verify: pnpm -C packages/core test:conformance
+  evidence: []
+
+- id: CORE-07
+  milestone: CORE
+  title: Retire the oracle
+  deps: [CORE-05, CORE-06, M1-04]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - tools/oracle-py deleted
+    - its outputs kept as frozen fixtures under golden/
+    - CI green with no reference to the oracle
+  verify: make verify
+  evidence: []
+
+# ---------------------------------------------------------------- M0b (needs H1)
+- id: M0B-01
+  milestone: M0
+  title: Verify the bootstrap stack via diagnostics
+  deps: []
+  status: blocked
+  blocked_on: H1
+  not_before: null
+  done_when:
+    - the diagnostics workflow reports the OIDC provider, per-env deploy roles, diagnostics role, both budgets, the budget action, the billing topic with a confirmed subscription, and the anomaly monitor
+    - the deploy role trust policy is confirmed scoped to environment:<env>
+  verify: gh workflow run diagnostics.yml -f env=dev
+  evidence: []
+
+- id: M0B-02
+  milestone: M0
+  title: cdk bootstrap from CI with the custom execution policy
+  deps: [M0B-01]
+  status: blocked
+  blocked_on: H1
+  not_before: null
+  done_when:
+    - the CDK execution role carries only the Setlist policy, not AdministratorAccess
+    - the permission boundary is attached
+    - bootstrap ran from CI, never locally
+  verify: gh workflow run diagnostics.yml -f env=dev
+  evidence: []
+
+- id: M0B-03
+  milestone: M0
+  title: Deploy platform and guardrails to dev and stage
+  deps: [M0B-02, M0A-06]
+  status: blocked
+  blocked_on: H1
+  not_before: null
+  done_when:
+    - smoke tests green in both environments
+    - the estimator's projection is compared against actuals and the drift is under 25%
+  verify: gh workflow run diagnostics.yml -f env=stage
+  evidence: []
+
+- id: M0B-04
+  milestone: M0
+  title: Kill-switch drill in dev
+  deps: [M0B-03]
+  status: blocked
+  blocked_on: H1
+  not_before: null
+  done_when:
+    - a synthetic billing alert drives every app=setlist function to concurrency 0 in under 5 minutes
+    - schedules and event source mappings are disabled; the dev distribution is disabled
+    - the event is recorded
+    - make unkill restores the previous state and the drill is repeatable
+  verify: gh workflow run kill-switch-drill.yml -f env=dev
+  evidence: []
+
+- id: M0B-05
+  milestone: M0
+  title: Canary pull request with a NAT gateway
+  deps: [M0A-10, M0B-02]
+  status: blocked
+  blocked_on: H1
+  not_before: null
+  done_when:
+    - CI fails the PR naming rule SZC-NAT
+    - the PR is closed, not merged
+    - a link to the failing run is recorded as evidence that the gate works end to end
+  verify: gh run list --branch task/canary-nat --limit 1
+  evidence: []
+
+- id: M0B-06
+  milestone: M0
+  title: Gate M0 and open the release PR
+  deps: [M0A-01, M0A-02, M0A-03, M0A-04, M0A-05, M0A-06, M0A-07, M0A-08, M0A-09, M0A-10, M0B-01, M0B-02, M0B-03, M0B-04, M0B-05]
+  status: blocked
+  blocked_on: H1
+  not_before: null
+  done_when:
+    - docs/reports/M0.md lists every PED M0 exit condition with evidence
+    - FTG passes - projected usage at or under 70% of every always-free limit in all environments, $0.00 actual spend, nag pack and KICS green
+    - prod receives the guardrails only
+    - the develop -> main release PR is open with a human-needed issue asking for the merge
+  verify: make gate M=M0
+  evidence: []
+
+# ---------------------------------------------------------------- M1
+- id: M1-01
+  milestone: M1
+  title: Expo app with three variants
+  deps: [CORE-04]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - app.config.ts reads APP_VARIANT to set package, scheme, API URL and update channel
+    - runtimeVersion uses fingerprint
+    - CI builds three APKs on Linux with eas build --local
+    - all three install side by side on the CI emulator, proven by Maestro
+  verify: pnpm -C mobile test
+  evidence: []
+
+- id: M1-02
+  milestone: M1
+  title: identity service and Cognito sign-in
+  deps: [M0B-03]
+  status: blocked
+  blocked_on: H1
+  not_before: null
+  done_when:
+    - hosted UI with PKCE; tokens stored in expo-secure-store
+    - E2E sign-in against the dev pool using a test user CI creates and deletes
+    - no tokens in logs
+  verify: pnpm -C services/identity test
+  evidence: []
+
+- id: M1-03
+  milestone: M1
+  title: bff service behind CloudFront OAC
+  deps: [M0B-03]
+  status: blocked
+  blocked_on: H1
+  not_before: null
+  done_when:
+    - Function URL with AWS_IAM auth reachable only through CloudFront OAC
+    - JWT verified against a cached JWKS
+    - OpenAPI published; Schemathesis fuzzing against dev finds no 5xx
+    - unauthenticated calls return 401
+  verify: pnpm -C services/bff test
+  evidence: []
+
+- id: M1-04
+  milestone: M1
+  title: Hermes self-test screen
+  deps: [M1-01, CORE-06]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - dev variant only; runs the CORE-06 conformance suite on Hermes
+    - Maestro sees ALL PASS on the CI emulator
+    - any Hermes NFKC or regex Unicode divergence is polyfilled and covered by a test
+  verify: pnpm -C mobile test:hermes
+  evidence: []
+
+- id: M1-05
+  milestone: M1
+  title: MobSF static scan of the APK
+  deps: [M1-01]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - MobSF runs in CI on the built APK
+    - no high findings
+  verify: pnpm -C mobile test:mobsf
+  evidence: []
+
+- id: M1-06
+  milestone: M1
+  title: Gate M1
+  deps: [M1-01, M1-02, M1-03, M1-04, M1-05]
+  status: blocked
+  blocked_on: H1
+  not_before: null
+  done_when:
+    - docs/reports/M1.md lists every PED M1 exit condition with evidence
+    - FTG passes
+  verify: make gate M=M1
+  evidence: []
+
+# ---------------------------------------------------------------- M2
+- id: M2-01
+  milestone: M2
+  title: OCR golden generator
+  deps: [CORE-02]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - at least 600 images across handwriting, print and screenshots, each with ground truth from the seed
+    - OFL or Apache licensed fonts only; licences recorded
+    - augmentations - rotation up to 7 degrees, perspective, blur, glare, JPEG noise, ruled paper, crossed-out lines
+    - deterministic for a fixed seed; images are generated in CI, never committed
+  verify: make golden
+  evidence: []
+
+- id: M2-02
+  milestone: M2
+  title: Capture pipeline
+  deps: [M1-01]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - ML Kit Document Scanner on Android, gallery import, PWA camera via getUserMedia
+    - blur, glare and skew checks with a retake prompt in under 300 ms
+    - EXIF and GPS stripped on device; downscale to 2048 px; HEIC converted on device
+    - a dev-only image-injection seam so tests can bypass system UI
+    - PED S14 payload and privacy tests pass
+  verify: pnpm -C mobile test
+  evidence: []
+
+- id: M2-03
+  milestone: M2
+  title: On-device OCR
+  deps: [M2-02]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - ML Kit v2 on Android with the model bundled in CI
+    - Apple Vision on iOS, built on a macOS runner
+    - Tesseract.js in the PWA
+    - each returns lines, boxes and confidence on the golden images in CI
+  verify: pnpm -C mobile test:ocr
+  evidence: []
+
+- id: M2-04
+  milestone: M2
+  title: ocr-svc server fallback
+  deps: [M0B-03]
+  status: blocked
+  blocked_on: H1
+  not_before: null
+  done_when:
+    - Python, RapidOCR/ONNX, arm64 zip at most 240 MB unzipped, never a container image
+    - in-memory only; /tmp empty after every call, asserted by a test
+    - reserved concurrency 2
+    - p95 under 8 s on 4 MB images in dev; at most 12 GB-s per page
+    - payload, decompression-bomb and polyglot tests pass; MAX_IMAGE_PIXELS enforced
+  verify: uv run pytest services/ocr
+  evidence: []
+
+- id: M2-05
+  milestone: M2
+  title: OCR evaluation harness
+  deps: [M2-01, M2-03, M2-04]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - CER and WER via jiwer, plus song-level F1 through the core
+    - runs on Linux (RapidOCR, Tesseract.js), a macOS runner (Apple Vision via a Swift CLI) and the Android emulator (ML Kit)
+    - nightly docs/reports/ocr-eval.md broken down by engine and image class
+    - regressions against the previous report are flagged
+  verify: make gate M=M2
+  evidence: []
+
+- id: M2-06
+  milestone: M2
+  title: Real handwriting set wired into CI
+  deps: []
+  status: blocked
+  blocked_on: H3
+  not_before: null
+  done_when:
+    - photos encrypted with age into golden/private/; plaintext deleted after encryption
+    - the key is a GitHub secret; decryption happens only in CI runs on develop and main
+    - golden/private/incoming/ is git-ignored
+    - a test asserts no plaintext image is reachable from a public checkout
+  verify: make golden
+  evidence: []
+
+- id: M2-07
+  milestone: M2
+  title: Gate M2
+  deps: [M2-01, M2-02, M2-03, M2-04, M2-05, M2-06]
+  status: blocked
+  blocked_on: H3
+  not_before: null
+  done_when:
+    - CER at most 5% printed and at most 20% handwriting, measured on the REAL set
+    - at most 12 GB-s per page
+    - FTG passes
+  verify: make gate M=M2
+  evidence: []
+
+# ---------------------------------------------------------------- M3
+- id: M3-01
+  milestone: M3
+  title: packages/contracts
+  deps: [CORE-04]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - CloudEvents-style envelope - id, type setlist.<domain>.<Event>.vN, correlationid, idempotencykey, env, data; at most 64 KB
+    - versioned zod schemas with generated JSON Schema for the Python consumers
+    - producer golden samples verified by every consumer in CI
+    - a test asserts message bodies carry identifiers only, never song names or personal data
+    - SNS filtering uses message attributes, never payload filtering
+  verify: pnpm -C packages/contracts test
+  evidence: []
+
+- id: M3-02
+  milestone: M3
+  title: extraction service
+  deps: [M3-01, M0B-03]
+  status: blocked
+  blocked_on: H1
+  not_before: null
+  done_when:
+    - Node; consumes ScanSubmitted, publishes SongsExtracted
+    - imports packages/core directly - no second grammar
+    - zero ungrounded songs on the golden set
+    - replays of the same event are idempotent, proven by a test
+  verify: pnpm -C services/extraction test
+  evidence: []
+
+- id: M3-03
+  milestone: M3
+  title: catalog-matching service
+  deps: [M3-01]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - ISRC first via MusicBrainz behind a 1 request/s token bucket with a descriptive User-Agent
+    - Deezer fallback; the core normalizer for text search
+    - DynamoDB match cache with TTL, storing neutral keys only
+    - PED match targets met on the golden set
+    - a test proves the rate limit is never exceeded, including under concurrency
+  verify: pnpm -C services/catalog-matching test
+  evidence: []
+
+- id: M3-04
+  milestone: M3
+  title: Orientation resolution in matching (ADR-002 step 5)
+  deps: [M3-03, CORE-05]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - alternate readings are checked against free catalogs before any YouTube call
+    - the orientation whose best candidate wins by at least 0.10 is chosen; otherwise the item goes to review
+    - post-matching orientation accuracy at least 98%
+    - a test proves zero YouTube units are spent on orientation
+    - autonomous creation never proceeds on an unresolved orientation
+  verify: pnpm -C services/catalog-matching test
+  evidence: []
+
+- id: M3-05
+  milestone: M3
+  title: YouTube provider simulator
+  deps: [M3-01]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - unit costs identical to the PED - search.list 100, playlists.insert 50, playlistItems.insert 50
+    - models the separate 100/day search.list bucket
+    - reproduces 429 with Retry-After and quotaExceeded
+    - recorded fixtures for contract tests
+  verify: pnpm -C tools/provider-simulator test
+  evidence: []
+
+- id: M3-06
+  milestone: M3
+  title: Gate M3
+  deps: [M3-01, M3-02, M3-03, M3-04, M3-05]
+  status: blocked
+  blocked_on: H1
+  not_before: null
+  done_when:
+    - F1 at least 0.88 printed and at least 0.78 handwriting
+    - zero ungrounded songs
+    - FTG passes
+  verify: make gate M=M3
+  evidence: []
+
+# ---------------------------------------------------------------- M4
+- id: M4-01
+  milestone: M4
+  title: provider-connection and the token vault
+  deps: []
+  status: blocked
+  blocked_on: H2
+  not_before: null
+  done_when:
+    - backend-mediated OAuth; the provider redirect is always HTTPS on the CloudFront domain
+    - AES-256-GCM vault with its data key in SSM SecureString, cached per cold start
+    - the key id is prefixed in the ciphertext so rotation works; a rotation test passes
+    - a test proves no provider token ever reaches the device
+    - no customer-managed KMS key and no Secrets Manager
+  verify: pnpm -C services/provider-connection test
+  evidence: []
+
+- id: M4-02
+  milestone: M4
+  title: yt-adapter
+  deps: [M4-01, M3-05]
+  status: blocked
+  blocked_on: H2
+  not_before: null
+  done_when:
+    - per-env unit bucket enforced in DynamoDB with conditional updates
+    - deferral to a 00:05 PT Scheduler run on quota exhaustion
+    - create, insert and delete implemented; one item per playlistItems.insert
+    - never exceeds its share in a simulator soak, proven by a test
+    - honours Retry-After on 429 with backoff and full jitter
+  verify: pnpm -C services/yt-adapter test
+  evidence: []
+
+- id: M4-03
+  milestone: M4
+  title: playlist-orchestration saga
+  deps: [M3-02, M4-02]
+  status: blocked
+  blocked_on: H2
+  not_before: null
+  done_when:
+    - saga state in DynamoDB with compensation; no Step Functions on the hot path
+    - on-failure destinations to SQS DLQs; redrive via StartMessageMoveTask
+    - exactly one playlist per job under injected faults, proven by a chaos test
+    - Powertools idempotency keyed on jobId+provider for create and jobId+provider+trackBatchHash for add
+  verify: pnpm -C services/playlist-orchestration test
+  evidence: []
+
+- id: M4-04
+  milestone: M4
+  title: Autonomous mode end to end
+  deps: [M4-03, M2-03]
+  status: blocked
+  blocked_on: H2
+  not_before: null
+  done_when:
+    - stage E2E - an injected scan becomes a private playlist on the test account, is verified, then deleted
+    - autonomous creation only when every item is at or above 0.8 and orientation is resolved
+    - wrong-song rate under 3% on the golden set
+  verify: pnpm test:e2e
+  evidence: []
+
+- id: M4-05
+  milestone: M4
+  title: CodeDeploy canary and rollback drill
+  deps: [M4-03]
+  status: blocked
+  blocked_on: H2
+  not_before: null
+  done_when:
+    - Canary10Percent5Minutes in stage with the same alarm configuration as prod, at most 5 prod alarms
+    - the rollback fires on an injected fault, proven by a drill run
+    - a manual rollback path is documented - redeploy the previous release asset
+  verify: gh workflow run deploy.yml -f env=stage
+  evidence: []
+
+- id: M4-06
+  milestone: M4
+  title: Gate M4 and release PR
+  deps: [M4-01, M4-02, M4-03, M4-04, M4-05]
+  status: blocked
+  blocked_on: H2
+  not_before: null
+  done_when:
+    - wrong-song rate under 3%; FTG passes
+    - docs/reports/M4.md written with evidence
+    - the 30-day $0 clock starts and is recorded; the plan upgrade is a separate human decision
+    - the develop -> main release PR is open with a human-needed issue asking for the merge
+  verify: make gate M=M4
+  evidence: []
+
+# ---------------------------------------------------------------- M5
+- id: M5-01
+  milestone: M5
+  title: Offline queue and sync
+  deps: [M1-01]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - SQLite queue holding text, spans and a UUIDv7 idempotency key
+    - backoff from 1 s to 5 min
+    - 10 offline scans produce exactly 10 server-side jobs, proven by a test
+    - parsing works with the network disabled
+  verify: pnpm -C mobile test
+  evidence: []
+
+- id: M5-02
+  milestone: M5
+  title: notification service
+  deps: [M4-03]
+  status: blocked
+  blocked_on: H2
+  not_before: null
+  done_when:
+    - Expo push through FCM plus an in-app inbox
+    - a test asserts no song names or personal data appear in any push payload
+    - push p95 under 60 s in stage
+  verify: pnpm -C services/notification test
+  evidence: []
+
+- id: M5-03
+  milestone: M5
+  title: Share intents and Web Share Target
+  deps: [M2-02]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - Android share intents; Web Share Target in the PWA on Android
+    - iOS Safari Web Share Target support is verified against current documentation and the finding recorded; if absent, the iOS PWA imports via the file picker and PED US-3 is amended
+    - shared text skips OCR; shared images go through OCR
+  verify: pnpm -C web test
+  evidence: []
+
+- id: M5-04
+  milestone: M5
+  title: Gate M5
+  deps: [M5-01, M5-02, M5-03]
+  status: blocked
+  blocked_on: H2
+  not_before: null
+  done_when:
+    - exactly-once sync proven; push p95 under 60 s
+    - FTG passes
+  verify: make gate M=M5
+  evidence: []
+
+# ---------------------------------------------------------------- M6
+- id: M6-01
+  milestone: M6
+  title: packages/etl as a scheduled Lambda
+  deps: [M3-01]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - run(job, source, sink) with a Lambda adapter reading daily EVT# partitions and writing AGG# items
+    - Glue Catalog definitions only; no Glue job or crawler resources under profile=zero, asserted by a test
+    - ETL tests pass against DynamoDB Local
+  verify: uv run pytest packages/etl
+  evidence: []
+
+- id: M6-02
+  milestone: M6
+  title: Weekly re-match on Step Functions Standard
+  deps: [M3-03]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - Standard only; Express is banned
+    - the estimator shows at most 2000 transitions per month in prod
+    - re-matching is idempotent on rerun
+  verify: make estimate
+  evidence: []
+
+- id: M6-03
+  milestone: M6
+  title: PWA paste and scan flows
+  deps: [M2-03, M3-02]
+  status: blocked
+  blocked_on: H1
+  not_before: null
+  done_when:
+    - paste and scan flows with Tesseract.js plus the server fallback
+    - Web Push
+    - Playwright green on both Chromium and WebKit
+    - axe reports no critical accessibility violations
+  verify: pnpm -C web test:e2e
+  evidence: []
+
+- id: M6-04
+  milestone: M6
+  title: Gate M6
+  deps: [M6-01, M6-02, M6-03]
+  status: blocked
+  blocked_on: H1
+  not_before: null
+  done_when:
+    - Step Functions at most 2000 transitions per month; the PWA works on iOS Safari
+    - FTG passes
+  verify: make gate M=M6
+  evidence: []
+
+# ---------------------------------------------------------------- M7 / M8
+- id: M7-01
+  milestone: M7
+  title: Security evidence
+  deps: [M6-04]
+  status: blocked
+  blocked_on: H1
+  not_before: null
+  done_when:
+    - OWASP MASVS L1 evidence recorded; MobSF clean
+    - OWASP ZAP baseline against stage with no high findings
+  verify: make gate M=M7
+  evidence: []
+
+- id: M7-02
+  milestone: M7
+  title: Full golden runs and a 14-day soak
+  deps: [M6-04]
+  status: blocked
+  blocked_on: H3
+  not_before: null
+  done_when:
+    - all golden sets including the real handwriting set
+    - 14-day soak in stage meeting every PED S15 target
+    - crash-free at least 99.5%
+  verify: make gate M=M7
+  evidence: []
+
+- id: M7-03
+  milestone: M7
+  title: Beta release PR and tester onboarding
+  deps: [M7-01, M7-02]
+  status: blocked
+  blocked_on: H4
+  not_before: null
+  done_when:
+    - release PR open with the report; the human merges
+    - testers onboarded; the invite drafted for the human to send
+  verify: make gate M=M7
+  evidence: []
+
+- id: M7-04
+  milestone: M7
+  title: Gate M7
+  deps: [M7-01, M7-02, M7-03]
+  status: blocked
+  blocked_on: H4
+  not_before: null
+  done_when:
+    - every PED M7 exit condition met with evidence
+    - SLOs held for 2 weeks; wrong-song rate under 2%
+  verify: make gate M=M7
+  evidence: []
+
+- id: M8-01
+  milestone: M8
+  title: v1.0.0 release
+  deps: [M7-04]
+  status: blocked
+  blocked_on: H4
+  not_before: null
+  done_when:
+    - APK on GitHub Releases; PWA in prod; release notes written
+    - the release PR is open and the human merges
+  verify: make gate M=M8
+  evidence: []
+
+- id: M8-02
+  milestone: M8
+  title: 30-day observation and final report
+  deps: [M8-01]
+  status: todo
+  blocked_on: null
+  # Set to M8-01's completion date + 30 days when M8-01 lands. The dependency alone
+  # would make this selectable the moment GA ships, which is not what a 30-day
+  # observation window means.
+  not_before: null
+  done_when:
+    - scan-to-playlist success at least 95%
+    - $0.00 actual spend across the whole window
+    - at least 30% headroom on every free-tier limit
+    - docs/reports/M8.md written with evidence
+  verify: make gate M=M8
+  evidence: []
+
+- id: SPOT-01
+  milestone: M8
+  title: Spotify adapter (conditional)
+  deps: [M4-03]
+  status: blocked
+  blocked_on: H2
+  not_before: null
+  done_when:
+    - only started if H2 records that the human holds Spotify Premium
+    - the YouTube E2E passes on Spotify within the 5-user dev-mode cap
+    - coded against the post-February-2026 API surface - search limit max 10, /items not /tracks
+  verify: pnpm -C services/spotify-adapter test
+  evidence: []

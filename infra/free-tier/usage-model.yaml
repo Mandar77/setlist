@@ -1,0 +1,72 @@
+# Unit cost model (PED S10.8).
+#
+# `tools/free-tier-estimate` multiplies these by the projected volumes below and
+# checks the result against budget.yaml. Every number is either measured or marked
+# `estimated` - an estimate that survives to GA unmeasured is a bill waiting to happen.
+#
+# A nightly job compares these against CloudWatch actuals and flags >25% drift.
+
+version: 1
+
+# Cost of one unit of work, per flow.
+operations:
+  on_device_scan:
+    description: Scan parsed entirely on the device; only text and spans are uploaded.
+    lambda_requests: 3
+    lambda_gb_seconds: 0.5
+    dynamodb_wcu_ops: 2
+    sns_publishes: 3
+    cloudfront_requests: 20
+    confidence: estimated       # measure at M2
+
+  server_ocr_page:
+    description: One page through ocr-svc when on-device confidence < 0.6.
+    lambda_requests: 1
+    lambda_gb_seconds: 10.0
+    cloudfront_requests: 2
+    confidence: estimated       # measure at M2; gate is <=12 GB-s/page
+    note: 2048 MB function, ONNX PP-OCR, image held in memory and discarded.
+
+  playlist_job_15_songs:
+    description: Extraction through to a created YouTube playlist.
+    lambda_requests: 12
+    lambda_gb_seconds: 8.0
+    dynamodb_wcu_ops: 20
+    dynamodb_rcu_ops: 35
+    sns_publishes: 8
+    youtube_units: 800          # 50 (playlists.insert) + 15 * 50 (playlistItems.insert)
+    youtube_search_list: 4      # only when ISRC resolution fails
+    xray_traces: 1
+    confidence: estimated       # measure at M4
+
+  review_session:
+    description: A user correcting low-confidence items before creation.
+    lambda_requests: 6
+    lambda_gb_seconds: 1.0
+    cloudfront_requests: 15
+    confidence: estimated
+
+# Projected monthly volume per environment. These drive the CI gate, so they are
+# deliberately pessimistic: under-forecasting is the only direction that costs money.
+volumes:
+  prod:
+    on_device_scan: 30000
+    server_ocr_page: 6000       # 20% fallback rate
+    playlist_job_15_songs: 250  # capped by YouTube units, not by us
+    review_session: 8000
+  stage:
+    on_device_scan: 2000
+    server_ocr_page: 400
+    playlist_job_15_songs: 50
+    review_session: 500
+  dev:
+    on_device_scan: 1000
+    server_ocr_page: 200
+    playlist_job_15_songs: 30
+    review_session: 200
+
+# Fixed monthly overheads independent of traffic.
+baseline:
+  prod: { cloudwatch_logs_gb: 2.0, xray_traces: 5000, kms_requests: 3000 }
+  stage: { cloudwatch_logs_gb: 0.5, xray_traces: 1000, kms_requests: 1000 }
+  dev: { cloudwatch_logs_gb: 0.3, xray_traces: 500, kms_requests: 1000 }
