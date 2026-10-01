@@ -39,7 +39,7 @@ setup: ## Install the pinned toolchains and all workspace packages
 
 ## ------------------------------------------------------------------ the gate
 
-verify: lint lint-ts types types-ts test-unit test-ts test-accuracy toolchain \
+verify: lint lint-ts lint-cfn types types-ts test-unit test-ts test-accuracy toolchain \
         ledger links eol suppressions guard no-secrets ## Full local gate; no Docker required
 	@echo "verify OK"
 
@@ -211,6 +211,12 @@ estimate: node_modules ## Fail if projected usage exceeds the gate in infra/free
 	@# shared across all three environments, so passing dev while prod is over its share
 	@# is precisely the wrong answer. Use `--env` directly for a focused report.
 	cd tools/free-tier-estimate && node --import tsx src/cli.ts
+
+lint-cfn: node_modules ## cfn-lint the hand-uploaded bootstrap template, and check it is current
+	@# Generated from infra/bootstrap/template.ts, so the file reviewed in a diff must be
+	@# the one built from the deny list the tests assert against.
+	cd infra && pnpm exec tsx bootstrap/generate.ts --check
+	$(UV) run cfn-lint infra/bootstrap/account-bootstrap.yaml
 
 ## preflight: run before PUSHING infrastructure changes. Deploys happen only in CI.
 preflight: verify nag kics estimate

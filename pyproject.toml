@@ -18,6 +18,10 @@ dev = [
     "hypothesis>=6.122",
     "mypy>=1.14",
     "ruff>=0.9",
+    # CloudFormation linting for infra/bootstrap/account-bootstrap.yaml, the one
+    # template a human uploads by hand. cfn-lint is Python-only; there is no Node
+    # equivalent, which is why ADR-004 tolerates it here.
+    "cfn-lint>=1.22",
 ]
 
 [tool.uv.workspace]

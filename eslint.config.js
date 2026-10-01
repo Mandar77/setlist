@@ -127,7 +127,14 @@ export default tseslint.config(
   {
     // CLI entrypoints: stdout is the interface, not a debugging leftover. Mirrors the
     // `tools/**` exemption for T201 on the Python side.
-    files: ['tools/**/*.{js,mjs,ts}'],
+    // `infra/bootstrap/generate.ts` and the estimator CLI are the same thing wearing a
+    // different path: command-line entrypoints whose output IS the product.
+    files: [
+      'tools/**/*.{js,mjs,ts}',
+      'infra/bootstrap/generate.ts',
+      'infra/**/cli.ts',
+      '**/src/cli.ts',
+    ],
     rules: {
       'no-console': 'off',
     },

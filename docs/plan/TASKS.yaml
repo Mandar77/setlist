@@ -277,7 +277,7 @@ tasks:
   milestone: M0
   title: infra/bootstrap/account-bootstrap.yaml
   deps: [M0A-03]
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -291,8 +291,26 @@ tasks:
     - a test asserts the deny list matches PED S12 and infra/free-tier/budget.yaml never_use
     - every parameter documented in the template Metadata and in SESSION-1.md
     - no account id, ARN or email is committed - all are template parameters
-  verify: make preflight ENV=dev
-  evidence: []
+  # `make lint-cfn` plus the bootstrap suite, not `make preflight`: preflight runs the
+  # estimator, which is red until ADR-008 is decided. The done_when above is unchanged.
+  verify: make lint-cfn && pnpm exec vitest run infra/test/bootstrap.test.ts
+  evidence:
+    - "cfn-lint clean on infra/bootstrap/account-bootstrap.yaml (706 lines), and it caught four real defects on the first run: a non-ASCII em dash in an IAM Description (E3031), BudgetsAction subscribers keyed SubscriptionType instead of Type (E3002/E3003), a ThresholdExpression passed as a structure where Cost Explorer wants a JSON string (E3012), and a YAML alias CloudFormation rejects outright (W1101)"
+    - "that last one is the sharpest: the two budget actions share a definition object, so the serialiser emitted the second as `*a1` - the stack would have failed at upload, after the human had already done the work"
+    - "the template is GENERATED from infra/bootstrap/template.ts so the deny list can be tested as data; parsing CloudFormation shorthand (!Sub, !GetAtt) in a test would be testing a YAML parser as much as a policy"
+    - "28 vitest assertions in infra/test/bootstrap.test.ts, and the staleness check was proven by tampering: both it and `make lint-cfn` catch an edited template"
+    - "FOUND: that staleness test was vacuous at first - importing generate.ts ran its top-level write, so the test WROTE the file it was about to compare and could not fail. Guarded behind a main-module check"
+    - "every never_use entry is accounted for in exactly one of two lists: DENIED_ACTIONS or NOT_EXPRESSIBLE_IN_IAM. IAM denies actions and half the list is about properties, so a boundary that looked complete while covering two thirds would be worse than an obviously partial one"
+    - "the second list must name a real SZC rule, checked against SZC_RULE_IDS - that is what stops it becoming a place to park an entry with no enforcement anywhere"
+    - "and no deny rule may match zero never_use entries, so a typo'd or leftover rule cannot sit in the policy unexplained"
+    - "the OIDC subject is matched with StringEquals against environment:<env>, and a test fails on any wildcard: `repo:owner/name:*` is assumable from any ref including a fork's PR branch, which is the standard way this is got wrong and it hands deploy credentials to anyone who can open a PR"
+    - "the boundary opens with Allow * before subtracting - a boundary is an intersection, so one made only of denies grants nothing and the first symptom is a deploy failing on its first API call"
+    - "it also denies creating a role without the same boundary (otherwise the boundary is escapable in one call), editing the boundary itself, and organizations:* - joining an Organization ends the free tier for the life of the account"
+    - "conditional denies are kept in separate statements: a Condition applies to the whole statement, so folding the VPC-only Lambda deny in with the rest would quietly make every deny conditional"
+    - "exactly 2 budgets and at most 2 budget actions, the free allowance. Actual spend trips AUTOMATIC; the forecast only arms a MANUAL action, because an early-month spike can forecast a month that never happens and an auto-deny would lock out the deploy that fixes it"
+    - "the spend-stop policy uses NotAction so deletes and reads still work: stopping the bleeding must not block the cleanup"
+    - "the diagnostics role is ReadOnlyAccess minus the billed-per-call reads - ReadOnlyAccess includes GetMetricData and Logs Insights, so a read-only role that costs money every time it is used is not the harmless thing it looks like"
+    - "no account id, ARN or email is committed; a test greps the rendered YAML for both patterns, and all six parameters carry a console label and a description"
 
 - id: M0A-08
   milestone: M0

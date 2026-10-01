@@ -134,10 +134,16 @@ deploy without any long-lived keys, plus the budgets and the deny guardrails.
 
 1. Open the **CloudFormation** console → **Create stack** → **With new resources**.
 2. Upload `infra/bootstrap/account-bootstrap.yaml` from this repo.
-3. Fill in the parameters:
-   - `GitHubOwner` — your GitHub username
-   - `GitHubRepo` — `setlist`
-   - `AlertEmail` — where billing alarms should go
+3. Fill in the parameters. The three with defaults are fine as they are:
+
+   | Parameter | What to enter |
+   | --- | --- |
+   | `GitHubOwner` | your GitHub username |
+   | `GitHubRepo` | `setlist` |
+   | `AlertEmail` | where billing alarms should go |
+   | `CreateOidcProviderParam` | `Yes` on a fresh account. **`No`** if this account already trusts GitHub Actions — an account can hold only one provider for a given URL, and a second one fails the stack with `EntityAlreadyExists` |
+   | `ZeroSpendThresholdUsd` | `1`. AWS Budgets rejects a limit below $1, so the alert fires at 1% of it — a cent |
+   | `ForecastThresholdUsd` | `5`. Forecast spend that emails you and arms the manual deny |
 4. Tick **"I acknowledge that AWS CloudFormation might create IAM resources"**, then
    **Create stack**.
 5. **Check your email and confirm the SNS subscription.** An unconfirmed subscription
@@ -148,6 +154,22 @@ deploy roles, a read-only diagnostics role, the deny guardrails, a **zero-spend 
 and a forecast budget** (one with an IAM-deny action), the billing SNS topic, and a
 **Cost Anomaly Detection monitor**. Never add a third action-enabled budget — the first
 two are free, after which they are billed.
+
+Two details worth knowing, because both are deliberate:
+
+- The **actual**-spend action trips automatically; the **forecast** one only arms and
+  waits for you to approve it. A forecast is a projection, and an early-month spike can
+  forecast a month that never happens — an automatic deny there would lock out the very
+  deploy that fixes it.
+- The roles trust `repo:<you>/setlist:environment:<env>`, matched exactly. So the
+  **GitHub environments must exist and be named `dev`, `stage`, `prod` and
+  `diagnostics`** — `scripts/hitl/github-setup.sh` creates them. A role is assumable
+  only from its own environment, which is what keeps a dev deploy from touching prod.
+
+6. When the stack finishes, open its **Outputs** tab. The role ARNs there go into the
+   matching GitHub environment secrets; `scripts/hitl/session1-finish.sh` prompts for
+   them. They are ARNs containing the account id, so **do not paste them into chat** —
+   the script reads them from a hidden prompt.
 
 ## 5. Free Tier alerts (2 min)
 
