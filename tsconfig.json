@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "docs": [
+    "Workspace build root. `tsc --build` here type-checks every referenced project in",
+    "dependency order and caches per project, so `make types` stays fast as the",
+    "workspace grows.",
+    "",
+    "Add each new TypeScript package to `references` as it lands. A package missing",
+    "from this list still lints, but is NOT type-checked by `make verify` — which is",
+    "the quiet way to end up with an unchecked package, so the CI job asserts that",
+    "every workspace member with a tsconfig.json appears here."
+  ],
+
+  "files": [],
+  "references": [{ "path": "tools/toolchain-smoke" }]
+}

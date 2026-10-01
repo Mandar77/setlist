@@ -107,7 +107,7 @@ tasks:
   milestone: M0
   title: Toolchain and Makefile
   deps: [PREP-01, PREP-02, PREP-03]
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -115,11 +115,20 @@ tasks:
     - uv workspace retained for the Python exceptions (services/ocr, packages/etl, tools/oracle-py)
     - strict tsconfig (strict, noUncheckedIndexedAccess, exactOptionalPropertyTypes), ESLint + Prettier
     - ruff and mypy --strict still green on the remaining Python
-    - make targets exist and work: verify, verify-fast, preflight, gate, golden
+    - "make targets exist and work: verify, verify-fast, preflight, gate, golden"
     - make verify covers every package, completes in under 5 minutes, and needs no Docker
     - CI runs the same commands as make verify (no drift between local and CI)
   verify: make verify
-  evidence: []
+  evidence:
+    - "pnpm workspace (pnpm-workspace.yaml) globs packages/*, services/*, tools/*, mobile, web, infra; esbuild is the only allowed postinstall and says why"
+    - "uv workspace narrowed from globs to the four named Python exceptions - services/* would otherwise have claimed every TypeScript service"
+    - "tsconfig.base.json: strict + noUncheckedIndexedAccess + exactOptionalPropertyTypes + 8 more; ESLint flat config with a packages/core purity rule (no node:*, no react/expo/aws-sdk, no window/document/process) enforcing ADR-001"
+    - "ruff and mypy --strict green on the 29 remaining Python source files"
+    - "make verify now spans both languages: lint lint-ts types types-ts test-unit test-ts test-accuracy toolchain ledger links eol suppressions guard no-secrets"
+    - "make verify completes in 42s with no Docker, against a 5-minute budget"
+    - "CI runs `make verify` itself rather than a re-listed copy of its steps, so drift is structurally impossible; the hygiene job keeps only what verify deliberately omits (full-history scan, shellcheck, actionlint)"
+    - "tools/toolchain-smoke proves the gates are not vacuous: 4 fixtures that must be rejected, a control that must compile, and a check that every tsconfig.json is referenced from the root"
+    - "the smoke suite caught itself being vacuous - execFileSync('pnpm') throws ENOENT on Windows, so every check 'failed' and every fixture looked rejected while nothing ran; it now invokes tool entrypoints via process.execPath and treats a launch failure as an abort, never a verdict"
 
 - id: M0A-02
   milestone: M0

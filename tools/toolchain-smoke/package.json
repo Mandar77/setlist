@@ -1,0 +1,11 @@
+{
+  "name": "@setlist/toolchain-smoke",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Proves the TypeScript/ESLint gates actually reject bad code. Not shipped.",
+  "scripts": {
+    "typecheck": "tsc --build",
+    "test": "node ./check.js"
+  }
+}

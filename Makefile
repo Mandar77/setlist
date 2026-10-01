@@ -17,12 +17,14 @@ SHELL := /bin/bash
 export PYTHONUTF8 := 1
 
 UV := python -m uv
+PNPM := pnpm
 ENV ?= dev
 PROFILE ?= zero
 M ?=
 
 .DEFAULT_GOAL := help
 .PHONY: help setup verify verify-fast test test-unit test-accuracy lint fmt types cov \
+        lint-ts fmt-ts types-ts test-ts toolchain \
         mutate ledger links eol suppressions guard no-secrets secrets-history golden \
         synth nag kics estimate preflight gate unkill clean
 
@@ -33,13 +35,15 @@ help: ## Show available targets
 setup: ## Install the pinned toolchains and all workspace packages
 	$(UV) python install 3.13
 	$(UV) sync --all-packages
+	$(PNPM) install
 
 ## ------------------------------------------------------------------ the gate
 
-verify: lint types test-unit test-accuracy ledger links eol suppressions guard no-secrets ## Full local gate; no Docker required
+verify: lint lint-ts types types-ts test-unit test-ts test-accuracy toolchain \
+        ledger links eol suppressions guard no-secrets ## Full local gate; no Docker required
 	@echo "verify OK"
 
-verify-fast: lint types test-unit ## Lint, types and unit tests only
+verify-fast: lint lint-ts types types-ts test-unit test-ts ## Lint, types and unit tests only
 	@echo "verify-fast OK"
 
 ## ------------------------------------------------------------------ tests
@@ -73,6 +77,32 @@ fmt: ## Apply formatting and safe autofixes
 
 types: ## mypy --strict
 	$(UV) run mypy
+
+## --------------------------------------------------------------- TypeScript
+## Per ADR-004 this is the default language; the Python above is the exception.
+
+lint-ts: node_modules ## ESLint + Prettier across the workspace
+	$(PNPM) exec eslint .
+	$(PNPM) exec prettier --check .
+
+fmt-ts: node_modules ## Apply ESLint fixes and Prettier formatting
+	$(PNPM) exec eslint . --fix
+	$(PNPM) exec prettier --write .
+
+types-ts: node_modules ## tsc --build across every referenced project
+	$(PNPM) exec tsc --build
+
+test-ts: node_modules ## Vitest across the workspace
+	$(PNPM) exec vitest run --passWithNoTests
+
+toolchain: node_modules ## Prove the TS/ESLint gates actually reject bad code
+	node tools/toolchain-smoke/check.js
+
+## Install on demand, and only when the manifests are newer than the tree. Without
+## this, every TS target above fails confusingly on a fresh clone.
+node_modules: package.json pnpm-lock.yaml
+	$(PNPM) install --frozen-lockfile
+	@touch node_modules
 
 ledger: ## Validate docs/plan/TASKS.yaml (ids, deps, cycles, evidence)
 	$(UV) run --with pyyaml python tools/check_ledger.py

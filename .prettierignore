@@ -1,0 +1,28 @@
+node_modules/
+dist/
+cdk.out/
+coverage/
+.venv/
+.cache/
+pnpm-lock.yaml
+uv.lock
+
+# Prose and hand-maintained config.
+#
+# Prettier owns code — TypeScript, JavaScript, JSON. It does not own the prose, and
+# the line is drawn deliberately rather than by omission:
+#
+#   * Markdown here uses meaningful line breaks, aligned tables and callouts written
+#     to a 100-column budget. Reflowing them produces large diffs that say nothing,
+#     and PRD.md / PED.md are transcriptions where fidelity to the source matters.
+#   * YAML here is read by tools (TASKS.yaml, budget.yaml, usage-model.yaml) and by
+#     people deciding whether a gate is right. Its shape is part of its argument.
+#
+# The docs are not ungated: links, anchors and line endings are all checked by
+# `make verify`. They are just not reformatted.
+*.md
+*.yaml
+*.yml
+
+# Deliberately ill-formed; they exist to prove the gates are not vacuous.
+tools/toolchain-smoke/fixtures/

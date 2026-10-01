@@ -21,7 +21,19 @@ dev = [
 ]
 
 [tool.uv.workspace]
-members = ["packages/*", "services/*", "services/adapters/*"]
+# Named, not globbed. ADR-004 makes Node the default and Python the exception, so a
+# glob like `services/*` would claim every TypeScript service for the Python workspace
+# — and `services/adapters/*` referred to a layout that no longer exists.
+#
+# The exceptions, and why each one is allowed to be Python:
+#   packages/core    — moves to TypeScript at CORE-04; becomes tools/oracle-py (CORE-01)
+#   packages/etl     — must stay Glue-compatible
+#   services/ocr     — RapidOCR is Python-first; it returns raw lines and holds no grammar
+#   tools/oracle-py  — the frozen reference implementation, deleted at CORE-07
+#
+# A member listed here that does not exist yet is simply not resolved, so entries can
+# land before their directories do.
+members = ["packages/core", "packages/etl", "services/ocr", "tools/oracle-py"]
 
 [tool.uv.sources]
 setlist-core = { workspace = true }

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "docs": [
+    "Shared compiler settings. Every workspace package extends this and adds only its",
+    "own paths, so a strictness setting is changed in one place or not at all.",
+    "",
+    "The strictness here is not decoration. packages/core computes character spans into",
+    "normalized text and is the single grammar shared by the device, the PWA and Node",
+    "Lambdas (ADR-001). An off-by-one or an undefined that only appears on one engine is",
+    "exactly the class of bug the type system should be catching for free."
+  ],
+
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "useUnknownInCatchVariables": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
+    "incremental": true,
+
+    "resolveJsonModule": true
+  },
+
+  "exclude": ["node_modules", "dist", "cdk.out", "coverage"]
+}

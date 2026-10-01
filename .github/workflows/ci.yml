@@ -25,7 +25,7 @@ env:
 
 jobs:
   quality:
-    name: Lint, types, tests
+    name: make verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,19 +38,27 @@ jobs:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
 
-      - name: Install the pinned toolchain
-        run: uv sync --all-packages --frozen
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
 
-      - name: Lint
+      - name: Install the pinned toolchains
         run: |
-          uv run ruff check . --output-format=github
-          uv run ruff format --check .
+          uv sync --all-packages --frozen
+          pnpm install --frozen-lockfile
 
-      - name: Type check
-        run: uv run mypy
+      # Run the gate itself rather than a copy of its steps. Re-listing ruff, mypy,
+      # eslint, tsc and the rest here is how CI and local drift apart: a check added to
+      # one and forgotten in the other passes locally and fails in review, or worse,
+      # the reverse. `make verify` is the single definition; this runs it.
+      - name: make verify
+        run: make verify
 
       - name: Unit tests with coverage gate
-        # Fails under 85% line coverage; packages/core is held to 90% separately below.
+        # Not part of `make verify` — coverage instrumentation roughly doubles the
+        # runtime, and verify has a sub-5-minute budget it has to keep.
         run: uv run pytest --cov --cov-report=term-missing --cov-report=xml -q
 
       - name: Core coverage gate (>=90%)
@@ -121,8 +129,11 @@ jobs:
     permissions:
       security-events: write
     strategy:
+      fail-fast: false
       matrix:
-        language: [python]
+        # TypeScript is the default language (ADR-004); Python is the exception. Both
+        # are scanned.
+        language: [python, javascript-typescript]
     steps:
       - uses: actions/checkout@v4
       - uses: github/codeql-action/init@v3
@@ -157,33 +168,17 @@ jobs:
         with:
           version: ${{ env.UV_VERSION }}
 
-      # A broken ledger silently breaks the autopilot loop: it picks the wrong next
-      # task, or skips work that was never actually done.
-      - name: Validate the task ledger
-        run: uv run --with pyyaml python tools/check_ledger.py
-
-      # The docs cite each other and the specs, and the loop follows those citations.
-      # A dead link is a silent instruction to read something that does not exist.
-      - name: Markdown links and anchors
-        run: uv run python tools/check_links.py --anchors
-
-      # Git normalises on commit, so CRLF in the working tree is invisible to `git
-      # diff` while breaking shebangs, shellcheck and character-span offsets.
-      - name: Line endings
-        run: uv run python tools/check_line_endings.py
-
-      # ADR-005's guarantees are only as good as the guard that enforces them.
-      - name: PreToolUse guard still blocks what it must
-        run: bash tools/test-guard-hook.sh
-
-      # A suppression that outlives its expiry is an unreviewed risk, so the build
-      # fails rather than quietly carrying it.
-      - name: Suppression expiry
-        run: uv run --with pyyaml python tools/check_suppressions.py
+      # Everything here is deliberately NOT in `make verify` — either because it needs
+      # the full history, or because it needs a tool `verify` must not depend on
+      # (verify has to run offline, Docker-free, in under five minutes). The checks
+      # verify does run — ledger, links, line endings, suppressions, the guard — are
+      # not repeated here; the `quality` job runs them by running verify itself.
 
       # Complements 2MS: this also catches account ids, ARNs and personal data, which
-      # ADR-005 bans from a public repository and most secret scanners ignore.
-      - name: No secrets or personal data
+      # ADR-005 bans from a public repository and most secret scanners ignore. The
+      # --history form additionally checks commit author identities, which nothing
+      # else looks at. `make verify` runs the cheaper --staged form.
+      - name: No secrets, personal data, or undeclared commit identities
         run: uv run python tools/check_no_secrets.py --history
 
       - name: Shell scripts

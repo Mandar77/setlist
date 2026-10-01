@@ -63,3 +63,7 @@ tmp/
 
 # Editor-local
 .vscode/
+
+# Node / pnpm
+node_modules/
+*.tsbuildinfo

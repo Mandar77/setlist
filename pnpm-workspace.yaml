@@ -1,0 +1,28 @@
+# pnpm workspace members.
+#
+# Globs rather than an explicit list: a new service must not need a second edit here
+# to be built, linted and type-checked. `make verify` walks whatever this resolves to,
+# so a package that exists is a package that is gated.
+#
+# Python lives in a parallel uv workspace (pyproject.toml). The two do not overlap:
+# per ADR-004 the only Python is services/ocr, packages/etl and the temporary
+# tools/oracle-py, and none of those carries a package.json.
+
+packages:
+  - "packages/*"
+  - "services/*"
+  - "mobile"
+  - "web"
+  - "infra"
+  - "tools/*"
+# Postinstall scripts, decided explicitly rather than left to a default.
+#
+# pnpm blocks dependency build scripts unless named here, which is the right default
+# for a repo that runs `pnpm install` in CI: a postinstall script is arbitrary code
+# execution at dependency-resolution time.
+#
+# esbuild is allowed because it genuinely needs one — it downloads its platform binary
+# — and because Vitest cannot run without it. Everything else stays blocked. Adding a
+# line here is a supply-chain decision and should be reviewed as one.
+allowBuilds:
+  esbuild: true
