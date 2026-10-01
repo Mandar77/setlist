@@ -83,6 +83,21 @@ The recommended IaC is **AWS CDK (TypeScript)**; CI/CD is **GitHub Actions with 
 - IaC = AWS CDK (TypeScript). CI/CD = GitHub Actions + OIDC. Separate dev/stage/prod accounts + a shared tooling account under AWS Organizations.
 - Extraction = deterministic parsers + Claude on Bedrock (hybrid).
 
+> **Three of these assumptions are superseded**, and they are the ones most likely to
+> be acted on by mistake, since an assumptions list reads as settled:
+>
+> | Assumption above | Now | Why |
+> | --- | --- | --- |
+> | Separate accounts under **AWS Organizations** | **One account**, per-environment stacks | Joining an Organization upgrades a free-plan account to paid and expires its Free Tier credits immediately ([PED](PED.md) D15) |
+> | **Python 3.13** for Lambda and Glue | **Node/TypeScript** by default; Python only for `services/ocr` and `packages/etl` | [ADR-004](adr/0004-language-map.md) — one grammar, one toolchain |
+> | Extraction = deterministic parsers **+ Claude on Bedrock** | Deterministic parser by default; Bedrock behind a flag | Bedrock has no free tier ([PED](PED.md) D9) |
+>
+> Unchanged and still correct: CDK in TypeScript, GitHub Actions with OIDC, multi-tenant
+> SPA + REST, serverless-first and event-driven, and per-environment provider apps.
+>
+> The **runtime/version facts** below still apply to the Python that survives, and Glue
+> targeting is moot while Glue jobs are flagged off ([PED](PED.md) D8).
+
 **Runtime/version facts** (verified Sep 2026).
 
 - **AWS Lambda Python 3.13:** GA announced Nov 14, 2024 ("the latest long-term support (LTS) release of Python … expected to be supported for security and bug fixes until October 2029"); runtime release listed Nov 18, 2024. Python 3.14 added Nov 18, 2025. We standardize on **3.13** (stable, Powertools-supported). Python 3.15 is public preview only — not for production.
@@ -156,20 +171,20 @@ The recommended IaC is **AWS CDK (TypeScript)**; CI/CD is **GitHub Actions with 
 
 ## 7. System Architecture
 
-> **Superseded in its entirety — [PED](PED.md) §10.** The PED re-selects nearly every
-> service in this section to reach $0: API Gateway → Lambda Function URLs behind
+> **Service selection superseded — [PED](PED.md) §10.** The PED re-selects nearly every
+> service named in this section to reach $0: API Gateway → Lambda Function URLs behind
 > CloudFront OAC (D1); EventBridge bus → SNS (D3); Step Functions on the hot path →
 > a Lambda saga (D4); SQS pollers → SNS→Lambda with DLQ destinations (D5); KMS CMK →
 > SSM SecureString (D7); S3 lake + Glue + Athena → a scheduled Lambda ETL (D8);
 > Bedrock → the deterministic parser (D9); Secrets Manager + AppConfig → SSM Parameter
 > Store (D10–11); WebSocket → push + polling (D1).
 >
-> **The sections below remain load-bearing** because they specify *behaviour* rather
-> than *services*, and the PED does not restate them: **7.7** (the data model),
-> **7.8** (the provider adapter contract and capability table), **7.9** (the extraction
-> algorithm), **7.10** (the matching algorithm) and **7.11** (rate limiting,
-> idempotency, error handling). Read those as current; read 7.1–7.6 and 7.12 as the
-> enterprise-profile design.
+> **Read this section in two halves.**
+>
+> | Sub-sections | Status |
+> | --- | --- |
+> | **7.1–7.6, 7.12** | Superseded. They describe the enterprise profile — accurate for `-c profile=enterprise`, not for what gets built. |
+> | **7.7–7.11** | **Current.** They specify *behaviour* rather than *services*, so the PED does not restate them: the data model, the provider adapter contract and its verified capability table, and the extraction, matching and idempotency algorithms. Individual storage choices inside 7.7 are amended where the PED changes them, and those amendments are marked in place. |
 
 ### 7.1 Architecture diagram
 
@@ -229,11 +244,15 @@ TTL on match cache and rate buckets. GSI1: user→jobs; GSI2: job→low-confiden
 
 **Token storage decision.** Use **DynamoDB + KMS envelope encryption**, not one Secrets Manager secret per user. AWS Secrets Manager is priced at **$0.40 per secret per month plus $0.05 per 10,000 API calls** (uniform across regions), so per-user secrets are untenable at scale (10k users ≈ $4,000/month in secret storage alone vs. cents in DynamoDB). One shared KMS key with per-item data keys gives equivalent protection with auditable IAM + KMS grants. Refresh handling: Spotify refresh tokens carry a six-month reauthorization horizon (2026 change) — a scheduled Lambda re-prompts before expiry; Apple developer token is regenerated ≤6 months; Amazon access token is refreshed every hour.
 
-> **Superseded — [PED](PED.md) D6 and D7.** The single table becomes **provisioned**
-> (≤17 WCU/RCU total across every table and index), with an IAM `LeadingKeys` prefix per
-> service. The KMS CMK becomes an AES-256-GCM data key held in an SSM SecureString and
-> cached per cold start: a customer-managed key costs $1/month, which is not $0. The
-> reasoning against per-user Secrets Manager secrets is unchanged and now stronger —
+> **Amended — [PED](PED.md) D6 and D7.** The single-table design, the key layout, the
+> GSIs and the TTLs above are all current. Two storage choices inside it change:
+>
+> - the table becomes **provisioned** (≤17 WCU/RCU total across every table *and*
+>   index, shared account-wide), with an IAM `LeadingKeys` prefix per service;
+> - the KMS CMK becomes an **AES-256-GCM data key held in an SSM SecureString**, cached
+>   per cold start — a customer-managed key costs $1/month, which is not $0.
+>
+> The reasoning against per-user Secrets Manager secrets is unchanged and now stronger:
 > Secrets Manager is banned outright.
 
 ### 7.8 Provider adapter interface
@@ -458,6 +477,12 @@ Prefer official audio / "Topic" channel results via channel/title heuristics.
 
 **Testing/quality.** Coverage ≥85%; mutation ≥60% core; flaky-test rate <1%; defect escape rate <5%/release; E2E pass ≥98%.
 
+> **Amended — [PED](PED.md) §14, [ADR-004](adr/0004-language-map.md).** The mutation
+> floor rose: **Stryker ≥70% on `packages/core` and ≥65% elsewhere; mutmut ≥70%** for
+> the Python that remains. The ≥60% above is superseded — see
+> [`../CLAUDE.md`](../CLAUDE.md) for the floors actually enforced. Everything else in
+> this block stands.
+
 **DORA.** Deploy frequency: daily to dev, ≥weekly to prod; lead time <1 day; change failure rate <15%; MTTR <1 h.
 
 > **Superseded — [PED](PED.md) §15.** Availability drops to 99.5%, cost/playlist to
@@ -563,7 +588,9 @@ setlist/
 - Approve stage/prod deployments in GitHub Environments.
 
 > **Superseded — [PED](PED.md) §18 and [ADR-005](adr/0005-credentials-branches-deploys.md).**
-> The monorepo layout is expanded (17 services, `mobile/`, `tools/`, `security/`,
+> The monorepo layout is expanded (the PED's 13 catalog rows become 15 service
+> directories, since the adapters share one row, plus `kill-switch` and
+> `usage-sentinel` — 17 in all — with `mobile/`, `tools/`, `security/`,
 > `packages/{contracts,etl,api-client}`) and `packages/core` is TypeScript. The hook is
 > not a formatter or a preflight wrapper: it is a **guard that blocks `aws`,
 > `cdk`/`sam deploy`, force pushes, pushes to `main`, `gh pr merge` and `gh secret`

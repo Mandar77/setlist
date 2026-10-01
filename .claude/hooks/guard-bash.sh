@@ -56,6 +56,14 @@ if [[ -z "$cmd" ]]; then
   block "the command could not be read from the hook payload"
 fi
 
+# A newline separates commands exactly as ';' does. Without this, every check below
+# silently means "first line only", and a perfectly ordinary two-line command —
+# `cd infra` then an AWS call — walks straight through. Normalising here fixes every
+# rule at once rather than each rule's own separator class.
+cmd="${cmd//$'\r\n'/; }"
+cmd="${cmd//$'\n'/; }"
+cmd="${cmd//$'\r'/; }"
+
 check() { if [[ $cmd =~ $1 ]]; then block "$2"; fi; }
 
 sep='(^|[;&|(`]|\$\()[[:space:]]*'

@@ -209,11 +209,36 @@ if [[ "$(git -C "$ROOT" rev-parse --is-shallow-repository)" != "false" ]]; then
   die "this is a shallow clone, so history cannot be scanned. Run: git fetch --unshallow"
 fi
 
-# 2MS binds 2MS_*-prefixed environment variables automatically, and several of them
-# turn a finding into a clean exit with no output at all.
+# Commit identities, before the content scans. 2MS reads diff content and never looks
+# at author/committer headers, so without this the address git stamps on every commit
+# is the one piece of personal data in the repository that nothing checks — while the
+# gate prints "clean". It is also the only finding here that cannot be fixed after a
+# push, which is why it runs first.
+if command -v python >/dev/null 2>&1 || command -v python3 >/dev/null 2>&1; then
+  PY="$(command -v python || command -v python3)"
+  if ! "$PY" "${ROOT}/tools/check_no_secrets.py" --history; then
+    die "see above. Nothing was pushed."
+  fi
+else
+  die "python is required to check commit identities and repository content."
+fi
+
+# 2MS binds 2MS_*-prefixed environment variables automatically (viper AutomaticEnv), and
+# several of them — 2MS_IGNORE_ON_EXIT, 2MS_IGNORE_RULE, 2MS_ALLOWED_VALUES,
+# 2MS_MAX_SECRET_SIZE — turn a finding into a clean exit with no output whatsoever.
+#
+# `unset` cannot remove these: a name starting with a digit is not a valid shell
+# identifier, so `unset 2MS_IGNORE_ON_EXIT` is a silent no-op while the variable stays
+# in the environment the child inherits. `env -u` removes them by name regardless, so
+# the scan runs with them stripped rather than merely wished away.
+SCRUB=()
 while read -r stale; do
-  if [[ -n "$stale" ]]; then unset "$stale"; fi
-done < <(env | grep -oiE '^2ms[a-z0-9_]*' || true)
+  if [[ -n "$stale" ]]; then SCRUB+=(-u "$stale"); fi
+done < <(env | sed -n 's/^\(2[Mm][Ss][A-Za-z0-9_]*\)=.*/\1/p' | sort -u)
+
+if [[ ${#SCRUB[@]} -gt 0 ]]; then
+  echo "  stripping ${#SCRUB[@]} inherited 2MS_* variable(s) that could suppress findings"
+fi
 
 if ! BIN="$(twoms_resolve)"; then
   die "2MS could not be found, downloaded, or run via Docker.
@@ -249,9 +274,9 @@ if [[ "$BIN" == "docker" ]]; then
   fi
 else
   echo "  scanner: ${BIN} ($("$BIN" --version 2>/dev/null || echo 'version unknown'))"
-  "$BIN" git "$ROOT" --all-branches --ignore-on-exit none || rc=$?
+  env "${SCRUB[@]}" "$BIN" git "$ROOT" --all-branches --ignore-on-exit none || rc=$?
   if [[ $rc -eq 0 ]]; then
-    "$BIN" filesystem --path "$EXPORT_DIR" --ignore-on-exit none || rc=$?
+    env "${SCRUB[@]}" "$BIN" filesystem --path "$EXPORT_DIR" --ignore-on-exit none || rc=$?
   fi
 fi
 

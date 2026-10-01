@@ -98,7 +98,9 @@ tasks:
     - "fail-closed proven with stub scanners: refuses on exit 1, 2 and 3; passes only on 0"
     - "checksum tamper test: a wrong expected digest refuses to unzip or execute"
     - "shellcheck 0.11.0: 0 findings across scripts/hitl/*.sh, tools/*.sh, .claude/hooks/*.sh"
-    - "tools/check_no_secrets.py retained as a separate CI check (also catches account ids, ARNs, personal data)" 
+    - "tools/check_no_secrets.py retained as a separate CI check (also catches account ids, ARNs, personal data)"
+    - "adversarial review found 5 further defects, all fixed and covered by tests: a multi-line guard bypass (cd X then an aws call on line 2 was ALLOWED), a 2MS_* env sanitiser that was a silent no-op because unset cannot remove a name starting with a digit, _git swallowing git's exit code so a git failure read as a clean scan, an execute-bit check that aborted on a fresh clone, and commit author identities that no scanner looked at"
+    - "commit-identity gate added: security/published-identities.txt plus a pre-push check, because 2MS reads diff content and never sees author/committer headers"
 
 # ---------------------------------------------------------------- M0a (no AWS)
 - id: M0A-01

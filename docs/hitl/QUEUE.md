@@ -11,31 +11,31 @@ Claude Code appends; it never rewrites history here.
 | 2026-09-28 | Session 1 — GitHub, AWS account, bootstrap stack, Expo token | Account creation and a console upload; no agent can hold these credentials | not filed yet (no remote) | open |
 | 2026-09-28 | Decide the git author identity before the first push | Your commit author email goes into public git history and only you can choose it | not filed yet (no remote) | open |
 
-## Open item: git author identity (decide before the first push)
+## Open item: git author identity — **blocks the first push**
 
-Nothing has been pushed yet, so this is free to change now and awkward later.
+`scripts/hitl/scan-secrets.sh` now refuses to push until this is decided, so it is a
+hard gate rather than a note.
 
-The bootstrap history was scanned (`tools/check_no_secrets.py --history`, plus a
-manual pass) and is clean of credentials. One piece of personal data remains by
-construction: **your commit author email**, which git records on every commit and
-GitHub displays publicly.
+The history is clean of credentials. One piece of personal data remains by
+construction: **the commit author email**, which git records on every commit and GitHub
+publishes. It is the only such datum here that no scanner catches — 2MS reads diff
+content and never looks at author or committer headers, so before this gate existed the
+scan printed "clean" about the one thing it could not see.
 
-Two options, both fine:
+Two options, both legitimate. Full instructions in
+[SESSION-1.md step 1b](SESSION-1.md).
 
-1. **Keep your real email.** Normal open-source practice. No action needed.
-2. **Use GitHub's noreply address**, which keeps your address off the public record:
+| | What to do | Effect |
+| --- | --- | --- |
+| **A. Publish it** | Add the address to `security/published-identities.txt` | Normal open-source practice; becomes a recorded decision rather than an accident |
+| **B. Keep it private** | Switch to the GitHub noreply address, then rewrite history with `git filter-repo` | The address never reaches GitHub |
 
-   ```bash
-   git config user.email "<your-id>+<your-handle>@users.noreply.github.com"
-   git commit --amend --reset-author --no-edit     # rewrite the single existing commit
-   ```
+For option B, note that `git commit --amend` rewrites **only the tip commit** — not the
+earlier ones, and not `main`. SESSION-1.md gives the `git filter-repo` command that
+rewrites all of them.
 
-   Find the exact address at GitHub → Settings → Emails → "Keep my email address
-   private". Do this **before** `github-setup.sh` pushes, and the old address never
-   reaches GitHub at all.
-
-`tools/check_no_secrets.py` deliberately allowlists `users.noreply.github.com`, so
-option 2 also makes the CI hygiene job clean on history forever.
+Either way, decide before the first push. Afterwards neither option exists: the address
+is permanent in forks, clones and the GitHub events API.
 
 ## Recurring reasons an item appears here
 

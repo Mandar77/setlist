@@ -85,7 +85,10 @@ scan_secrets() {
     return 0
   fi
 
-  [[ -x "$SCAN" ]] || die "${SCAN} is missing or not executable."
+  # -r, not -x: the file is tracked at mode 0644 and is invoked with `bash` below, so
+  # requiring the execute bit would abort the session on a fresh clone — and the next
+  # thing the usage text offers is --skip-scan, which is the opposite of helpful.
+  [[ -r "$SCAN" ]] || die "${SCAN} is missing or unreadable."
 
   if [[ $DRY_RUN -eq 1 ]]; then
     bash "$SCAN" --dry-run

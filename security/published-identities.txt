@@ -1,0 +1,25 @@
+# Git identities this repository deliberately publishes.
+#
+# Git stamps an author and committer email on every commit, and GitHub shows them
+# publicly. No secret scanner looks at commit metadata — not 2MS, not CodeQL, not
+# GitHub's own push protection — so without this file the one piece of personal data
+# in the repository is also the one nothing checks.
+#
+# `tools/check_no_secrets.py --history` fails until every identity appearing in commit
+# metadata is either:
+#
+#   * a GitHub/Anthropic noreply address, which identifies nobody, or
+#   * listed here.
+#
+# That is the whole point: publishing your real address is fine and normal, but it
+# should be a decision someone made, not a default nobody noticed. After the first
+# push it cannot be undone — the address persists in forks, clones and the events API.
+#
+# One address per line; `#` starts a comment. Adding a line is a reviewable change.
+#
+# To avoid publishing an address instead, use GitHub's noreply form
+# (Settings -> Emails -> "Keep my email address private") and rewrite the commits that
+# already carry the old one — see docs/hitl/SESSION-1.md step 1b. `git commit --amend`
+# rewrites only the tip commit, so it is not sufficient by itself.
+
+# (no identities declared yet)

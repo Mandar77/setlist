@@ -93,6 +93,18 @@ check ALLOW 'gh issue create --title "x" --label human-needed'
 check ALLOW 'shellcheck scripts/hitl/github-setup.sh'
 
 echo
+echo "must BLOCK when the banned call is not on the first line:"
+
+# A newline is a command separator exactly like ';'. If the separator class omits it,
+# every check silently becomes "first line only" and a two-line command walks straight
+# through — which is not an exotic input, it is how any multi-step command is written.
+check BLOCK "$(printf 'cd infra\naws sts get-caller-identity')"       'newline then aws'
+check BLOCK "$(printf 'echo hi\ncdk deploy --all')"                   'newline then cdk deploy'
+check BLOCK "$(printf 'ls\n  aws s3 ls')"                             'newline, indent, then aws'
+check BLOCK "$(printf 'git status\ngit push --force origin develop')" 'newline then force push'
+check BLOCK "$(printf 'echo a\ngh secret set FOO')"                   'newline then gh secret'
+
+echo
 echo "must FAIL CLOSED (the guard cannot read the command):"
 
 # A guard that cannot see the command must block, not shrug. Without these, the guard

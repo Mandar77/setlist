@@ -56,6 +56,8 @@ Organization does the same thing immediately.
 - Conventional Commits; `release-please` semver per service.
 - No git hooks — `.husky` and `.pre-commit-config.yaml` are protected paths, so
   `make` and CI do the checking.
+- Every event carries `correlationid` and `idempotencykey`; handlers use Powertools
+  `@idempotent`.
 
 ### Create and edit files with the file tools, never a shell heredoc
 
@@ -72,8 +74,10 @@ four ways that have all actually happened here:
 
 The file tools write bytes literally, so none of that applies. Reserve Bash for
 running things — tests, git, linters — not for authoring them.
-- Every event carries `correlationid` and `idempotencykey`; handlers use Powertools
-  `@idempotent`.
+
+Python written from a script has its own version of this: `write_text()` and `open()`
+translate `\n` to `\r\n` on Windows unless you pass `newline="\n"`. `make verify`
+catches it (`tools/check_line_endings.py`), but not writing files that way is simpler.
 
 ## Commands
 

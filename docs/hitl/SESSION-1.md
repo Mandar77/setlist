@@ -25,21 +25,53 @@ security scan locally, and CI runs it anyway.
 
 If `gh auth status` ever shows you as logged out, run `gh auth login`.
 
-## 1b. Decide your public git identity (1 min, before anything is pushed)
+## 1b. Decide your public git identity (2 min, before anything is pushed)
 
-Git stamps your author email on every commit, and GitHub shows it publicly. Nothing
-has been pushed yet, so this is free to change now and awkward afterwards.
+**The setup script will stop until you do this.** Git stamps your author email on every
+commit and GitHub publishes it, and no secret scanner looks at commit metadata — so
+this is the one piece of personal data here that nothing else would catch.
 
-Keeping your real address is normal open-source practice — if that is fine, skip this.
+Nothing has been pushed yet, which is the only time either option is available. After a
+push the address is permanent in forks, clones and the GitHub events API.
 
-To keep it private instead, before running the next step:
+### Option A — publish it (normal open-source practice)
+
+Add your address to `security/published-identities.txt`, one per line. That is all; the
+gate then passes. It becomes a decision recorded in a reviewed file rather than
+something nobody noticed.
+
+### Option B — keep it private
+
+Get your noreply address from GitHub → **Settings → Emails → "Keep my email address
+private"**. It looks like `12345678+yourhandle@users.noreply.github.com`.
 
 ```bash
-git config user.email "<your-id>+<your-handle>@users.noreply.github.com"
-git commit --amend --reset-author --no-edit
+git config user.email "12345678+yourhandle@users.noreply.github.com"
+git config user.name  "Your Name"
 ```
 
-The exact address is at GitHub → Settings → Emails → "Keep my email address private".
+That fixes *future* commits. The existing ones still carry the old address, and
+`git commit --amend` only rewrites the most recent commit — not the others, and not
+`main`. To rewrite every commit:
+
+```bash
+# One-time: install the tool git recommends for this.
+pip install git-filter-repo
+
+git filter-repo --force --email-callback '
+  return b"12345678+yourhandle@users.noreply.github.com" if email == b"OLD@example.com" else email
+'
+```
+
+Replace `OLD@example.com` with the address the scan reported. Then confirm:
+
+```bash
+git log --all --format='%ae %ce' | sort -u     # should show only the noreply address
+bash scripts/hitl/scan-secrets.sh              # should now pass
+```
+
+`git filter-repo` removes the `origin` remote as a safety measure; the setup script in
+step 2 adds it back.
 
 ## 2. GitHub (5 min)
 
