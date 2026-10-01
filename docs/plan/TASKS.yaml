@@ -351,7 +351,7 @@ tasks:
   milestone: M0
   title: scripts/hitl/*.sh and SESSION-1.md
   deps: [M0A-07, M0A-08]
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -362,8 +362,17 @@ tasks:
     - all three support --dry-run, printing every call without executing it
     - the PREP-03 2MS full-history gate still runs before any push and still fails closed
     - SESSION-1.md is click-by-click and contains no identifiers
-  verify: shellcheck scripts/hitl/*.sh
-  evidence: []
+  verify: shellcheck scripts/hitl/*.sh && make workflows
+  evidence:
+    - "shellcheck 0.11.0 clean across scripts/hitl/*.sh, tools/*.sh and .claude/hooks/*.sh; all four scripts support --dry-run and were exercised that way"
+    - "FOUND AND FIXED: github-setup.sh created dev, stage and prod but NOT diagnostics, which M0A-07's diagnostics role trusts by name and two M0A-08 workflows deploy to. The role would have been unassumable, surfacing as an opaque STS error rather than 'you forgot an environment'"
+    - "tools/check_workflows.js now cross-checks every environment a workflow names against the ones github-setup.sh creates, proven by removing diagnostics again and watching it fail - that class of gap cannot recur silently"
+    - "FOUND AND FIXED: nothing set AWS_ENABLED, the variable every AWS job is gated on. github-setup.sh now sets it to false explicitly rather than leaving it absent (an absent variable and a disabled one behave identically, and the difference matters the day someone asks why nothing deployed), and session1-finish.sh flips it to true LAST, once the secrets exist"
+    - "FOUND AND FIXED: sync-secrets.yml read YOUTUBE_* while set-provider-secrets.sh stores GOOGLE_* - YouTube's API uses a Google OAuth client, and two names for one credential is how a sync silently writes nothing"
+    - "session1-finish.sh now wires the whole account: one hidden prompt for the 12-digit id, from which it derives all four role ARNs. Asking a human to retype four ARNs is four chances to paste the wrong one into the wrong environment"
+    - "it verifies every environment exists BEFORE writing any secret - `gh secret set` fails per call, which would otherwise leave the repository half-configured with the error buried three screens up"
+    - "a test asserts the role names in the template and in the script still match, since deriving the ARNs puts those names in two files"
+    - "no value is ever echoed, written to disk, or passed as an argument; a rejected account id is not printed back, because a near-miss is still an account id"
 
 - id: M0A-10
   milestone: M0

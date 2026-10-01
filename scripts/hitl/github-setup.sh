@@ -160,8 +160,16 @@ run_api --method POST "repos/${SLUG}/rulesets" \
   -f 'rules[][type]=deletion'
 
 # ---------------------------------------------------------------- 4. environments
+# These names are not cosmetic. The bootstrap template pins each deploy role's trust
+# policy to `repo:<owner>/<repo>:environment:<name>` with StringEquals, so a missing or
+# misspelled environment means the role simply cannot be assumed — and the failure
+# surfaces as an opaque STS error in CI, not as "you forgot an environment".
+#
+# `diagnostics` is one of them. ADR-005 forbids local AWS credentials, so the read-only
+# diagnostics workflow is the only way to look at deployed state; without this
+# environment it has nothing to assume.
 note "Creating environments"
-for env in dev stage; do
+for env in dev stage diagnostics; do
   run_api --method PUT "repos/${SLUG}/environments/${env}"
 done
 
@@ -183,6 +191,16 @@ JSON
   gh api --method POST "repos/${SLUG}/environments/prod/deployment-branch-policies" \
     -f name='main' -f type='branch' >/dev/null
 fi
+
+# ------------------------------------------------- 4b. the AWS gate, explicitly off
+# Every workflow that touches AWS is gated on `vars.AWS_ENABLED == 'true'`, so until
+# the bootstrap stack exists they no-op instead of failing. Setting it to `false` here
+# rather than leaving it absent is deliberate: an absent variable and a disabled one
+# behave identically, and the difference matters the day someone asks why nothing
+# deployed. `session1-finish.sh` flips it once the roles exist.
+note "Setting AWS_ENABLED=false until the bootstrap stack exists"
+run_api --method POST "repos/${SLUG}/actions/variables" \
+  -f name='AWS_ENABLED' -f value='false'
 
 # ---------------------------------------------------------------- 5. labels
 note "Adding labels"

@@ -280,6 +280,43 @@ describe('nothing identifying is committed', () => {
   })
 })
 
+describe('the roles the template creates are the roles Session 1 wires up', () => {
+  // `session1-finish.sh` derives four ARNs from one account id rather than asking a
+  // human to retype them, which is right — four prompts is four chances to paste the
+  // wrong ARN into the wrong environment — but it means the role names live in two
+  // files. A rename here would leave the script writing ARNs for roles that do not
+  // exist, and the failure would surface as an opaque STS error in CI.
+  const script = readFileSync(
+    new URL('../../scripts/hitl/session1-finish.sh', import.meta.url),
+    'utf8',
+  )
+
+  it('names every deploy role the script will construct', () => {
+    for (const env of DEPLOY_ENVIRONMENTS) {
+      const roleName = resources[`DeployRole${env[0]!.toUpperCase()}${env.slice(1)}`]!.Properties[
+        'RoleName'
+      ] as string
+      expect(roleName).toBe(`setlist-deploy-${env}`)
+    }
+    // The script builds them from a prefix plus the environment name.
+    expect(script).toContain('DEPLOY_ROLE_PREFIX="setlist-deploy-"')
+    expect(script).toContain('DEPLOY_ENVIRONMENTS=(dev stage prod)')
+  })
+
+  it('names the diagnostics role the script will construct', () => {
+    expect(resources['DiagnosticsRole']!.Properties['RoleName']).toBe('setlist-diagnostics')
+    expect(script).toContain('DIAGNOSTICS_ROLE="setlist-diagnostics"')
+  })
+
+  it('uses a role name that cannot contain a region or account', () => {
+    // The names are fixed strings, not `Fn::Sub`. If they were substituted, the script
+    // could not derive them from the account id alone.
+    for (const [name, role] of byType('AWS::IAM::Role')) {
+      expect(typeof role.Properties['RoleName'], `${name} has a computed RoleName`).toBe('string')
+    }
+  })
+})
+
 describe('the template is well formed', () => {
   it('guards the OIDC provider behind a condition', () => {
     // An account holds one provider per URL; a second upload fails with

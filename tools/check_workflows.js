@@ -127,6 +127,47 @@ for (const file of files) {
   }
 }
 
+// 3b. Every environment a workflow deploys to must be one github-setup.sh creates.
+//
+// This is not bookkeeping. The bootstrap template pins each role's trust policy to
+// `repo:<owner>/<repo>:environment:<name>` with StringEquals, so an environment that
+// does not exist means the role cannot be assumed — and it surfaces as an opaque STS
+// error in CI, not as "you forgot an environment". `diagnostics` was missing exactly
+// this way: two workflows referenced it and nothing created it.
+{
+  const setup = readFileSync(join(repoRoot, 'scripts', 'hitl', 'github-setup.sh'), 'utf8')
+  const created = new Set()
+  for (const match of setup.matchAll(/environments\/\$\{env\}|environments\/([a-z]+)/g)) {
+    if (match[1]) created.add(match[1])
+  }
+  // The loop form, `for env in dev stage diagnostics`.
+  for (const match of setup.matchAll(/for env in ([a-z\s]+); do/g)) {
+    for (const name of match[1].trim().split(/\s+/)) created.add(name)
+  }
+
+  const referenced = new Set()
+  for (const file of files) {
+    const doc = parse(readFileSync(join(workflowDir, file), 'utf8'))
+    for (const job of Object.values(doc.jobs ?? {})) {
+      const env = typeof job.environment === 'string' ? job.environment : job.environment?.name
+      // Skip the ones chosen at dispatch time; their values come from a choice list
+      // that is checked separately.
+      if (typeof env === 'string' && !env.includes('${{')) referenced.add(env)
+    }
+  }
+
+  const missing = [...referenced].filter(name => !created.has(name))
+  if (missing.length > 0) {
+    fail(
+      '(all)',
+      `workflows deploy to ${missing.join(', ')}, which github-setup.sh does not ` +
+        'create — the deploy role trusts an environment by name, so the assume fails',
+    )
+  } else if (referenced.size > 0) {
+    ok(`every referenced environment (${[...referenced].sort().join(', ')}) is created by setup`)
+  }
+}
+
 // 4. The drill must not offer prod.
 {
   const file = 'kill-switch-drill.yml'
