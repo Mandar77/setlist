@@ -1,0 +1,12 @@
+{
+  "id": "27c5a118-878f-51b8-911a-5201828dccb0",
+  "queryName": "Lambda In A VPC Pulls In A NAT Gateway",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "A VPC-attached function needs an ENI, and egress from it needs a NAT gateway — the $32/month charge behind a property nobody reads. Enforced as SZC-LAMBDA-VPC.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "27c5a118",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-LAMBDA-VPC"
+}

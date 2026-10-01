@@ -1,0 +1,12 @@
+{
+  "id": "7b7c7a2a-3af1-583f-a6fb-20024150c023",
+  "queryName": "A Hosted Zone Costs $0.50/Month Plus Queries",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "Hosted zones appear in no free tier. The CloudFront default domain costs nothing. Enforced as SZC-ROUTE53.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "7b7c7a2a",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-ROUTE53"
+}

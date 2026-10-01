@@ -1,0 +1,12 @@
+{
+  "id": "f903c926-42d3-54c9-b5e1-5bf20a1657e5",
+  "queryName": "Express Workflows Have No Free Tier",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "Billed per request and per GB-second. Standard has 4,000 free transitions a month, which is why batch uses Standard (PED D4). Enforced as SZC-SFN-EXPRESS.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "f903c926",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-SFN-EXPRESS"
+}

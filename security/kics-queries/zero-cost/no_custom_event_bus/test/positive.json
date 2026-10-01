@@ -1,0 +1,11 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Resources": {
+    "Bus": {
+      "Type": "AWS::Events::EventBus",
+      "Properties": {
+        "Name": "x"
+      }
+    }
+  }
+}

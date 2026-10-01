@@ -1,0 +1,12 @@
+{
+  "id": "be15835d-63fd-50c2-ac84-aba99220053e",
+  "queryName": "PAY_PER_REQUEST DynamoDB Is Billed From The First Request",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "The free allowance is 25 WCU/25 RCU of PROVISIONED capacity, shared account-wide across every table and index (PED D6). Enforced as SZC-DDB-ONDEMAND.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "be15835d",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-DDB-ONDEMAND"
+}

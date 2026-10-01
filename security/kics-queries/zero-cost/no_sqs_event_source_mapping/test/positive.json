@@ -1,0 +1,12 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Resources": {
+    "Esm": {
+      "Type": "AWS::Lambda::EventSourceMapping",
+      "Properties": {
+        "FunctionName": "fn",
+        "EventSourceArn": "arn:aws:sqs:us-east-1::domain-dlq"
+      }
+    }
+  }
+}

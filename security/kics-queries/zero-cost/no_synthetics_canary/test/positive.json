@@ -1,0 +1,12 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Resources": {
+    "C": {
+      "Type": "AWS::Synthetics::Canary",
+      "Properties": {
+        "Name": "x",
+        "RuntimeVersion": "syn-nodejs"
+      }
+    }
+  }
+}

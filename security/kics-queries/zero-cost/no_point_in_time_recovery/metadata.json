@@ -1,0 +1,12 @@
+{
+  "id": "d2187fd8-1cac-5266-bff6-c40ad40067d0",
+  "queryName": "Point-In-Time Recovery Is Billed Per GB Of Backup",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "$0.20 per GB-month of continuous backup, never covered by the free tier. This data is reconstructible from the source text. Enforced as SZC-DDB-PITR.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "d2187fd8",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-DDB-PITR"
+}

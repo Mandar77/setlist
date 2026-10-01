@@ -1,0 +1,12 @@
+{
+  "id": "e04fefa8-cd2d-512e-96eb-cabd011cafef",
+  "queryName": "IAM Grants For Services With No Free Tier",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "Bedrock, Textract, Rekognition, Athena, Cost Explorer, FIS and SES bill per call or per token. A grant is how one of them ends up being called. Enforced as SZC-BANNED-SERVICE-IAM.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "e04fefa8",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-BANNED-SERVICE-IAM"
+}

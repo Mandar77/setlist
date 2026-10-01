@@ -1,0 +1,11 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Resources": {
+    "Box": {
+      "Type": "AWS::EC2::Instance",
+      "Properties": {
+        "ImageId": "ami-1"
+      }
+    }
+  }
+}

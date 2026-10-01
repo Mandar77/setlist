@@ -1,0 +1,12 @@
+{
+  "id": "38a0a338-6f8e-553b-b769-753c37ff08f7",
+  "queryName": "Container-Image Lambdas Require Billed ECR Storage",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "An image package needs an ECR repository, billed per GB-month after the first year. Zip packaging has no storage charge. Enforced as SZC-LAMBDA-IMAGE.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "38a0a338",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-LAMBDA-IMAGE"
+}

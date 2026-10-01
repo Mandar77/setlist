@@ -1,0 +1,12 @@
+{
+  "id": "d3bc9fcb-27d1-5a8c-99c4-a9ea1d643733",
+  "queryName": "API Gateway Is Credits-Only On A Post-2025-07-15 Account",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "Its free tier is 12-month/credits-only for accounts opened after 2025-07-15. Lambda Function URLs behind CloudFront are always free (PED D1). Enforced as SZC-APIGW.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "d3bc9fcb",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-APIGW"
+}

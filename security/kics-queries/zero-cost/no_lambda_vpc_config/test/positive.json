@@ -1,0 +1,29 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Resources": {
+    "Fn": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Handler": "index.handler",
+        "Runtime": "nodejs22.x",
+        "Role": {
+          "Fn::GetAtt": [
+            "Role",
+            "Arn"
+          ]
+        },
+        "Code": {
+          "ZipFile": "x"
+        },
+        "VpcConfig": {
+          "SubnetIds": [
+            "subnet-1"
+          ],
+          "SecurityGroupIds": [
+            "sg-1"
+          ]
+        }
+      }
+    }
+  }
+}

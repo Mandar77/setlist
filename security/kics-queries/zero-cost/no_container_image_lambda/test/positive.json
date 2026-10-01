@@ -1,0 +1,20 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Resources": {
+    "Fn": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "PackageType": "Image",
+        "Role": {
+          "Fn::GetAtt": [
+            "Role",
+            "Arn"
+          ]
+        },
+        "Code": {
+          "ImageUri": "example.dkr.ecr.us-east-1.amazonaws.com/x:latest"
+        }
+      }
+    }
+  }
+}

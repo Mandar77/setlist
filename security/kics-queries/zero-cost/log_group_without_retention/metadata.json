@@ -1,0 +1,12 @@
+{
+  "id": "4dd3ca59-0bb6-550c-839b-33163798a6e6",
+  "queryName": "A Log Group Without Retention Is A Bill That Grows",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "The 5GB free allowance covers ingest only; stored logs accrue at $0.03 per GB-month forever. Enforced as SZC-LOG-RETENTION.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "4dd3ca59",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-LOG-RETENTION"
+}

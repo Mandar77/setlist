@@ -1,0 +1,12 @@
+{
+  "id": "7c4876f5-7f0e-5fe7-a930-b8dd69e9578a",
+  "queryName": "An Idle SQS Poller Spends The Request Allowance",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "A 20-second long poll makes ~130k requests/month doing nothing, and Lambda runs up to five pollers per mapping (PED D5). Enforced as SZC-SQS-ESM.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "7c4876f5",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-SQS-ESM"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "7d7a0105-711f-5dc0-996c-f9b3b0b25f03",
+  "queryName": "Standalone WAF Is Billed Per ACL And Per Rule",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "$5/month per web ACL plus $1 per rule. Prod gets WAF bundled free with the CloudFront flat-rate plan (PED D2). Enforced as SZC-WAF.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "7d7a0105",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-WAF"
+}

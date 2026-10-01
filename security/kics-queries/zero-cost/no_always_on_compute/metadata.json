@@ -1,0 +1,12 @@
+{
+  "id": "f20080bc-aaca-5a22-8ec5-c63ef2e8d44e",
+  "queryName": "EC2, RDS And Load Balancers Bill By The Hour",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "All three bill whether or not anything uses them; the architecture is serverless so that idle costs nothing. Enforced as SZC-COMPUTE.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "f20080bc",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-COMPUTE"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "4d41a346-d79c-5424-910f-3435898aad98",
+  "queryName": "ECR Storage Is Billed Per GB-Month",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "Only a 12-month, 500MB free allowance, and a single image is hundreds of megabytes. Enforced as SZC-ECR.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "4d41a346",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-ECR"
+}

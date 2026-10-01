@@ -159,14 +159,47 @@ nag: synth ## cdk-nag: the real stacks must pass, and a costly stack must be rej
 	@# so direction one on its own proves nothing about whether the gate runs.
 	node tools/check_nag_gate.js
 
-kics: synth ## KICS scan of the synthesized templates (needs Docker)
+## Templates for every environment under profile=zero, in a directory of their own.
+##
+## KICS scans a PATH, so it scans whatever happens to be sitting in cdk.out. After a
+## `make synth-matrix` that includes enterprise templates — which legitimately use a
+## custom event bus and an API Gateway — and the zero-cost pack dutifully reports them
+## against a profile that never ships. Worse in the other direction: a stale clean
+## template from a previous run masks a bad current one.
+##
+## So this writes a known set into a fresh directory, and the scan reads only that.
+## All three environments, because the guardrails apply to every one of them.
+cdk-out-zero: node_modules
+	rm -rf infra/cdk.out
+	@set -e; for env in dev stage prod; do \
+	  printf '  synth zero/%-6s' "$$env"; \
+	  ( cd infra && $(CDK_ENV) pnpm exec cdk synth --all \
+	      -c env=$$env -c profile=zero -c nag=true \
+	      --output cdk.out/zero-$$env >/dev/null ) && echo OK; \
+	done
+
+kics: cdk-out-zero ## KICS: the zero-cost query pack plus the default catalog (needs Docker)
 	# $(CURDIR), not $(PWD): PWD is exported by a shell, not set by make, so a make
 	# invoked from anywhere but bash expands it to "" and docker gets ":/path".
 	# MSYS_NO_PATHCONV stops git-bash rewriting the container-side /path arguments
 	# into Windows paths before docker ever sees them.
+	@# The pack is generated from a spec; if the tree is stale, the queries reviewed in
+	@# the diff are not the queries that run.
+	node tools/gen_kics_queries.js --check
+	@# Direction one: the queries discriminate. A query with a typo'd resource type or a
+	@# Rego error is SILENT, which is indistinguishable from compliance in the scans
+	@# below — so each is first run against a sample that must be flagged and one that
+	@# must not.
+	node tools/check_kics_queries.js
+	@# Direction two: the templates we actually ship are clean under the pack.
 	MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR):/path" checkmarx/kics:latest scan \
 		-p /path/infra/cdk.out -q /path/security/kics-queries \
-		--fail-on high,critical
+		--fail-on high,critical --no-progress --no-color
+	@# ...and clean under the DEFAULT catalog too, which covers security issues the
+	@# zero-cost pack says nothing about, and the workflow files along with them.
+	MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR):/path" checkmarx/kics:latest scan \
+		-p /path/infra/cdk.out,/path/.github/workflows \
+		--fail-on high,critical --no-progress --no-color
 
 estimate: node_modules ## Fail if projected usage exceeds the gate in infra/free-tier/budget.yaml
 	@# TypeScript, not Python. ADR-004 makes Node the default and names the only three

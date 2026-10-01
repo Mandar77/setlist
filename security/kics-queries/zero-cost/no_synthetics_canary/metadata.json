@@ -1,0 +1,12 @@
+{
+  "id": "5d0ebebc-f379-5d2e-a528-98e5ec5181e9",
+  "queryName": "Synthetics Canaries Are Billed Per Run",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "$0.0012 per run — about $5/month at one-minute intervals — and each canary also eats the 10-metric and 10-alarm allowances. Enforced as SZC-SYNTHETICS.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "5d0ebebc",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-SYNTHETICS"
+}

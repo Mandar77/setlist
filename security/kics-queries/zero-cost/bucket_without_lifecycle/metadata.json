@@ -1,0 +1,12 @@
+{
+  "id": "e98c35d0-46f5-5ae3-ae22-4e6dee367873",
+  "queryName": "A Bucket Without A Lifecycle Rule Never Expires Anything",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "S3 is credits-only for accounts opened after 2025-07-15, so unexpired objects become a recurring charge once credits run out. Enforced as SZC-S3-LIFECYCLE.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "e98c35d0",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-S3-LIFECYCLE"
+}

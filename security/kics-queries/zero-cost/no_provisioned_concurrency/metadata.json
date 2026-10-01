@@ -1,0 +1,12 @@
+{
+  "id": "55b4fba9-59ee-5b1a-b48e-50a923060b05",
+  "queryName": "Provisioned Concurrency Leaves The Free Allowance",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "Billed hourly for the reservation AND removes the function from the always-free Lambda allowance, so it costs twice. Enforced as SZC-LAMBDA-PROVISIONED.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "55b4fba9",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-LAMBDA-PROVISIONED"
+}

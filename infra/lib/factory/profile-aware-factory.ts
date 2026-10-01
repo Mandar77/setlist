@@ -22,7 +22,7 @@
 import { Duration, Stack } from 'aws-cdk-lib'
 import { EventBus } from 'aws-cdk-lib/aws-events'
 import { Topic } from 'aws-cdk-lib/aws-sns'
-import { Queue } from 'aws-cdk-lib/aws-sqs'
+import { Queue, QueueEncryption } from 'aws-cdk-lib/aws-sqs'
 import type { Construct } from 'constructs'
 import type { EnvName } from '../config/budget.js'
 import type { Profile } from '../config/profile.js'
@@ -107,6 +107,11 @@ export class ProfileAwareFactory {
       queueName: `setlist-${this.env}-${id.toLowerCase()}-dlq`,
       retentionPeriod: Duration.days(14),
       enforceSSL: true,
+      // SQS_MANAGED, not KMS. SSE-SQS uses SQS-owned keys and costs nothing, while
+      // SSE-KMS would bill per request and need a customer-managed key — which is
+      // SZC-KMS-CMK, $1/month, on the never-use list. So this is encryption at rest
+      // for free, and KICS flagged its absence before anyone noticed.
+      encryption: QueueEncryption.SQS_MANAGED,
     })
 
     if (this.choices.events === 'sns') {
@@ -117,6 +122,12 @@ export class ProfileAwareFactory {
           // Message-attribute filtering only. Payload-based filtering is billed, and
           // a subscription filter is not worth a line item.
           displayName: `Setlist ${this.env} ${id}`,
+          // No `masterKey`, and KICS reports that as a LOW every run. It is deliberate:
+          // SNS has no free SQS-style managed encryption, so the only option is a KMS
+          // key, and every publish then costs a KMS request. prod is forecast at 92,000
+          // publishes a month (`make estimate`) against a 10,000-request KMS share —
+          // nine times over, to encrypt at rest a payload that is a job id and a
+          // correlation id. Secrets go to SSM SecureString instead (PED D7/D10).
         }),
         deadLetterQueue,
       }

@@ -1,0 +1,12 @@
+{
+  "id": "c82df449-0574-5961-8ec4-c20b6a0181b3",
+  "queryName": "A Customer-Managed KMS Key Costs $1/Month",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "$1 per key per month before a single request. The token vault uses an AES-GCM data key in an SSM SecureString instead (PED D7). Enforced as SZC-KMS-CMK.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "c82df449",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-KMS-CMK"
+}

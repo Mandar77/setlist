@@ -1,0 +1,12 @@
+{
+  "id": "dd18c3de-a8c3-5454-9d39-d7ec35e14e67",
+  "queryName": "More Than 10 Alarms Is Billed Per Alarm",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "10 alarms are free account-wide across all three environments; the next one costs $0.10/month and so does every one after it (PED S11). Enforced as SZC-ALARM-BUDGET.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "dd18c3de",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-ALARM-BUDGET"
+}

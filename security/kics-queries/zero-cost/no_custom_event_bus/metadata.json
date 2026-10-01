@@ -1,0 +1,12 @@
+{
+  "id": "b9653a5a-9707-5ac7-bd97-f42b5317da1c",
+  "queryName": "Custom EventBridge Buses Have No Free Tier At All",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "$1 per million events published; only AWS-service management events are free. SNS gives a million publishes a month free (PED D3). Enforced as SZC-EVENTBUS.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "b9653a5a",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-EVENTBUS"
+}

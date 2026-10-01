@@ -1,0 +1,12 @@
+{
+  "id": "823ba4c7-6705-5aef-8fb0-46dbbba91176",
+  "queryName": "Secrets Manager Costs $0.40 Per Secret Per Month",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "At 10k users holding a refresh token each that is roughly $4,000/month; SSM Parameter Store standard tier is free (PED D10-11). Enforced as SZC-SECRETS-MANAGER.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "823ba4c7",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-SECRETS-MANAGER"
+}

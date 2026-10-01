@@ -178,7 +178,7 @@ tasks:
   # done_when above is unchanged; `make preflight ENV=prod` is exercised at M0A-06.
   verify: make nag ENV=dev && make test-ts
   evidence:
-    - "21 SZC rules, one per never_use entry in budget.yaml, each carrying the actual charge ($0.045/hour for NAT, $0.40/secret/month for Secrets Manager) rather than the word 'banned'"
+    - "22 SZC rules, one per never_use entry in budget.yaml, each carrying the actual charge ($0.045/hour for NAT, $0.40/secret/month for Secrets Manager) rather than the word 'banned'"
     - "73 vitest assertions in infra/nag/test: every rule fires on a violating fixture AND stays quiet on a compliant one, so a rule that rejects everything fails the suite"
     - "a drift test maps every never_use line to a rule and every rule to a fixture pair, in both directions, so neither list can grow without the other"
     - "rules read the RENDERED template, not typed L1 accessors - SZC-LAMBDA-VPC and SZC-LAMBDA-PROVISIONED first PASSED their violating fixtures because addPropertyOverride leaves node.vpcConfig undefined while putting VpcConfig in the template; any escape hatch was a bypass"
@@ -196,7 +196,7 @@ tasks:
   milestone: M0
   title: KICS zero-cost Rego queries
   deps: [M0A-02]
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -206,7 +206,18 @@ tasks:
     - zero HIGH or CRITICAL findings on the platform stack
     - the KICS action is pinned to a release SHA
   verify: make kics
-  evidence: []
+  evidence:
+    - "22 queries, one per SZC rule, GENERATED from a spec in tools/gen_kics_queries.js: four files per rule times 22 rules, all of which must agree with infra/nag/rules.ts, is a list that drifts within a month - and the drift is silent in the worst direction, since a rule present in one place and absent in the other looks enforced from either side"
+    - "infra/nag/test/kics-parity.test.ts asserts the two packs cover exactly the same rule ids in both directions, one query per rule, and runs in `make verify` where there is no Docker"
+    - "tools/check_kics_queries.js scans a positive sample per query (all 22 must fire) and the compliant counterparts together (nothing may fire) - a query with a typo'd resource type or a Rego error is SILENT, which is indistinguishable from compliance in a scan of the real templates"
+    - "both directions of that checker were proven by mutation: pointing SZC-NAT at a nonexistent resource type is caught as 'did not fire', and deleting a type guard so a query matches everything is caught as 'fired on compliant samples'"
+    - "`make kics` also refuses to run on a stale pack (`gen_kics_queries.js --check`), so the queries reviewed in a diff are the queries that ran"
+    - "FOUND AND FIXED: `make kics` scanned whatever sat in infra/cdk.out, which after a `make synth-matrix` includes ENTERPRISE templates - the pack correctly flagged a custom event bus against a profile that never ships. Worse in the other direction: a stale clean template masks a bad current one. A new `cdk-out-zero` target synthesizes all three environments under profile=zero into a fresh directory and the scan reads only that"
+    - "FOUND AND FIXED: the default catalog reported SQS without server-side encryption. SQS_MANAGED encryption is free (SSE-SQS uses SQS-owned keys; SSE-KMS would need a customer-managed key, which is SZC-KMS-CMK at $1/month), so this was a security fix with no cost - MEDIUM findings went from 3 to 0"
+    - "FOUND AND FIXED: 8 unpinned GitHub Actions. All are now pinned to full commit SHAs with the version in a trailing comment, including Checkmarx/kics-github-action at the commit behind v2.1.20"
+    - "DELIBERATELY NOT FIXED: SNS topics have no KmsMasterKeyId (3 LOW). SNS offers no free managed encryption, so every publish would cost a KMS request - prod is forecast at 92,000 publishes/month against a 10,000-request KMS share, nine times over, to encrypt a payload that is a job id and a correlation id. Recorded at the construct with the arithmetic"
+    - "default catalog on the platform stacks and the workflow files: 0 CRITICAL, 0 HIGH, 0 MEDIUM, 6 LOW"
+    - "the CI job scans .github/workflows along with the templates, so it checks whether its own actions are pinned"
 
 - id: M0A-05
   milestone: M0

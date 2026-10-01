@@ -1,0 +1,12 @@
+{
+  "id": "c264b1c5-9f1f-5643-a8ff-6429126d2bec",
+  "queryName": "NAT Gateway Is Never Free",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "$0.045/hour plus $0.045/GB processed, billed from creation with no free tier — about $32/month for existing. Enforced as SZC-NAT.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "c264b1c5",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-NAT"
+}
