@@ -369,15 +369,23 @@ tasks:
   milestone: M0
   title: Canary fixtures for the policy gate
   deps: [M0A-03]
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
     - a NAT-gateway stack fixture and an on-demand DynamoDB stack fixture
     - preflight rejects both, naming the specific rule id (SZC-NAT, SZC-DDB-ONDEMAND)
     - a test asserts the rejection happens, so a silently disabled pack fails CI
-  verify: make preflight ENV=dev
-  evidence: []
+  # `make nag`, not `make preflight`: preflight runs the estimator, red until ADR-008.
+  # The rejection this task is about reaches preflight THROUGH nag either way.
+  verify: make nag ENV=dev
+  evidence:
+    - "two canaries under tests/fixtures/, each its own workspace package pinned to infra's CDK version, each rejected by its own rule id"
+    - "they fail DIFFERENTLY, which is the point: nat-stack bans a resource type, so the rule fires on AWS::EC2::NatGateway and nothing subtler has to work. ddb-ondemand turns on a PROPERTY of a resource the project uses constantly"
+    - "that second shape is where a cost gate actually fails - a rule reading a typed L1 accessor rather than the rendered template misses any property set through an escape hatch, which two rules did here until their fixtures caught it. A type-ban canary passes against both the broken and the working version"
+    - "each canary is checked three ways: it must synthesize CLEANLY with -c nag=false (the control), it must be rejected naming its own rule, and it must still be rejected with no -c nag flag at all"
+    - "the rule id is asserted, not just a non-zero exit: a crash, or a different rule firing, would otherwise read as enforcement"
+    - "`make nag` runs them, so a silently disabled pack fails the gate that gates preflight and CI"
 
 # ---------------------------------------------------------------- CORE (no AWS)
 - id: CORE-01

@@ -58,6 +58,19 @@ importers:
         specifier: 4.19.2
         version: 4.19.2
 
+  tests/fixtures/ddb-ondemand:
+    dependencies:
+      aws-cdk-lib:
+        specifier: 2.173.4
+        version: 2.173.4(constructs@10.4.2)
+      constructs:
+        specifier: 10.4.2
+        version: 10.4.2
+    devDependencies:
+      tsx:
+        specifier: 4.19.2
+        version: 4.19.2
+
   tests/fixtures/nat-stack:
     dependencies:
       aws-cdk-lib:
