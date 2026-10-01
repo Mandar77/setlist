@@ -67,3 +67,6 @@ tmp/
 # Node / pnpm
 node_modules/
 *.tsbuildinfo
+
+# CDK synthesis output
+cdk.out/

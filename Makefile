@@ -26,7 +26,7 @@ M ?=
 .PHONY: help setup verify verify-fast test test-unit test-accuracy lint fmt types cov \
         lint-ts fmt-ts types-ts test-ts toolchain \
         mutate ledger links eol suppressions guard no-secrets secrets-history golden \
-        synth nag kics estimate preflight gate unkill clean
+        synth synth-matrix nag kics estimate preflight gate unkill clean
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -127,8 +127,27 @@ secrets-history: ## Scan every commit ever made (slower; nightly in CI)
 
 ## ------------------------------------------------------------- infrastructure
 
-synth: ## Synthesize CDK templates for ENV under PROFILE (default: zero)
-	cd infra && npx cdk synth --all -c env=$(ENV) -c profile=$(PROFILE)
+## jsii supports ^22 and this machine runs 24; CI pins 22. The warning is noise here,
+## and silencing it keeps a real failure visible among the output.
+CDK_ENV := JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION=1
+
+synth: node_modules ## Synthesize CDK templates for ENV under PROFILE (default: zero)
+	cd infra && $(CDK_ENV) pnpm exec cdk synth --all -c env=$(ENV) -c profile=$(PROFILE)
+
+synth-matrix: node_modules ## Synthesize all 6 profile x env combinations, offline
+	@# Both profiles, every environment. The enterprise path has no other exercise, so
+	@# without this it rots unnoticed until someone needs it. Runs with no credentials:
+	@# a context lookup would break this and is exactly what must not creep in.
+	@set -e; for profile in zero enterprise; do \
+	  for env in dev stage prod; do \
+	    printf '  %-11s %-6s ' "$$profile" "$$env"; \
+	    ( cd infra && $(CDK_ENV) pnpm exec cdk synth --all -c env=$$env -c profile=$$profile \
+	        >/dev/null 2>/tmp/setlist-synth-err.txt ) \
+	      && echo OK \
+	      || { echo FAILED; grep -vE '^!!|^$$' /tmp/setlist-synth-err.txt | head -5; exit 1; }; \
+	  done; \
+	done
+	@echo "synth-matrix OK (6/6 offline)"
 
 nag: synth ## cdk-nag, including the SetlistZeroCostPack
 	cd infra && npx cdk synth --all -c env=$(ENV) -c profile=$(PROFILE) -c nag=true

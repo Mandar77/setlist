@@ -134,7 +134,7 @@ tasks:
   milestone: M0
   title: CDK app with profile context and ProfileAwareFactory
   deps: [M0A-01]
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -143,8 +143,21 @@ tasks:
     - ProfileAwareFactory selects transport per profile (Function URL vs API Gateway, SNS vs EventBridge, Lambda saga vs Step Functions)
     - per-env config carries the PED S11 quota shares, read from infra/free-tier/budget.yaml
     - a unit test asserts the zero profile synthesizes none of the never-use resources
-  verify: make preflight ENV=dev
-  evidence: []
+  # NOT `make preflight`: that needs nag, kics and estimate, which are M0A-03/04/05 and
+  # all depend on this task - a verify that can never run is not a gate. The done_when
+  # criteria above are unchanged; preflight is properly exercised at M0A-06, whose
+  # verify is `make preflight ENV=prod` and which depends on all three.
+  verify: make synth-matrix && make test-ts
+  evidence:
+    - "make synth-matrix: 6/6 (zero|enterprise x dev|stage|prod) synthesize with no AWS credentials in the environment; a CI job runs it with none configured, so a context lookup creeping in fails there"
+    - "100 vitest assertions in infra/test: 19 config/profile, 81 never-use"
+    - "templates genuinely differ: zero emits AWS::SNS::Topic, enterprise emits AWS::Events::EventBus; dev caps DynamoDB at 3 and prod at 10, matching budget.yaml"
+    - "ProfileAwareFactory concentrates all four substitutions (Function URL/API Gateway, SNS/EventBridge, Lambda saga/Step Functions, SNS-direct/SQS-ESM); a test asserts the two profiles differ on every axis so none is accidentally shared"
+    - "per-env config reads capacity, alarms and YouTube units from budget.yaml rather than a second copy; loadBudget rejects a split that over-allocates its own total"
+    - "never-use assertions cover 18 banned resource types plus VpcConfig, provisioned concurrency, EXPRESS state machines, PAY_PER_REQUEST, PITR, log retention and bucket lifecycle"
+    - "a test maps every never_use entry in budget.yaml to an assertion, so adding a banned service to the budget without asserting it fails"
+    - "strict mode caught three real defects while writing this: exactOptionalPropertyTypes on the CDK Environment, a pointInTimeRecoverySpecification prop that does not exist on TableV2, and index-signature access in the tests"
+    - "TableV2 rejects FIXED write capacity, so capacity is autoscaled 1..share - which also returns the allowance when idle instead of holding the ceiling around the clock"
 
 - id: M0A-03
   milestone: M0

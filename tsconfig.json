@@ -12,5 +12,5 @@
   ],
 
   "files": [],
-  "references": [{ "path": "tools/toolchain-smoke" }]
+  "references": [{ "path": "infra" }, { "path": "tools/toolchain-smoke" }]
 }

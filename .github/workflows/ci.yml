@@ -85,6 +85,25 @@ jobs:
           name: coverage
           path: coverage.xml
 
+  synth:
+    name: cdk synth (6 combinations, offline)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # No AWS credentials are configured for this job, deliberately. Synthesis must
+      # work offline — a context lookup would call AWS and fail here, which is the
+      # point: that is how `fromLookup` creeping in gets caught rather than discovered
+      # later on a machine that happens to have credentials.
+      - name: Synthesize both profiles across all environments
+        run: make synth-matrix
+
   accuracy:
     name: Extraction accuracy gate
     runs-on: ubuntu-latest

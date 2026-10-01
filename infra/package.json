@@ -1,0 +1,21 @@
+{
+  "name": "@setlist/infra",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AWS CDK app. Synthesizes under profile=zero by default; enterprise is opt-in.",
+  "scripts": {
+    "typecheck": "tsc --build",
+    "test": "vitest run",
+    "synth": "cdk synth --all"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.173.4",
+    "constructs": "10.4.2",
+    "yaml": "2.6.1"
+  },
+  "devDependencies": {
+    "aws-cdk": "2.173.1",
+    "tsx": "4.19.2"
+  }
+}

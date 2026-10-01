@@ -1,0 +1,18 @@
+{
+  "_app_note": [
+    "tsx, not `node --experimental-strip-types`. Type stripping does not do module",
+    "resolution, so the `.js` specifiers NodeNext requires in TypeScript source fail to",
+    "resolve at runtime. tsx maps them; it also means `cdk synth` needs no build step,",
+    "so there is no stale dist/ to synthesize from by mistake."
+  ],
+  "app": "tsx bin/setlist.ts",
+  "watch": { "include": ["**"], "exclude": ["dist/**", "node_modules/**", "cdk.out/**"] },
+  "output": "cdk.out",
+  "context": {
+    "profile": "zero",
+    "@aws-cdk/core:checkSecretUsage": true,
+    "@aws-cdk/aws-iam:minimizePolicies": true,
+    "@aws-cdk/core:validateSnapshotRemovalPolicy": true,
+    "@aws-cdk/core:target-partitions": ["aws"]
+  }
+}
