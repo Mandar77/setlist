@@ -56,6 +56,21 @@ export interface FixturePair {
   readonly compliant: FixtureBuilder
 }
 
+/**
+ * A role ARN for an L1 that demands one, built from the stack's own account token.
+ *
+ * Not a hard-coded ARN with the twelve-digit documentation account in it. That value
+ * leaks nothing, but ADR-005 bans account ids and ARNs from this public repo outright,
+ * and a scanner that tried to tell a placeholder from a real id would be making exactly
+ * the judgement call you do not want it making — `tools/check_no_secrets.py` flagged
+ * even the comment that used to explain this, which is the correct amount of
+ * discrimination for a secret scanner to have. This renders as `Ref: AWS::AccountId`,
+ * which is the idiomatic form anyway.
+ */
+function fixtureRoleArn(scope: Stack): string {
+  return scope.formatArn({ service: 'iam', region: '', resource: 'role', resourceName: 'fixture' })
+}
+
 /** A plain inline Lambda, used wherever a fixture needs a function to modify. */
 function lambda(scope: Construct, id: string): LambdaFunction {
   return new LambdaFunction(scope, id, {
@@ -169,9 +184,9 @@ export const FIXTURES: Readonly<Record<string, FixturePair>> = {
       // at synth time, and `make verify` must run without Docker — a fixture that
       // needs a daemon is a fixture that gets skipped.
       new CfnFunction(s, 'ImageFn', {
-        role: 'arn:aws:iam::123456789012:role/fixture',
+        role: fixtureRoleArn(s),
         packageType: 'Image',
-        code: { imageUri: '123456789012.dkr.ecr.us-east-1.amazonaws.com/fixture:latest' },
+        code: { imageUri: `${s.account}.dkr.ecr.${s.region}.amazonaws.com/fixture:latest` },
       })
     },
     compliant: s => {
@@ -255,7 +270,7 @@ export const FIXTURES: Readonly<Record<string, FixturePair>> = {
   'SZC-SFN-EXPRESS': {
     violating: s => {
       new CfnStateMachine(s, 'Sm', {
-        roleArn: 'arn:aws:iam::123456789012:role/fixture',
+        roleArn: fixtureRoleArn(s),
         stateMachineType: 'EXPRESS',
         definitionString: '{"StartAt":"X","States":{"X":{"Type":"Succeed"}}}',
       })
@@ -263,7 +278,7 @@ export const FIXTURES: Readonly<Record<string, FixturePair>> = {
     compliant: s => {
       // Standard has 4,000 free transitions; Express has none.
       new CfnStateMachine(s, 'Sm', {
-        roleArn: 'arn:aws:iam::123456789012:role/fixture',
+        roleArn: fixtureRoleArn(s),
         stateMachineType: 'STANDARD',
         definitionString: '{"StartAt":"X","States":{"X":{"Type":"Succeed"}}}',
       })
@@ -312,7 +327,7 @@ export const FIXTURES: Readonly<Record<string, FixturePair>> = {
   'SZC-GLUE': {
     violating: s => {
       new CfnJob(s, 'Job', {
-        role: 'arn:aws:iam::123456789012:role/fixture',
+        role: fixtureRoleArn(s),
         command: { name: 'pythonshell', scriptLocation: 's3://fixture/script.py' },
       })
     },
@@ -347,7 +362,7 @@ export const FIXTURES: Readonly<Record<string, FixturePair>> = {
       new CfnCanary(s, 'Canary', {
         name: 'fixture',
         artifactS3Location: 's3://fixture/',
-        executionRoleArn: 'arn:aws:iam::123456789012:role/fixture',
+        executionRoleArn: fixtureRoleArn(s),
         runtimeVersion: 'syn-nodejs-puppeteer-9.0',
         schedule: { expression: 'rate(1 hour)' },
         code: { handler: 'index.handler', script: 'exports.handler = async () => {}' },

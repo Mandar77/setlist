@@ -25,7 +25,7 @@ import { PlatformStack } from '../../lib/stacks/platform-stack.js'
 /** Build a stack, apply the pack, and return every SZC error it raised. */
 function findings(build: (stack: Stack) => void): string[] {
   const app = new App()
-  const stack = new Stack(app, 'Fixture', { env: { account: '123456789012', region: REGION } })
+  const stack = new Stack(app, 'Fixture', { env: { region: REGION } })
   build(stack)
   Aspects.of(stack).add(new SetlistZeroCostPack())
 

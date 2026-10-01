@@ -131,17 +131,21 @@ ALLOWLIST = re.compile(
 )
 
 
-def _findings(label: str, text: str) -> list[tuple[str, str, str, int]]:
-    """Return (rule, note, fragment, line) for every unallowlisted match."""
-    out: list[tuple[str, str, str, int]] = []
+#: One finding: (rule name, "where:line", the matched fragment, why it matters).
+Finding = tuple[str, str, str, str]
+
+
+def _findings(label: str, text: str) -> list[Finding]:
+    """Return a finding for every unallowlisted match."""
+    out: list[Finding] = []
     for rule in RULES:
         for match in rule.pattern.finditer(text):
             fragment = match.group(0)
             if ALLOWLIST.search(fragment):
                 continue
             line = text.count("\n", 0, match.start()) + 1
-            out.append((rule.name, f"{label}:{line}", fragment[:80], rule.note))  # type: ignore[arg-type]
-    return out  # type: ignore[return-value]
+            out.append((rule.name, f"{label}:{line}", fragment[:80], rule.note))
+    return out
 
 
 class GitUnavailableError(RuntimeError):
@@ -181,20 +185,34 @@ def _skip(path: str) -> bool:
     return path.endswith(tuple(BINARY_SUFFIXES)) or any(s in path for s in SKIP_PATHS)
 
 
-def scan_tree() -> list[tuple[str, str, str, str]]:
-    """Scan every tracked file in the working tree."""
-    listed = _git("git", "ls-files", "-z")
-    results: list[tuple[str, str, str, str]] = []
-    for path in filter(None, listed.split("\0")):
-        if _skip(path):
+def scan_tree() -> list[Finding]:
+    """Scan every tracked file in the working tree, plus every new one.
+
+    `--others` is not an optimisation, it closes a hole that this check fell into
+    itself. `git ls-files` with no flags lists only TRACKED files, so a brand-new file
+    was invisible to the scan on the one run that matters most - the `make verify`
+    before its first commit, while it is still untracked. An account id reached
+    `develop` that way, and `make verify` printed "clean" both times it was asked.
+
+    `--exclude-standard` keeps .gitignore honoured, so build output and .venv are
+    still skipped. Files that are ignored cannot be committed, so they cannot leak.
+    """
+    tracked = _git("git", "ls-files", "-z")
+    untracked = _git("git", "ls-files", "-z", "--others", "--exclude-standard")
+
+    results: list[Finding] = []
+    seen: set[str] = set()
+    for path in filter(None, tracked.split("\0") + untracked.split("\0")):
+        if path in seen or _skip(path):
             continue
+        seen.add(path)
         text = _decode((ROOT / path).read_bytes()) if (ROOT / path).exists() else None
         if text is not None:
             results += _findings(path, text)
     return results
 
 
-def scan_staged() -> list[tuple[str, str, str, str]]:
+def scan_staged() -> list[Finding]:
     """Scan only the lines the staged diff ADDS.
 
     Removed lines still appear in a diff, so scanning the raw output would fail the
@@ -230,7 +248,7 @@ def _published_identities() -> set[str]:
     return declared
 
 
-def scan_identities() -> list[tuple[str, str, str, str]]:
+def scan_identities() -> list[Finding]:
     """Check every commit's author and committer address against the allowlist.
 
     This is separate from the pattern rules because it is not pattern matching: the
@@ -241,7 +259,7 @@ def scan_identities() -> list[tuple[str, str, str, str]]:
     addresses = {line.strip().lower() for line in raw.splitlines() if line.strip()}
     declared = _published_identities()
 
-    findings: list[tuple[str, str, str, str]] = []
+    findings: list[Finding] = []
     for address in sorted(addresses):
         if _ALWAYS_OK_IDENTITY.search(address) or address in declared:
             continue
@@ -262,11 +280,11 @@ def scan_identities() -> list[tuple[str, str, str, str]]:
     return findings
 
 
-def scan_history() -> list[tuple[str, str, str, str]]:
+def scan_history() -> list[Finding]:
     """Scan every blob ever committed on any ref, plus all commit messages."""
     listing = _git("git", "rev-list", "--objects", "--all").splitlines()
 
-    results: list[tuple[str, str, str, str]] = []
+    results: list[Finding] = []
     for entry in listing:
         sha, _, path = entry.partition(" ")
         if not path or _skip(path):
