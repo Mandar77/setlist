@@ -149,8 +149,15 @@ synth-matrix: node_modules ## Synthesize all 6 profile x env combinations, offli
 	done
 	@echo "synth-matrix OK (6/6 offline)"
 
-nag: synth ## cdk-nag, including the SetlistZeroCostPack
-	cd infra && npx cdk synth --all -c env=$(ENV) -c profile=$(PROFILE) -c nag=true
+nag: synth ## cdk-nag: the real stacks must pass, and a costly stack must be rejected
+	@# Direction one: the stacks we ship synthesize clean under the pack.
+	cd infra && $(CDK_ENV) pnpm exec cdk synth --all \
+		-c env=$(ENV) -c profile=$(PROFILE) -c nag=true >/dev/null
+	@echo "  ok    $(ENV)/$(PROFILE) stacks pass SetlistZeroCost"
+	@# Direction two, and the one that is easy to skip: a stack that MUST be rejected
+	@# is actually rejected. A pack that is never attached also produces a clean synth,
+	@# so direction one on its own proves nothing about whether the gate runs.
+	node tools/check_nag_gate.js
 
 kics: synth ## KICS scan of the synthesized templates (needs Docker)
 	# $(CURDIR), not $(PWD): PWD is exported by a shell, not set by make, so a make

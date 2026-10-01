@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "docs": [
+    "This fixture is a real TypeScript project, referenced from the root tsconfig, so",
+    "`make types` checks it. A gate fixture that stopped compiling would otherwise fail",
+    "for the wrong reason and still look like the gate firing."
+  ],
+
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "types": ["node"]
+  },
+  "references": [{ "path": "../../../infra" }],
+  "include": ["app.ts"]
+}

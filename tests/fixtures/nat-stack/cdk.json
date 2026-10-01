@@ -1,0 +1,16 @@
+{
+  "_app_note": [
+    "`tsx app.ts`, resolved from this package's own node_modules/.bin — which is why",
+    "tsx is a devDependency here and why tools/check_nag_gate.js puts that directory on",
+    "PATH before invoking the CDK CLI. Spelling an absolute path to tsx would bake in a",
+    "pnpm store layout that changes with every version bump."
+  ],
+  "app": "tsx app.ts",
+  "output": "cdk.out",
+  "context": {
+    "profile": "zero",
+    "@aws-cdk/core:checkSecretUsage": true,
+    "@aws-cdk/aws-iam:minimizePolicies": true,
+    "@aws-cdk/core:target-partitions": ["aws"]
+  }
+}

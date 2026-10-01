@@ -41,6 +41,9 @@ importers:
       aws-cdk-lib:
         specifier: 2.173.4
         version: 2.173.4(constructs@10.4.2)
+      cdk-nag:
+        specifier: 2.34.12
+        version: 2.34.12(aws-cdk-lib@2.173.4(constructs@10.4.2))(constructs@10.4.2)
       constructs:
         specifier: 10.4.2
         version: 10.4.2
@@ -51,6 +54,19 @@ importers:
       aws-cdk:
         specifier: 2.173.1
         version: 2.173.1
+      tsx:
+        specifier: 4.19.2
+        version: 4.19.2
+
+  tests/fixtures/nat-stack:
+    dependencies:
+      aws-cdk-lib:
+        specifier: 2.173.4
+        version: 2.173.4(constructs@10.4.2)
+      constructs:
+        specifier: 10.4.2
+        version: 10.4.2
+    devDependencies:
       tsx:
         specifier: 4.19.2
         version: 4.19.2
@@ -729,6 +745,12 @@ packages:
   callsites@3.1.0:
     resolution: {integrity: sha512-P8BjAsXvZS+VIDUI11hHCQEv74YT67YUi5JJFNWIqL235sBmjX4+qx9Muvls5ivyNENctx46xQLQ3aTuE7ssaQ==}
     engines: {node: '>=6'}
+
+  cdk-nag@2.34.12:
+    resolution: {integrity: sha512-81Be6u+MXA0vbR0TfSCkw5OSoYSZK/7WMZUjF/0nRqc7q1fLLpwetEaNUU7xsx1j97aIIN0ehH5NOXtbA0k7tQ==}
+    peerDependencies:
+      aws-cdk-lib: ^2.156.0
+      constructs: ^10.0.5
 
   chai@5.3.3:
     resolution: {integrity: sha512-4zNhdJD/iOjSH0A05ea+Ke6MU5mmpQcbQsSOkgdaUMJ9zTlDTD/GYlwohmIE2u0gaxHYiVHEn1Fw9mZ/ktJWgw==}
@@ -1740,6 +1762,11 @@ snapshots:
   cac@6.7.14: {}
 
   callsites@3.1.0: {}
+
+  cdk-nag@2.34.12(aws-cdk-lib@2.173.4(constructs@10.4.2))(constructs@10.4.2):
+    dependencies:
+      aws-cdk-lib: 2.173.4(constructs@10.4.2)
+      constructs: 10.4.2
 
   chai@5.3.3:
     dependencies:

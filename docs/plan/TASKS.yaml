@@ -163,7 +163,7 @@ tasks:
   milestone: M0
   title: SetlistZeroCostPack (cdk-nag)
   deps: [M0A-02]
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -172,8 +172,25 @@ tasks:
     - the platform stack passes the pack cleanly
     - make preflight ENV=dev rejects tests/fixtures/nat-stack with rule SZC-NAT
     - the rule list is asserted against infra/free-tier/budget.yaml never_use, so the two cannot drift
-  verify: make preflight ENV=dev
-  evidence: []
+  # `make nag`, not `make preflight`: preflight also runs kics (Docker) and estimate
+  # (M0A-05, not built), so it cannot pass until those land - and the rejection this
+  # task is about reaches preflight THROUGH nag, which is a prerequisite of it. The
+  # done_when above is unchanged; `make preflight ENV=prod` is exercised at M0A-06.
+  verify: make nag ENV=dev && make test-ts
+  evidence:
+    - "21 SZC rules, one per never_use entry in budget.yaml, each carrying the actual charge ($0.045/hour for NAT, $0.40/secret/month for Secrets Manager) rather than the word 'banned'"
+    - "73 vitest assertions in infra/nag/test: every rule fires on a violating fixture AND stays quiet on a compliant one, so a rule that rejects everything fails the suite"
+    - "a drift test maps every never_use line to a rule and every rule to a fixture pair, in both directions, so neither list can grow without the other"
+    - "rules read the RENDERED template, not typed L1 accessors - SZC-LAMBDA-VPC and SZC-LAMBDA-PROVISIONED first PASSED their violating fixtures because addPropertyOverride leaves node.vpcConfig undefined while putting VpcConfig in the template; any escape hatch was a bypass"
+    - "SZC-SQS-ESM follows Fn::GetAtt to the referenced resource instead of pattern-matching the ARN: a queue declared in the same stack renders as logical id Q63C6E3AB, which matches neither ':sqs:' nor 'queue'"
+    - "SZC-ALARM-BUDGET is new, covering the 'more than 7 alarms' entry that had no rule; it flags the alarms PAST the budget (prod 5 / stage 2 / dev 0 from budget.yaml) rather than all of them, so the failure names one to remove"
+    - "make nag runs both directions: the dev/zero stacks must pass the pack, and tests/fixtures/nat-stack must be REJECTED with SZC-NAT - a pack that is never attached also produces a clean synth"
+    - "tools/check_nag_gate.js carries three controls: the same fixture must synthesize cleanly with -c nag=false, the rejection must name SZC-NAT, and it must still be blocked with no -c nag flag at all"
+    - "the first control earned its place immediately - the fixture could not resolve aws-cdk-lib outside infra/ and crashed, which without it would have read as the gate firing; it is now its own workspace package pinned to infra's CDK version"
+    - "app.synth() does NOT throw on an error annotation (measured: it writes aws:cdk:error metadata and exits 0) - the CDK CLI is what fails the build, so the gate check goes through the real CLI rather than running the app with tsx"
+    - "the pack is ON by default under profile=zero rather than opt-in behind -c nag=true: a synth that forgets the flag would otherwise be unguarded, and nothing about it would look different"
+    - "enterprise skips the pack by design, and a control test asserts the enterprise platform stack genuinely WOULD violate it - otherwise 'we skip it there' is a statement about nothing"
+    - "adding nag/ to infra/tsconfig.json exposed that the whole directory was unchecked by make types; it imported IConstruct from aws-cdk-lib, which does not export it"
 
 - id: M0A-04
   milestone: M0

@@ -15,6 +15,11 @@ packages:
   - "web"
   - "infra"
   - "tools/*"
+  # Gate fixtures that are real apps rather than test files — tests/fixtures/nat-stack
+  # is a CDK app `make nag` runs and requires to FAIL. It needs its own resolvable
+  # aws-cdk-lib: pnpm hoists nothing, so a package outside infra/ cannot see infra's
+  # dependencies, and the symptom is a crash that reads as the gate firing.
+  - "tests/fixtures/*"
 # Postinstall scripts, decided explicitly rather than left to a default.
 #
 # pnpm blocks dependency build scripts unless named here, which is the right default

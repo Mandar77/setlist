@@ -12,5 +12,9 @@
   ],
 
   "files": [],
-  "references": [{ "path": "infra" }, { "path": "tools/toolchain-smoke" }]
+  "references": [
+    { "path": "infra" },
+    { "path": "tests/fixtures/nat-stack" },
+    { "path": "tools/toolchain-smoke" }
+  ]
 }

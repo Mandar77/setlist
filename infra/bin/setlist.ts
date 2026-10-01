@@ -13,6 +13,7 @@
 
 import { App } from 'aws-cdk-lib'
 import { REGION, resolve, stackName } from '../lib/config/profile.js'
+import { applyZeroCostPack } from '../nag/apply.js'
 import { PlatformStack } from '../lib/stacks/platform-stack.js'
 
 const app = new App()
@@ -31,5 +32,10 @@ new PlatformStack(app, stackName(env, 'platform'), {
   description: `Setlist platform (${env}, profile=${profile})`,
   tags: { app: 'setlist', env, profile },
 })
+
+// On by default under profile=zero; see infra/nag/apply.ts for why it is not opt-in.
+// A violation becomes an error annotation, and `app.synth()` below throws on those —
+// so a resource that would cost money fails the build instead of reaching a template.
+applyZeroCostPack(app, profile, env)
 
 app.synth()
