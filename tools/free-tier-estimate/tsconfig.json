@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "docs": [
+    "Imports the budget loader from infra by relative path rather than keeping a second",
+    "parser. budget.yaml is the file CI gates on and the runtime sentinel trips on; a",
+    "second reader of it would be a third opinion nobody reconciles."
+  ],
+
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "types": ["node"]
+  },
+  "references": [{ "path": "../../infra" }],
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

@@ -8,6 +8,35 @@
 
 version: 1
 
+# Volumes below are monthly; `days_per_month` converts them for the quotas that reset
+# daily (YouTube) and the allowances expressed as a rate (DynamoDB capacity). Stated
+# here rather than assumed in the estimator so the conversion is visible next to the
+# numbers it applies to.
+days_per_month: 30
+
+# Which allowance each metric draws down.
+#
+# The estimator refuses to run if an operation carries a metric that is not listed
+# here. A new cost that nobody mapped would otherwise be counted as zero, and a
+# forecast that silently ignores a cost is worse than no forecast - it reads as
+# headroom.
+#
+# `limit` names an entry in budget.yaml (limits or provider_limits); `cloudfront` means
+# the metric is reported against the `cloudfront:` block there instead, which is not
+# split the same way.
+meters:
+  lambda_requests: { limit: lambda_requests }
+  lambda_gb_seconds: { limit: lambda_gb_seconds }
+  dynamodb_wcu_ops: { limit: dynamodb_wcu }
+  dynamodb_rcu_ops: { limit: dynamodb_rcu }
+  sns_publishes: { limit: sns_publishes }
+  xray_traces: { limit: xray_traces }
+  kms_requests: { limit: kms_requests }
+  cloudwatch_logs_gb: { limit: cloudwatch_logs_gb }
+  youtube_units: { limit: youtube_units_per_day }
+  youtube_search_list: { limit: youtube_search_list_per_day }
+  cloudfront_requests: { cloudfront: requests }
+
 # Cost of one unit of work, per flow.
 operations:
   on_device_scan:

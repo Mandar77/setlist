@@ -19,10 +19,28 @@ export const BUDGET_PATH = join(HERE, '..', '..', 'free-tier', 'budget.yaml')
 export type EnvName = 'dev' | 'stage' | 'prod'
 export const ENV_NAMES: readonly EnvName[] = ['dev', 'stage', 'prod'] as const
 
+/**
+ * What an allowance's number means.
+ *
+ * Not decoration: 20 million monthly DynamoDB writes against a 25 WCU allowance is
+ * either 8 WCU (correct) or 0.00008% of a monthly total (nonsense that reads as
+ * headroom). The estimator cannot tell which from the number alone.
+ */
+export type LimitBasis = 'monthly' | 'per_day' | 'per_second' | 'fixed'
+
+export const LIMIT_BASES: readonly LimitBasis[] = [
+  'monthly',
+  'per_day',
+  'per_second',
+  'fixed',
+] as const
+
 /** One allowance and how it is divided. `reserve` is unallocated headroom. */
 export interface Limit {
   readonly total: number
   readonly unit?: string
+  /** Defaults to `monthly`, which is what most always-free allowances are. */
+  readonly basis: LimitBasis
   readonly note?: string
   readonly split: Readonly<Record<string, number>>
 }
@@ -37,9 +55,35 @@ export interface Budget {
   readonly tripPct: number
   readonly limits: Readonly<Record<string, Limit>>
   readonly providerLimits: Readonly<Record<string, Limit>>
+  /**
+   * CloudFront, which is not split like the others: prod runs the flat-rate Free plan
+   * with its own inclusion, dev and stage draw on the shared always-free allowance.
+   */
+  readonly cloudfront: CloudFrontBudget
   /** Resource descriptions that must never appear in a synthesized template. */
   readonly neverUse: readonly string[]
 }
+
+export interface CloudFrontEnv {
+  readonly plan: string
+  /** Requests included in this environment's plan; absent on pay-as-you-go. */
+  readonly requests?: number
+  readonly data_transfer_gb?: number
+  /** The forecast written down when the plan was chosen. */
+  readonly planned_requests: number
+  readonly note?: string
+}
+
+export interface CloudFrontBudget {
+  readonly always_free_requests: number
+  readonly always_free_data_transfer_gb: number
+  readonly prod: CloudFrontEnv
+  readonly stage: CloudFrontEnv
+  readonly dev: CloudFrontEnv
+}
+
+/** A limit as written in YAML, before `basis` is defaulted. */
+type RawLimit = Omit<Limit, 'basis'> & { basis?: string }
 
 interface RawBudget {
   version: number
@@ -47,9 +91,30 @@ interface RawBudget {
   region: string
   gate_pct: number
   trip_pct: number
-  limits: Record<string, Limit>
-  provider_limits: Record<string, Limit>
+  limits: Record<string, RawLimit>
+  provider_limits: Record<string, RawLimit>
+  cloudfront: CloudFrontBudget
   never_use: string[]
+}
+
+/**
+ * Apply the `monthly` default and reject anything unrecognised.
+ *
+ * A typo'd basis must not fall back to the default: `per_secnod` silently meaning
+ * "monthly" is how DynamoDB capacity would come to look infinitely spacious.
+ */
+function withBasis(name: string, raw: Record<string, RawLimit>): Record<string, Limit> {
+  const out: Record<string, Limit> = {}
+  for (const [key, limit] of Object.entries(raw ?? {})) {
+    const basis = limit.basis ?? 'monthly'
+    if (!LIMIT_BASES.includes(basis as LimitBasis)) {
+      throw new Error(
+        `budget.yaml: ${name}.${key} has basis '${basis}'. Known: ${LIMIT_BASES.join(', ')}`,
+      )
+    }
+    out[key] = { ...limit, basis: basis as LimitBasis }
+  }
+  return out
 }
 
 let cached: Budget | undefined
@@ -87,8 +152,9 @@ export function loadBudget(path: string = BUDGET_PATH): Budget {
     region: raw.region,
     gatePct: raw.gate_pct,
     tripPct: raw.trip_pct,
-    limits: raw.limits,
-    providerLimits: raw.provider_limits ?? {},
+    limits: withBasis('limits', raw.limits),
+    providerLimits: withBasis('provider_limits', raw.provider_limits),
+    cloudfront: raw.cloudfront,
     neverUse: raw.never_use ?? [],
   }
   if (path === BUDGET_PATH) cached = budget

@@ -10,6 +10,27 @@ Claude Code appends; it never rewrites history here.
 | --- | --- | --- | --- | --- |
 | 2026-09-28 | Session 1 — GitHub, AWS account, bootstrap stack, Expo token | Account creation and a console upload; no agent can hold these credentials | not filed yet (no remote) | open |
 | 2026-09-28 | Decide the git author identity before the first push | Your commit author email goes into public git history and only you can choose it | not filed yet (no remote) | open |
+| 2026-09-30 | The 70% CI gate and the PED's own volume targets contradict each other | Relaxing a cost gate or a PED target needs a human and an ADR ([ADR-008](../adr/0008-free-tier-gate-vs-ped-volumes.md)) | not filed yet (no remote) | open |
+
+## Open item: free-tier gate vs PED volumes — **blocks `make preflight`**
+
+The first run of `tools/free-tier-estimate` (built at M0A-05) fails on seven rows. The
+arithmetic reproduces the PED's own figures, so this is two committed numbers
+disagreeing, not a tool defect. Full evidence and options:
+[ADR-008](../adr/0008-free-tier-gate-vs-ped-volumes.md).
+
+The headline, because it is a plain bug rather than a threshold argument:
+
+> **dev is allotted 500 YouTube units a day. One 15-song playlist costs 800.** A
+> developer cannot create a single playlist in dev without exceeding its share, and the
+> first symptom would be a `quotaExceeded` that looks like a code defect.
+
+The rest is a genuine conflict: PED §11 sized prod at 250 playlists/month *because* that
+is what 7,000 units/day buys — which is 95.2% of the share, against a gate set at 70%.
+One of the two has to give. ADR-008 lays out five options and recommends three of them.
+
+Nothing was edited to make the gate pass. M0A-05 is `blocked` rather than `done`, and
+`make estimate` exits 1 until this is decided.
 
 ## Open item: git author identity — **blocks the first push**
 

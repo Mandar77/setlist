@@ -15,6 +15,7 @@
   "references": [
     { "path": "infra" },
     { "path": "tests/fixtures/nat-stack" },
+    { "path": "tools/free-tier-estimate" },
     { "path": "tools/toolchain-smoke" }
   ]
 }

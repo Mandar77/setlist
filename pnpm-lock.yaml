@@ -71,6 +71,22 @@ importers:
         specifier: 4.19.2
         version: 4.19.2
 
+  tools/free-tier-estimate:
+    dependencies:
+      aws-cdk-lib:
+        specifier: 2.173.4
+        version: 2.173.4(constructs@10.4.2)
+      constructs:
+        specifier: 10.4.2
+        version: 10.4.2
+      yaml:
+        specifier: 2.6.1
+        version: 2.6.1
+    devDependencies:
+      tsx:
+        specifier: 4.19.2
+        version: 4.19.2
+
   tools/toolchain-smoke: {}
 
 packages:

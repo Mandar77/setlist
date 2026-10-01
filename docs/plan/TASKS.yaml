@@ -212,8 +212,8 @@ tasks:
   milestone: M0
   title: tools/free-tier-estimate
   deps: [M0A-02]
-  status: todo
-  blocked_on: null
+  status: blocked
+  blocked_on: ADR-008 (docs/hitl/QUEUE.md) - the committed budget breaches its own 70% gate
   not_before: null
   done_when:
     - reads infra/free-tier/budget.yaml and usage-model.yaml; no numbers hardcoded in the tool
@@ -222,8 +222,24 @@ tasks:
     - tests reproduce the PED S10.8 Lambda and CloudFront bindings
     - emits a markdown table suitable for a PR comment, sorted by percentage of allowance used
     - also reports which limit binds first, across AWS and provider quotas together
-  verify: make estimate
-  evidence: []
+  # The tool is finished and its own tests pass; `make estimate` exits 1 because the
+  # committed budget breaches its own 70% gate in seven places. That is the gate
+  # working, not the tool failing - and per AUTOPILOT S2.4 the fix is a human decision
+  # with an ADR, not an edit that makes the number go away.
+  verify: make estimate   # exits 1 until ADR-008 is decided
+  evidence:
+    - "tools/free-tier-estimate is TypeScript per ADR-004; the Makefile placeholder pointed at a Python module, which would have set the wrong precedent the day it was filled in"
+    - "reads budget.yaml and usage-model.yaml and holds no numbers of its own - it imports infra/lib/config/budget.ts rather than parsing budget.yaml a second time, since that file is what CI gates on AND what the runtime sentinel trips on"
+    - "21 vitest assertions; PED arithmetic checked against the real data (800 units a playlist = 50 + 15*50; 7000/800 = 8 playlists/day), gate behaviour against synthetic budgets so a legitimate budget change does not fail a test and create pressure to edit it"
+    - "gate tests cover both directions plus both boundaries: 69% passes, 70% passes, 71% fails, and any use of a zero allowance is Infinity rather than a comfortable 0%"
+    - "added a `basis` field to each limit (monthly/per_day/per_second/fixed) because the allowances are not the same shape: 20M monthly DynamoDB writes against a 25 WCU allowance is 8 WCU, or 0.00008% of a monthly total - a factor of 2.6 million of false comfort"
+    - "an unrecognised basis throws instead of defaulting to monthly; `per_secnod` silently meaning monthly is how DynamoDB capacity would come to look infinitely spacious"
+    - "the usage model declares which limit each metric charges, and an operation carrying an unmetered cost is an error - an unmetered cost counts as zero, and zero reads as headroom"
+    - "limits nobody meters are listed as `not modelled` rather than shown at 0%: cloudwatch_alarms, cognito_mau, data_transfer_out_gb, sqs_requests, step_functions_transitions and three others are unforecast, not safe"
+    - "FINDING (blocks this task): seven rows breach the 70% gate on the committed data. dev gets 500 YouTube units/day and one 15-song playlist costs 800, so dev cannot create a single playlist - a plain bug, not a threshold argument"
+    - "FINDING: PED S11 sized prod at 250 playlists/month BECAUSE that is what 7000 units/day buys, which is 95.2% of the share against a gate set at 70%; budget.yaml asserts both, twelve lines apart"
+    - "FINDING: cloudfront.prod.planned_requests says 350,000 while the usage model implies 732,000, and baseline log ingest is 80% of prod's share before any traffic; reported as drift rather than resolved by picking the friendlier number"
+    - "no number was edited to make the gate pass - see docs/adr/0008 and docs/hitl/QUEUE.md"
 
 - id: M0A-06
   milestone: M0

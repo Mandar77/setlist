@@ -168,12 +168,16 @@ kics: synth ## KICS scan of the synthesized templates (needs Docker)
 		-p /path/infra/cdk.out -q /path/security/kics-queries \
 		--fail-on high,critical
 
-estimate: ## Fail if projected usage exceeds the gate in infra/free-tier/budget.yaml
-	@# Built by M0A-05. Named here so `preflight` fails loudly rather than appearing to
-	@# pass a check that does not exist yet.
-	@test -f tools/free_tier_estimate/__main__.py \
-		|| { echo "estimate: tools/free_tier_estimate is not built yet (task M0A-05)"; exit 1; }
-	$(UV) run python -m tools.free_tier_estimate --env $(ENV)
+estimate: node_modules ## Fail if projected usage exceeds the gate in infra/free-tier/budget.yaml
+	@# TypeScript, not Python. ADR-004 makes Node the default and names the only three
+	@# Python exceptions; this is not one of them. The placeholder that stood here
+	@# pointed at a Python module, which would have set the wrong precedent on the day
+	@# it was filled in.
+	@#
+	@# Deliberately NOT scoped to $(ENV): the free-tier allowances are account-wide and
+	@# shared across all three environments, so passing dev while prod is over its share
+	@# is precisely the wrong answer. Use `--env` directly for a focused report.
+	cd tools/free-tier-estimate && node --import tsx src/cli.ts
 
 ## preflight: run before PUSHING infrastructure changes. Deploys happen only in CI.
 preflight: verify nag kics estimate

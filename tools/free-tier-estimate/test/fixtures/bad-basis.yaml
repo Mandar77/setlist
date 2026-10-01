@@ -1,0 +1,30 @@
+# MUST BE REJECTED: `per_secnod` is a typo.
+#
+# If an unknown basis fell back to the `monthly` default, DynamoDB capacity would be
+# compared against a monthly total — 2.6 million times more generous than the real
+# allowance, and it would pass every gate forever.
+version: 1
+account_type: free_plan
+region: us-east-1
+gate_pct: 70
+trip_pct: 85
+
+environments: [prod, stage, dev]
+
+limits:
+  dynamodb_wcu:
+    total: 25
+    unit: WCU
+    basis: per_secnod
+    split: { prod: 10, stage: 4, dev: 3, reserve: 8 }
+
+provider_limits: {}
+
+cloudfront:
+  always_free_requests: 10000000
+  always_free_data_transfer_gb: 1024
+  prod: { plan: free_flat_rate, requests: 1000000, planned_requests: 350000 }
+  stage: { plan: pay_as_you_go, planned_requests: 40000 }
+  dev: { plan: pay_as_you_go, planned_requests: 20000 }
+
+never_use: []

@@ -1,0 +1,24 @@
+# MUST BE REJECTED: `stage` has no volumes.
+#
+# A missing environment is simply not reported, and an unreported environment is an
+# unguarded one — it would deploy with nothing having checked its share.
+version: 1
+days_per_month: 30
+
+meters:
+  lambda_requests: { limit: lambda_requests }
+
+operations:
+  some_flow:
+    description: A flow.
+    lambda_requests: 1
+    confidence: estimated
+
+volumes:
+  prod: { some_flow: 10 }
+  dev: { some_flow: 1 }
+
+baseline:
+  prod: {}
+  stage: {}
+  dev: {}

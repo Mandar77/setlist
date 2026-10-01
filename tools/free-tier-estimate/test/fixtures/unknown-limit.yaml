@@ -1,0 +1,25 @@
+# MUST BE REJECTED: the meter charges a limit budget.yaml does not define.
+#
+# This is what a rename looks like from the estimator's side. The metric keeps being
+# counted into a bucket that no longer exists, so it quietly stops being gated.
+version: 1
+days_per_month: 30
+
+meters:
+  lambda_requests: { limit: lambda_invocations_renamed }
+
+operations:
+  some_flow:
+    description: A flow charging a limit that is not there.
+    lambda_requests: 1
+    confidence: estimated
+
+volumes:
+  prod: { some_flow: 10 }
+  stage: { some_flow: 1 }
+  dev: { some_flow: 1 }
+
+baseline:
+  prod: {}
+  stage: {}
+  dev: {}

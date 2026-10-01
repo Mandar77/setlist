@@ -1,0 +1,19 @@
+{
+  "name": "@setlist/free-tier-estimate",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Projects monthly usage against infra/free-tier/budget.yaml and fails above the gate.",
+  "scripts": {
+    "typecheck": "tsc --build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.173.4",
+    "constructs": "10.4.2",
+    "yaml": "2.6.1"
+  },
+  "devDependencies": {
+    "tsx": "4.19.2"
+  }
+}

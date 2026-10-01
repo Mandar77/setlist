@@ -1,0 +1,26 @@
+# MUST BE REJECTED: `bedrock_tokens` costs something and has no meter.
+#
+# Without the check, it is counted as zero and the forecast reports headroom it does
+# not have. That is the only direction a forecast can be wrong that costs money.
+version: 1
+days_per_month: 30
+
+meters:
+  lambda_requests: { limit: lambda_requests }
+
+operations:
+  some_flow:
+    description: A flow that costs something nobody mapped.
+    lambda_requests: 1
+    bedrock_tokens: 5000
+    confidence: estimated
+
+volumes:
+  prod: { some_flow: 10 }
+  stage: { some_flow: 1 }
+  dev: { some_flow: 1 }
+
+baseline:
+  prod: {}
+  stage: {}
+  dev: {}

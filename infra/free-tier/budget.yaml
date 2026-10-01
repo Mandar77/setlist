@@ -21,6 +21,18 @@ environments: [prod, stage, dev]
 # Always-free monthly allowances, and how they are split across environments.
 # `reserve` is deliberately unallocated headroom - it absorbs an estimate being wrong,
 # which is the failure mode that actually produces a bill.
+#
+# `basis` says what the number MEANS, because they are not all the same shape and an
+# estimator that assumes they are gets the dangerous ones wrong in the safe direction:
+#
+#   monthly     (the default, omitted)  a total consumed over a month
+#   per_second  a provisioned rate - DynamoDB capacity is 25 WCU at any instant, not
+#               25 writes a month, so monthly ops must be divided by the month
+#   per_day     a daily quota that resets - YouTube's, which binds before anything AWS
+#   fixed       a standing count, not derived from traffic at all
+#
+# Get this wrong on dynamodb_wcu and 20 million monthly writes report as 0.00008% of
+# allowance instead of saturating it.
 limits:
   lambda_gb_seconds:
     total: 400000
@@ -51,12 +63,14 @@ limits:
   dynamodb_wcu:
     total: 25
     unit: WCU
+    basis: per_second
     note: Provisioned only, shared across every table AND index in the account.
     split: { prod: 10, stage: 4, dev: 3, reserve: 8 }
 
   dynamodb_rcu:
     total: 25
     unit: RCU
+    basis: per_second
     split: { prod: 10, stage: 4, dev: 3, reserve: 8 }
 
   step_functions_transitions:
@@ -110,6 +124,7 @@ provider_limits:
   youtube_units_per_day:
     total: 10000
     unit: quota units
+    basis: per_day
     note: >
       Cannot be purchased. A 15-song playlist costs 50 + 15*50 = 800 units, so prod's
       7000/day is ~8 playlists/day (~250/month). This is the binding constraint on the
@@ -119,12 +134,14 @@ provider_limits:
   youtube_search_list_per_day:
     total: 100
     unit: search.list calls
+    basis: per_day
     note: Separate default bucket from the main unit quota (PED D16). Resolve by ISRC first.
     split: { prod: 70, stage: 20, dev: 10, reserve: 0 }
 
   spotify_dev_mode_users:
     total: 5
     unit: users
+    basis: fixed
     note: Requires the app owner to hold an active Premium subscription. Prod only.
     split: { prod: 5, stage: 0, dev: 0, reserve: 0 }
 
@@ -137,6 +154,11 @@ provider_limits:
 # CloudFront is not split the same way: prod runs on the flat-rate Free plan (which
 # bundles WAF and has no overages), dev/stage on pay-as-you-go always-free.
 cloudfront:
+  # dev and stage draw on the shared always-free allowance. Prod does not: the
+  # flat-rate plan replaces it with its own, much tighter, inclusion — which is why
+  # prod cannot be measured against the same ceiling as the other two.
+  always_free_requests: 10000000
+  always_free_data_transfer_gb: 1024
   prod:
     plan: free_flat_rate
     requests: 1000000
