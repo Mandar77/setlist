@@ -1,0 +1,119 @@
+name: Nightly
+
+# The checks too slow for every push, plus the ones that only mean anything over time.
+#
+# Each job is independent and none blocks a merge: a nightly that goes red and stays
+# red teaches people to ignore it. What it does instead is open a `human-needed` issue,
+# so the signal survives the run being scrolled past.
+on:
+  schedule:
+    # 03:17 UTC. Not on the hour: GitHub's scheduler queues heavily at :00 and a
+    # free-tier runner can wait twenty minutes for a slot that is not contended.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  PYTHONUTF8: "1"
+  UV_VERSION: "0.12.20"
+
+jobs:
+  secrets-history:
+    name: 2MS over full history
+    runs-on: ubuntu-latest
+    steps:
+      # fetch-depth: 0 is load-bearing. 2MS reports a clean exit 0 on a shallow clone
+      # even when history contains a secret, and checkout defaults to depth 1 — so the
+      # default gives a gate that cannot fail.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Scan every branch
+        run: |
+          docker run --rm -v "$PWD:/repo" checkmarx/2ms:v5.4.0 \
+            git /repo --all-branches --ignore-on-exit none
+
+  mutation:
+    name: Mutation testing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          version: ${{ env.UV_VERSION }}
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --all-packages --frozen
+      # Coverage says the line ran. Mutation says the test would have noticed if it
+      # were wrong, which is the thing this repo actually relies on.
+      - name: Mutate
+        run: make mutate
+
+  drift:
+    name: Infrastructure drift
+    runs-on: ubuntu-latest
+    if: ${{ vars.AWS_ENABLED == 'true' }}
+    permissions:
+      contents: read
+      id-token: write
+      issues: write
+    environment: diagnostics
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DIAGNOSTICS_ROLE }}
+          aws-region: us-east-1
+          role-session-name: setlist-drift-${{ github.run_id }}
+      # Detection is read-only and free. Someone changing a resource in the console is
+      # exactly how a $0 account stops being one, and nothing else here would see it.
+      - name: Detect drift on every stack
+        run: |
+          set -euo pipefail
+          for stack in $(aws cloudformation describe-stacks \
+              --query "Stacks[?starts_with(StackName, 'setlist-')].StackName" --output text); do
+            id=$(aws cloudformation detect-stack-drift --stack-name "$stack" \
+                   --query StackDriftDetectionId --output text)
+            echo "$stack: detection $id"
+          done
+
+  resume-dated-work:
+    name: Tasks whose not_before has arrived
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          version: ${{ env.UV_VERSION }}
+      # A soak period that nobody is reminded about is a soak period that never ends.
+      - name: Check the ledger for runnable dated tasks
+        id: due
+        run: uv run --with pyyaml python tools/check_due_tasks.py --format github
+
+      - name: Open a resume issue
+        if: steps.due.outputs.due != ''
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            const due = process.env.DUE
+            const title = 'Resume: dated work is now runnable'
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'human-needed',
+            })
+            if (existing.data.some(i => i.title === title)) return
+            await github.rest.issues.create({
+              owner: context.repo.owner, repo: context.repo.repo,
+              title,
+              labels: ['human-needed'],
+              body: `These tasks passed their \`not_before\` date:\n\n${due}\n\nType \`/autopilot\` in Claude Code.`,
+            })
+        env:
+          DUE: ${{ steps.due.outputs.due }}

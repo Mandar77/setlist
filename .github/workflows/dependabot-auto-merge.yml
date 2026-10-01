@@ -1,0 +1,55 @@
+name: Dependabot auto-merge
+
+# Patch and minor updates merge themselves into develop once CI is green. Majors never
+# do.
+#
+# The distinction is the whole point. A major version is a behaviour change someone has
+# to read about; a patch is the thing that sits unreviewed for six weeks and then gets
+# merged in a batch nobody looks at. Automating the second is what makes it possible to
+# take the first seriously.
+#
+# `pull_request_target` is NOT used here, deliberately. It would run with write access
+# in the context of a PR branch, which on a public repository is the standard path to
+# someone else's code holding a token with write scope. `pull_request` plus an actor
+# check is enough: the merge is requested through the API, and branch protection still
+# gates it on CI.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  auto-merge:
+    name: Enable auto-merge for patch and minor
+    runs-on: ubuntu-latest
+    # Both halves are needed. `github.actor` alone is spoofable by a PR title; the
+    # metadata step below verifies against Dependabot's own data.
+    if: ${{ github.actor == 'dependabot[bot]' && github.event.pull_request.base.ref == 'develop' }}
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Read the update's metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge
+        # `semver-major` is excluded, and so is anything the metadata step could not
+        # classify — an unknown update type is not a safe one.
+        if: >-
+          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Say why a major was left alone
+        if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-major' }}
+        run: gh pr comment "$PR_URL" --body "Major version bump — left for a human to read the changelog."
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

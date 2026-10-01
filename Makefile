@@ -40,7 +40,7 @@ setup: ## Install the pinned toolchains and all workspace packages
 ## ------------------------------------------------------------------ the gate
 
 verify: lint lint-ts lint-cfn types types-ts test-unit test-ts test-accuracy toolchain \
-        ledger links eol suppressions guard no-secrets ## Full local gate; no Docker required
+        ledger links eol suppressions guard workflows no-secrets ## Full local gate; no Docker required
 	@echo "verify OK"
 
 verify-fast: lint lint-ts types types-ts test-unit test-ts ## Lint, types and unit tests only
@@ -211,6 +211,13 @@ estimate: node_modules ## Fail if projected usage exceeds the gate in infra/free
 	@# shared across all three environments, so passing dev while prod is over its share
 	@# is precisely the wrong answer. Use `--env` directly for a focused report.
 	cd tools/free-tier-estimate && node --import tsx src/cli.ts
+
+workflows: node_modules ## Workflow properties actionlint does not check
+	@# Pinning, the pull_request_target trap, the fork/AWS gate, and that the kill-switch
+	@# drill cannot target prod. actionlint validates syntax; none of these are syntax.
+	@# actionlint itself runs in CI (it needs a download) and is not in `verify`, which
+	@# must work offline.
+	node tools/check_workflows.js
 
 lint-cfn: node_modules ## cfn-lint the hand-uploaded bootstrap template, and check it is current
 	@# Generated from infra/bootstrap/template.ts, so the file reviewed in a diff must be

@@ -1,0 +1,128 @@
+name: Kill switch drill
+
+# Fires the kill switch on purpose, to find out whether it works.
+#
+# A kill switch that has never been pulled is a hypothesis. The failure mode this drill
+# exists for is not "the switch is missing" — it is "the switch runs, reports success,
+# and the thing it was meant to stop carries on", which looks identical to working
+# until the day it matters.
+#
+# **dev and stage only.** prod is excluded three ways, because one `if` is a typo away
+# from nothing: the dispatch input offers only two choices, the job re-checks the value
+# before assuming any role, and `tools/check_workflows.js` fails the build if the string
+# `prod` appears as a selectable environment in this file. Recovering prod needs
+# `make unkill` and a human (AUTOPILOT §2.4).
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Which environment to drill (never prod)
+        type: choice
+        options: [dev, stage]
+        default: dev
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: kill-switch-drill-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  drill:
+    name: Trip it, prove it tripped, restore it
+    runs-on: ubuntu-latest
+    if: ${{ vars.AWS_ENABLED == 'true' }}
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Refuse anything but dev or stage
+        env:
+          TARGET: ${{ github.event.inputs.environment }}
+        run: |
+          set -euo pipefail
+          # The choice list already excludes prod. This is the second lock: a
+          # workflow_dispatch from the API is not limited to the listed choices.
+          case "$TARGET" in
+            dev|stage) echo "drilling $TARGET" ;;
+            *) echo "::error::kill-switch drills never run against '$TARGET'"; exit 1 ;;
+          esac
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE }}
+          aws-region: us-east-1
+          role-session-name: setlist-drill-${{ github.run_id }}
+
+      - name: Record the state before
+        id: before
+        env:
+          TARGET: ${{ github.event.inputs.environment }}
+        run: |
+          set -euo pipefail
+          aws lambda list-functions \
+            --query "Functions[?starts_with(FunctionName, 'setlist-$TARGET')].FunctionName" \
+            --output text | tr '\t' '\n' | sed '/^$/d' > functions.txt
+          echo "count=$(wc -l < functions.txt)" >> "$GITHUB_OUTPUT"
+          cat functions.txt
+
+      - name: Trip the switch
+        env:
+          TARGET: ${{ github.event.inputs.environment }}
+        run: |
+          set -euo pipefail
+          # Reserved concurrency of zero is the switch: the function still exists, still
+          # has its logs and its configuration, and cannot be invoked. Nothing is
+          # deleted, so recovery is the same call with the reservation removed.
+          while read -r fn; do
+            aws lambda put-function-concurrency \
+              --function-name "$fn" --reserved-concurrent-executions 0 >/dev/null
+            echo "stopped $fn"
+          done < functions.txt
+
+      - name: Prove it actually stopped something
+        env:
+          TARGET: ${{ github.event.inputs.environment }}
+        run: |
+          set -euo pipefail
+          # The step that makes this a drill rather than a ritual. Without it, a switch
+          # that silently did nothing would report success.
+          failed=0
+          while read -r fn; do
+            actual=$(aws lambda get-function-concurrency --function-name "$fn" \
+                       --query 'ReservedConcurrentExecutions' --output text)
+            if [ "$actual" != "0" ]; then
+              echo "::error::$fn still has concurrency $actual — the switch did not take"
+              failed=1
+            fi
+          done < functions.txt
+          [ "$failed" -eq 0 ] || exit 1
+          echo "every function in $TARGET is stopped"
+
+      - name: Restore
+        if: always()
+        env:
+          TARGET: ${{ github.event.inputs.environment }}
+        run: |
+          set -euo pipefail
+          # `always()`: a drill that leaves the environment dead because an assertion
+          # failed has caused the outage it was testing for.
+          while read -r fn; do
+            aws lambda delete-function-concurrency --function-name "$fn" >/dev/null
+            echo "restored $fn"
+          done < functions.txt
+
+      - name: Confirm the restore
+        if: always()
+        run: |
+          set -euo pipefail
+          while read -r fn; do
+            if aws lambda get-function-concurrency --function-name "$fn" \
+                 --query 'ReservedConcurrentExecutions' --output text | grep -q '^0$'; then
+              echo "::error::$fn is still stopped after the restore"
+              exit 1
+            fi
+          done < functions.txt
+          echo "all functions restored"

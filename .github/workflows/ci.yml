@@ -169,11 +169,43 @@ jobs:
         with:
           version: ${{ env.UV_VERSION }}
       - run: uv sync --all-packages --frozen
+      # Pinned by version, not :latest. A security scanner that changes under you turns
+      # an unrelated red build into a mystery, and the usual response to a mystery red
+      # is to stop reading it.
       - name: OSV scan
         run: |
-          uv run python -m pip install --quiet osv-scanner || true
-          docker run --rm -v "$PWD:/src" ghcr.io/google/osv-scanner:latest \
+          docker run --rm -v "$PWD:/src" ghcr.io/google/osv-scanner:v2.2.4 \
             scan source --recursive /src
+
+  sast:
+    name: Semgrep
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # The image rather than the action: the action wants a SEMGREP_APP_TOKEN and
+      # reports to a hosted dashboard, and this repository has neither an account nor a
+      # budget for one. `--error` is what makes it a gate instead of a report.
+      - name: Scan with the default rulesets
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src semgrep/semgrep:1.178.0 \
+            semgrep scan --config p/default --config p/typescript --config p/python \
+              --config p/secrets --error --quiet --metrics=off
+
+  filesystem-scan:
+    name: Trivy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # Covers what OSV does not: misconfiguration in the IaC and licence problems in
+      # vendored files. `exit-code: 1` is the difference between a gate and a dashboard.
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
 
   hygiene:
     name: Ledger, suppressions, secrets, shell
@@ -205,10 +237,17 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
           shellcheck scripts/hitl/*.sh tools/*.sh .claude/hooks/*.sh
 
+      # Syntax, expressions and action inputs.
       - name: Workflow syntax
         run: |
           bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
           ./actionlint -color
+
+      # And the properties actionlint has nothing to say about: SHA pinning, the
+      # pull_request_target trap, the fork/AWS gate, and that the kill-switch drill
+      # cannot target prod. Also runs in `make verify`, which has no network.
+      - name: Workflow properties
+        run: node tools/check_workflows.js
 
   zero-cost:
     name: Zero-cost guardrails (cdk-nag + KICS)

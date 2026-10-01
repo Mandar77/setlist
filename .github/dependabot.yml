@@ -1,0 +1,54 @@
+# Dependency updates, into develop.
+#
+# Targeting `develop` rather than `main` matters: ADR-005 reserves the merge to main
+# for the human, and a bot opening PRs against main would ask it to break that rule
+# every week.
+#
+# `github-actions` is the ecosystem worth the most here. Every action is pinned to a
+# commit SHA (M0A-04), which is the right call for supply-chain safety and also means
+# nothing updates on its own — a pinned action silently rots until something bumps it,
+# and this is the something.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: tuesday
+    target-branch: develop
+    open-pull-requests-limit: 5
+    labels: [dependencies]
+    groups:
+      # One PR for the patch noise, individual PRs for anything that can actually
+      # break. A weekly flood of single-patch PRs is how dependency review stops
+      # happening.
+      patch-and-minor:
+        update-types: [minor, patch]
+    commit-message:
+      prefix: 'chore(deps)'
+
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: tuesday
+    target-branch: develop
+    open-pull-requests-limit: 5
+    labels: [dependencies]
+    groups:
+      patch-and-minor:
+        update-types: [minor, patch]
+    commit-message:
+      prefix: 'chore(deps)'
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: tuesday
+    target-branch: develop
+    open-pull-requests-limit: 5
+    labels: [dependencies, actions]
+    commit-message:
+      prefix: 'chore(actions)'

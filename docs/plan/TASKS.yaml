@@ -316,7 +316,7 @@ tasks:
   milestone: M0
   title: GitHub Actions workflows
   deps: [M0A-01]
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -330,8 +330,22 @@ tasks:
     - every action pinned to a full-length commit SHA
     - KICS and 2MS are blocking; Checkmarx One runs only when CX_ENABLED is set
     - every workflow no-ops safely while the AWS secrets are absent - proven by a run on a fork-like environment
-  verify: actionlint .github/workflows/*.yml
-  evidence: []
+  verify: actionlint .github/workflows/*.yml && make workflows
+  evidence:
+    - "7 workflows: ci, deploy, nightly, diagnostics, sync-secrets, kill-switch-drill, dependabot-auto-merge, plus .github/dependabot.yml targeting develop (never main - ADR-005 reserves that merge for the human)"
+    - "actionlint clean, and proven non-vacuous: an invalid runs-on label is caught with exit 1"
+    - "tools/check_workflows.js checks six properties actionlint has nothing to say about, because none of them are syntax: SHA pinning, the pull_request_target trap, the fork/AWS gate, the drill's prod exclusion, deploy's triggers, and explicit permissions"
+    - "all three of its main checks proven by mutation: unpinning one action, adding prod to the drill's choice list, and removing the AWS_ENABLED guard are each caught"
+    - "60 pinned action references across 7 workflows, every one a 40-character commit SHA. The checker parses YAML rather than grepping, so a `uses:` inside a comment cannot pass"
+    - "it also carries a control asserting it found at least as many pinned actions as there are workflows - every other check reports a problem by its ABSENCE, so a parser bug would otherwise print a clean run"
+    - "fork safety is structural rather than hoped for: every AWS job is gated on vars.AWS_ENABLED, which a fork never inherits, so forks no-op green instead of failing for a reason their owner cannot fix. That is also the switch that keeps CI green before Session 1"
+    - "prod deploys the assembly that passed stage and refuses to rebuild: it resolves the merged develop commit, finds that commit's successful deploy run, and downloads its artifact - failing loudly if there is none. Two builds of one commit are not one artifact"
+    - "the kill-switch drill excludes prod three ways (choice list, a runtime re-check because workflow_dispatch via the API ignores the list, and the workflow checker) and restores with `if: always()` - a drill that leaves the environment dead has caused the outage it was testing for"
+    - "the drill also ASSERTS concurrency actually reached 0 before restoring; a switch that runs and changes nothing looks identical to one that works"
+    - "sync-secrets never puts a secret on a command line (process listings are readable) and confirms with describe-parameters, which returns names only - get-parameter would print values into a public log"
+    - "dependabot auto-merges patch and minor only, and deliberately uses pull_request rather than pull_request_target: the latter runs untrusted code with a write-scoped token on a public repo"
+    - "added Semgrep and Trivy to CI, and pinned the OSV scanner image off :latest - a security scanner that changes under you turns an unrelated red build into a mystery, and mysteries stop being read"
+    - "NOT exercised yet: no remote exists, so no workflow has run. The properties above are checked statically; the first real run is Session 1"
 
 - id: M0A-09
   milestone: M0

@@ -1,0 +1,95 @@
+name: Diagnostics
+
+# ADR-005 forbids local AWS credentials entirely, so this is how deployed state gets
+# looked at: dispatch this, read the summary. It assumes the read-only diagnostics role
+# and prints what it finds.
+#
+# Read-only is enforced three ways, because "we only wrote Describe calls" is a promise
+# and the other two are not: the role carries ReadOnlyAccess, its permission boundary
+# denies the never-use list, and `tools/check_workflows.js` fails the build if this file
+# names a mutating verb.
+#
+# What it deliberately does NOT call: `cloudwatch:GetMetricData` and Logs Insights
+# queries, which are billed per request. `GetMetricStatistics` and the Describe/List
+# family are free, and the diagnostics role denies the billed ones outright — so a
+# well-meaning addition here fails rather than quietly costing money every dispatch.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Which environment to inspect
+        type: choice
+        options: [dev, stage, prod]
+        default: dev
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: diagnostics-${{ github.event.inputs.environment }}
+  cancel-in-progress: true
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  inspect:
+    name: Read deployed state
+    runs-on: ubuntu-latest
+    if: ${{ vars.AWS_ENABLED == 'true' }}
+    environment: diagnostics
+    steps:
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DIAGNOSTICS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: setlist-diagnostics-${{ github.run_id }}
+
+      - name: Stacks
+        env:
+          ENVIRONMENT: ${{ github.event.inputs.environment }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Setlist diagnostics — $ENVIRONMENT"
+            echo
+            echo '### CloudFormation stacks'
+            echo '```'
+            aws cloudformation describe-stacks \
+              --query "Stacks[?starts_with(StackName, 'setlist-$ENVIRONMENT')].{Name:StackName,Status:StackStatus,Updated:LastUpdatedTime}" \
+              --output table
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Capacity and queues
+        env:
+          ENVIRONMENT: ${{ github.event.inputs.environment }}
+        run: |
+          set -euo pipefail
+          {
+            echo '### DynamoDB provisioned capacity'
+            echo 'The free allowance is 25 WCU / 25 RCU account-wide across every table AND index.'
+            echo '```'
+            aws dynamodb list-tables --query 'TableNames' --output text | tr '\t' '\n' \
+              | grep "^setlist-$ENVIRONMENT" || true
+            echo '```'
+            echo '### Lambda functions'
+            echo '```'
+            aws lambda list-functions \
+              --query "Functions[?starts_with(FunctionName, 'setlist-$ENVIRONMENT')].{Name:FunctionName,Runtime:Runtime,Memory:MemorySize}" \
+              --output table
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Budgets and alarms
+        run: |
+          set -euo pipefail
+          {
+            echo '### Alarms'
+            echo 'Ten are free account-wide across all three environments; the eleventh is billed.'
+            echo '```'
+            aws cloudwatch describe-alarms --query 'length(MetricAlarms)' --output text
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
