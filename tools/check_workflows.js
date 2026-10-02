@@ -73,10 +73,9 @@ function expandDirGlob(root, glob) {
         if (isDir(join(base, segment))) next.push(prefix === '' ? segment : `${prefix}/${segment}`)
         continue
       }
-      const re = new RegExp(`^${segment.split('*').map(escapeRegExp).join('[^/]*')}$`)
       if (!isDir(base)) continue
       for (const entry of readdirSync(base, { withFileTypes: true })) {
-        if (!entry.isDirectory() || !re.test(entry.name)) continue
+        if (!entry.isDirectory() || !segmentMatches(segment, entry.name)) continue
         next.push(prefix === '' ? entry.name : `${prefix}/${entry.name}`)
       }
     }
@@ -85,7 +84,32 @@ function expandDirGlob(root, glob) {
   return found
 }
 
-const escapeRegExp = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+/**
+ * Does one glob segment match one path segment? `*` matches any run of characters,
+ * including none, and never crosses a `/` because it is only ever asked about a single
+ * directory name.
+ *
+ * Written out rather than compiled to a RegExp: building a pattern from a string is how
+ * a ReDoS gets in, and Semgrep flags it on sight. Anchoring at both ends and walking the
+ * literal parts left to right is the whole algorithm, and it cannot backtrack.
+ */
+function segmentMatches(pattern, name) {
+  if (!pattern.includes('*')) return pattern === name
+  const parts = pattern.split('*')
+  const head = parts[0]
+  const tail = parts[parts.length - 1]
+  if (!name.startsWith(head) || !name.endsWith(tail)) return false
+
+  let at = head.length
+  for (const part of parts.slice(1, -1)) {
+    const found = name.indexOf(part, at)
+    if (found === -1) return false
+    at = found + part.length
+  }
+  // The head and tail must not have consumed the same characters: `a*a` matches `aba`
+  // but not `a`.
+  return at <= name.length - tail.length
+}
 
 let failures = 0
 const fail = (file, message) => {

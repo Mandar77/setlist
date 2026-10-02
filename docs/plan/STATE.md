@@ -24,15 +24,36 @@ Notes:
 - Every gate in this repo is checked against something that must FAIL as well as
   something that must pass. That has now caught: two cdk-nag rules that passed their
   own violating fixtures, a KICS pack that could have loaded silently, a secret scanner
-  that never looked at new files, a staleness test that rewrote its own subject, and a
-  `diagnostics` environment nothing created.
+  that never looked at new files, a staleness test that rewrote its own subject, a
+  `diagnostics` environment nothing created, and a Trivy skip list that could have been
+  widened to any directory at all.
 - Worth remembering: `app.synth()` does **not** throw on an error annotation. It writes
   `aws:cdk:error` metadata and exits 0; the CDK **CLI** fails the build. Anything
   checking the nag gate must go through the CLI.
 - `make verify` runs without Docker and spans both languages; CI runs that exact target.
   `make nag`, `make kics` and shellcheck need Docker.
-- **Blocking the first push:** the git author identity. `scan-secrets.sh` refuses until
-  it is declared in `security/published-identities.txt` or rewritten to a noreply
-  address. See `docs/hitl/QUEUE.md` and SESSION-1 step 1b.
-- Nothing pushed — no remote branches. Work fast-forwards `develop` locally until
-  Session 1, then everything pushes at once (AUTOPILOT §2.1 step 8).
+- **Pushed.** `github.com/Mandar77/setlist` is public, `develop` is the default branch,
+  `main` is untouched and stays that way (ADR-005). Four environments, two rulesets, and
+  `AWS_ENABLED=false` gating every job that would reach AWS. The author identity is
+  declared in `security/published-identities.txt`; the full-history 2MS scan was clean
+  before anything left the machine.
+- **What the first real CI runs cost, and bought.** Seven of eleven jobs failed on the
+  first push and none of those failures were reachable locally. In order: `make verify`
+  never ran at all, because the Makefile hard-coded `python -m uv` and CI installs the
+  binary — the "CI runs the same commands as make verify" claim came apart the first
+  time it was checked. A 2MS image tag that does not exist. A 9.8 and a HIGH in
+  dependencies. `blockExoticSubDependencies`, which is not a pnpm setting; the real name
+  is `blockExoticSubdeps`, and `pnpm config get` echoing the wrong name back is what had
+  made the earlier verification look like confirmation. Then eslint three minors behind
+  its own `@eslint/js`, and Trivy failing on the KICS fixtures — files written to contain
+  violations, found to contain violations.
+- Two settings in this repo have now been found to do nothing while reporting success.
+  Both were supply-chain controls. `trustPolicy: no-downgrade` is the open one: it
+  refuses to *resolve* a package whose provenance regressed, but `--frozen-lockfile`
+  installs whatever is already locked, so `undici-types@6.20.0` — which pnpm will not
+  resolve fresh — installs clean every time. Everything locked before the policy existed
+  is grandfathered. Proven, not suspected; no check for it yet.
+- A suppression now has to suppress something. `security/suppressions.yaml` was paperwork
+  no scanner read; `.trivyignore.yaml` is generated from it and checked for staleness, and
+  Trivy's own `expired_at` carries the same date — so the deadline is enforced by the
+  scanner rather than only complained about by CI.
