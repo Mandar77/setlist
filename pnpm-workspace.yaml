@@ -20,6 +20,26 @@ packages:
   # aws-cdk-lib: pnpm hoists nothing, so a package outside infra/ cannot see infra's
   # dependencies, and the symptom is a crash that reads as the gate firing.
   - "tests/fixtures/*"
+# Supply-chain settings. Every one of these is a default that should have been the
+# other way round, and Semgrep's package-manager rules flagged all three.
+#
+# `minimumReleaseAge` is the one that earns its keep. The npm compromises that matter
+# are caught within hours — a maintainer account is taken over, a malicious version is
+# published, it is yanked the same day. Waiting 1440 minutes before any newly published
+# version is resolvable means this repository simply never sees that window. The cost is
+# that an urgent legitimate patch is also a day late, which is the right trade for a
+# project with no users yet.
+minimumReleaseAge: 1440
+
+# Refuse a version that downgrades its own security settings — the shape of a malicious
+# update that quietly turns protections off.
+trustPolicy: no-downgrade
+
+# Sub-dependencies resolved from a git URL, a tarball or a local path rather than the
+# registry. Legitimate uses exist; none of them are here, and each is a way to pull in
+# code the lockfile's integrity hashes do not cover.
+blockExoticSubDependencies: true
+
 # Postinstall scripts, decided explicitly rather than left to a default.
 #
 # pnpm blocks dependency build scripts unless named here, which is the right default

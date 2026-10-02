@@ -16,7 +16,15 @@ SHELL := /bin/bash
 # on Windows than in Linux CI, which is the worst kind of bug to chase.
 export PYTHONUTF8 := 1
 
-UV := python -m uv
+# Prefer the real binary, fall back to the Python module.
+#
+# Not cosmetic: `astral-sh/setup-uv` installs uv as a standalone binary with no Python
+# module to import, while a local `pip install uv` gives the module and often no binary
+# on PATH. Hard-coding either one makes `make verify` work in exactly one of the two
+# places — and the first CI run failed on `/usr/bin/python: No module named uv`, which
+# is the whole "CI runs the same commands as make verify" claim coming apart the first
+# time anyone checked.
+UV := $(shell command -v uv >/dev/null 2>&1 && echo uv || echo python -m uv)
 PNPM := pnpm
 ENV ?= dev
 PROFILE ?= zero

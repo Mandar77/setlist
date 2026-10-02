@@ -128,19 +128,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Pinned, and matching scripts/hitl/scan-secrets.sh. The :latest tag lags the
-      # releases badly, and a security gate should not change under you.
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      # The same script the pre-push gate runs, rather than a docker invocation written
+      # out again here. Two definitions of one security gate drift, and this pair drifted
+      # before it ever ran: CI named `checkmarx/2ms:v5.4.0`, an image tag that does not
+      # exist — Docker Hub stops at 4.9.0 while the releases are on 5.x. The job failed
+      # with "manifest unknown", which at least is loud; a tag that existed but lagged
+      # would have been worse.
       #
-      # --all-branches: without it only HEAD's ancestry is walked, so a secret on
-      #   another branch passes.
-      # --ignore-on-exit none: the default, but passing it explicitly is what stops an
-      #   inherited 2MS_* environment variable from silently neutralising the scan.
-      # Never `--ignore-on-exit results` — 2MS's own README example uses it because it
-      #   uploads SARIF instead of blocking, and copying that makes the gate a no-op.
+      # scan-secrets.sh downloads the pinned 5.4.0 binary, verifies its SHA-256 before
+      # executing it, scans full history with --all-branches, and fails closed if it
+      # cannot run at all.
       - name: 2MS full-history scan
-        run: |
-          docker run --rm -v "$PWD:/repo" checkmarx/2ms:v5.4.0 \
-            git /repo --all-branches --ignore-on-exit none
+        run: bash scripts/hitl/scan-secrets.sh
 
   codeql:
     name: CodeQL
@@ -246,6 +249,18 @@ jobs:
       # And the properties actionlint has nothing to say about: SHA pinning, the
       # pull_request_target trap, the fork/AWS gate, and that the kill-switch drill
       # cannot target prod. Also runs in `make verify`, which has no network.
+      #
+      # It parses YAML rather than grepping, so it needs the `yaml` package — which is
+      # why this job installs node modules despite otherwise being a Python-and-shell
+      # job. Without it the checker died on `Cannot find module 'yaml'`, which reads as
+      # a broken check rather than a clean one, but is a failure either way.
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
       - name: Workflow properties
         run: node tools/check_workflows.js
 

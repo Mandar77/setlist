@@ -46,6 +46,15 @@ setlist-core = { workspace = true }
 # Keep the dev toolchain identical across every workspace member.
 default-groups = ["dev"]
 
+# A dependency cooldown, matching `minimumReleaseAge` on the pnpm side.
+#
+# The PyPI compromises that matter are caught within hours: a maintainer account is
+# taken over, a malicious version is published, it is yanked the same day. Refusing to
+# resolve anything published in the last 7 days means this project never sees that
+# window. The cost is that an urgent legitimate patch is also a week late, which is the
+# right trade here and would not be for a project with users.
+exclude-newer = "7 days"
+
 # ---------------------------------------------------------------- ruff
 [tool.ruff]
 target-version = "py313"

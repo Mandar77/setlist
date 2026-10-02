@@ -75,12 +75,23 @@ const CANARIES = [
 // that fails to launch looks exactly like a tool reporting an error.
 const requireFromInfra = createRequire(join(repoRoot, 'infra', 'package.json'))
 
+// The entrypoint moved. Up to 2.173 the package shipped `bin/cdk.js`; the 2.1xxx CLI
+// (decoupled from the library's version line) ships `bin/cdk` with a shebang and no
+// extension. Resolve the package and look for either, rather than pinning a filename
+// that changed once and may again.
 let CDK
-try {
-  CDK = requireFromInfra.resolve('aws-cdk/bin/cdk.js')
-} catch {
-  console.error('nag gate: aws-cdk is not installed — run `pnpm install`')
-  process.exit(1)
+{
+  const packageJson = requireFromInfra.resolve('aws-cdk/package.json')
+  const binDir = join(dirname(packageJson), 'bin')
+  CDK = ['cdk.js', 'cdk'].map(name => join(binDir, name)).find(candidate => existsSync(candidate))
+
+  if (CDK === undefined) {
+    console.error(
+      `nag gate: no CDK entrypoint in ${binDir} — run \`pnpm install\`, or the package ` +
+        'layout has changed again',
+    )
+    process.exit(1)
+  }
 }
 
 class LaunchError extends Error {}

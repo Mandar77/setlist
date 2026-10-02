@@ -8,6 +8,12 @@
 # commit SHA (M0A-04), which is the right call for supply-chain safety and also means
 # nothing updates on its own — a pinned action silently rots until something bumps it,
 # and this is the something.
+#
+# Every ecosystem below sets a `cooldown`, matching `minimumReleaseAge` in
+# pnpm-workspace.yaml and `exclude-newer` in pyproject.toml. Without it Dependabot
+# would do the one thing those two settings exist to prevent: open a PR for a version
+# published minutes ago, which auto-merge would then land. Three cooldowns and one
+# automerge is not a contradiction only if all three agree.
 version: 2
 
 updates:
@@ -16,6 +22,8 @@ updates:
     schedule:
       interval: weekly
       day: tuesday
+    cooldown:
+      default-days: 7
     target-branch: develop
     open-pull-requests-limit: 5
     labels: [dependencies]
@@ -33,6 +41,8 @@ updates:
     schedule:
       interval: weekly
       day: tuesday
+    cooldown:
+      default-days: 7
     target-branch: develop
     open-pull-requests-limit: 5
     labels: [dependencies]
@@ -47,6 +57,8 @@ updates:
     schedule:
       interval: weekly
       day: tuesday
+    cooldown:
+      default-days: 7
     target-branch: develop
     open-pull-requests-limit: 5
     labels: [dependencies, actions]
