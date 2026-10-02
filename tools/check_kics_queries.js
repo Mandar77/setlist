@@ -83,7 +83,10 @@ function scan(sampleDir, label) {
     'results',
   ]
 
-  let output = ''
+  // No initializer: every path below either assigns this or throws before reading it,
+  // so an `= ''` here would be a value nothing can observe. eslint 10's
+  // `no-useless-assignment` says so, and it is right.
+  let output
   try {
     output = execFileSync('docker', args, {
       cwd: repoRoot,
