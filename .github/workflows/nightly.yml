@@ -98,7 +98,7 @@ jobs:
       # A soak period that nobody is reminded about is a soak period that never ends.
       - name: Check the ledger for runnable dated tasks
         id: due
-        run: uv run --with pyyaml python tools/check_due_tasks.py --format github
+        run: uv run python tools/check_due_tasks.py --format github
 
       - name: Open a resume issue
         if: steps.due.outputs.due != ''

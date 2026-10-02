@@ -26,7 +26,7 @@
 // Parsed as YAML rather than grepped: `uses:` inside a comment should not pass, and a
 // permissions block nested under the wrong key should not count.
 
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -48,6 +48,44 @@ const AWS_MARKERS = [
   'secrets.AWS_DEPLOY_ROLE',
   'secrets.AWS_DIAGNOSTICS_ROLE',
 ]
+
+/**
+ * Every directory a `skip-dirs` glob actually resolves to, as repo-relative POSIX paths.
+ *
+ * Expanded segment by segment rather than by walking the repository and testing each
+ * path: a glob can only reach what its literal segments lead to, so following it is both
+ * exact and cheap, and it never has to decide whether node_modules counts.
+ *
+ * `*` matches within one segment, as it does for Trivy. `**` is not supported, and a
+ * glob containing one is reported rather than silently treated as `*` — guessing at a
+ * pattern's reach is precisely the mistake this check exists to prevent.
+ */
+function expandDirGlob(root, glob) {
+  if (glob.includes('**')) throw new Error(`skip-dirs glob ${glob} uses ** , which is not checked`)
+  const isDir = p => existsSync(p) && statSync(p).isDirectory()
+
+  let found = ['']
+  for (const segment of glob.split('/').filter(Boolean)) {
+    const next = []
+    for (const prefix of found) {
+      const base = prefix === '' ? root : join(root, prefix)
+      if (!segment.includes('*')) {
+        if (isDir(join(base, segment))) next.push(prefix === '' ? segment : `${prefix}/${segment}`)
+        continue
+      }
+      const re = new RegExp(`^${segment.split('*').map(escapeRegExp).join('[^/]*')}$`)
+      if (!isDir(base)) continue
+      for (const entry of readdirSync(base, { withFileTypes: true })) {
+        if (!entry.isDirectory() || !re.test(entry.name)) continue
+        next.push(prefix === '' ? entry.name : `${prefix}/${entry.name}`)
+      }
+    }
+    found = next
+  }
+  return found
+}
+
+const escapeRegExp = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 let failures = 0
 const fail = (file, message) => {
@@ -208,6 +246,80 @@ for (const file of files) {
     fail(file, `push branches are ${JSON.stringify(branches)}; expected develop and main`)
   } else {
     ok(`${file} deploys from develop and main only`)
+  }
+}
+
+// 7. Trivy may skip deliberate-violation fixtures, and nothing else.
+//
+// A path exclusion is how a scanner quietly stops being a gate, so this checks what the
+// exclusion *means* rather than that it matches some expected string. Every directory
+// the glob resolves to must be the `test/` directory of a real KICS query — one with a
+// query.rego and a metadata.json beside it — and every such directory must be covered.
+// Adding `infra/` to the skip list therefore fails here unless someone first writes a
+// Rego query next to it, which is not a thing that happens by accident.
+//
+// The fixtures themselves are not unexamined: tools/check_kics_queries.js asserts every
+// positive.json fires its query and no negative.json does.
+{
+  const file = 'ci.yml'
+  const doc = parse(readFileSync(join(workflowDir, file), 'utf8'))
+  const steps = Object.values(doc.jobs ?? {}).flatMap(job => job.steps ?? [])
+  const trivy = steps.find(step => String(step.uses ?? '').startsWith('aquasecurity/trivy-action'))
+
+  if (!trivy) {
+    fail(file, 'has no Trivy step — this check is reading the wrong workflow')
+  } else {
+    const globs = String(trivy.with?.['skip-dirs'] ?? '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+
+    const queryRoot = join(repoRoot, 'security', 'kics-queries')
+
+    /** Every `<pack>/<query>/test` that is backed by an actual Rego query. */
+    const fixtureDirs = new Set()
+    for (const pack of readdirSync(queryRoot, { withFileTypes: true })) {
+      if (!pack.isDirectory()) continue
+      for (const query of readdirSync(join(queryRoot, pack.name), { withFileTypes: true })) {
+        if (!query.isDirectory()) continue
+        const dir = join(queryRoot, pack.name, query.name)
+        if (!existsSync(join(dir, 'query.rego'))) continue
+        if (!existsSync(join(dir, 'test'))) continue
+        fixtureDirs.add(`security/kics-queries/${pack.name}/${query.name}/test`)
+      }
+    }
+
+    // Direction 1: nothing is skipped that is not a fixture directory. The glob is
+    // expanded against the real tree rather than compared to an expected string, so a
+    // skip-dirs entry is judged by what it actually covers today.
+    const skipped = new Set(globs.flatMap(glob => expandDirGlob(repoRoot, glob)))
+    const overreaching = [...skipped].filter(dir => !fixtureDirs.has(dir))
+    if (overreaching.length > 0) {
+      fail(
+        file,
+        `Trivy skip-dirs covers ${overreaching.join(', ')}, which ${
+          overreaching.length === 1 ? 'is not a' : 'are not'
+        } KICS query fixture tree. Excluding real files from the scanner is how it ` +
+          'stops being a gate',
+      )
+    }
+
+    // Direction 2: every fixture directory is in fact skipped. Otherwise this check
+    // passes while Trivy still fails on fixtures, which is where it started.
+    const uncovered = [...fixtureDirs].filter(dir => !skipped.has(dir))
+    if (uncovered.length > 0) {
+      fail(
+        file,
+        `${uncovered.length} KICS fixture director(ies) are not in Trivy's skip-dirs, ` +
+          `starting with ${uncovered[0]} — Trivy will fail on their deliberate violations`,
+      )
+    }
+
+    if (fixtureDirs.size === 0) {
+      fail(file, 'found no KICS query fixture directories — this check is reading nothing')
+    } else if (overreaching.length === 0 && uncovered.length === 0) {
+      ok(`Trivy skips ${fixtureDirs.size} KICS fixture trees and nothing else`)
+    }
   }
 }
 

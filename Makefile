@@ -33,8 +33,10 @@ M ?=
 .DEFAULT_GOAL := help
 .PHONY: help setup verify verify-fast test test-unit test-accuracy lint fmt types cov \
         lint-ts fmt-ts types-ts test-ts toolchain \
-        mutate ledger links eol suppressions guard no-secrets secrets-history golden \
-        synth synth-matrix nag kics estimate preflight gate unkill clean
+        mutate ledger links eol suppressions suppressions-write guard workflows \
+        no-secrets secrets-history golden \
+        synth synth-matrix nag kics lint-cfn cdk-out-zero estimate preflight gate \
+        unkill clean
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -113,7 +115,7 @@ node_modules: package.json pnpm-lock.yaml
 	@touch node_modules
 
 ledger: ## Validate docs/plan/TASKS.yaml (ids, deps, cycles, evidence)
-	$(UV) run --with pyyaml python tools/check_ledger.py
+	$(UV) run python tools/check_ledger.py
 
 links: ## Every relative markdown link and anchor resolves
 	$(UV) run python tools/check_links.py --anchors
@@ -121,8 +123,11 @@ links: ## Every relative markdown link and anchor resolves
 eol: ## No CRLF in the working tree (breaks shebangs, shellcheck and span offsets)
 	$(UV) run python tools/check_line_endings.py
 
-suppressions: ## Fail on expired or undocumented security suppressions
-	$(UV) run --with pyyaml python tools/check_suppressions.py
+suppressions: ## Fail on expired suppressions, or a .trivyignore.yaml that drifted from them
+	$(UV) run python tools/check_suppressions.py
+
+suppressions-write: ## Regenerate .trivyignore.yaml from security/suppressions.yaml
+	$(UV) run python tools/check_suppressions.py --write
 
 guard: ## Prove the PreToolUse guard still blocks what ADR-005 says it must
 	bash tools/test-guard-hook.sh
@@ -239,7 +244,7 @@ preflight: verify nag kics estimate
 
 gate: ## Milestone exit evidence -> docs/reports/$(M).md
 	@test -n "$(M)" || { echo "usage: make gate M=M0"; exit 2; }
-	$(UV) run --with pyyaml python tools/check_ledger.py
+	$(UV) run python tools/check_ledger.py
 	@echo "gate $(M): report generation lands with M0A-05 (estimator) and M0A-08 (CI evidence)"
 
 unkill: ## Recover from the kill switch (owner confirmation required)

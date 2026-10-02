@@ -18,6 +18,12 @@ dev = [
     "hypothesis>=6.122",
     "mypy>=1.14",
     "ruff>=0.9",
+    # Imported by tools/check_ledger.py, check_due_tasks.py and check_suppressions.py.
+    # It was reaching those only as a transitive dependency of cfn-lint, which is a
+    # thing that is true until it is not; the Makefile had been papering over it with
+    # `uv run --with pyyaml` on each call site, and the unit tests could not.
+    "pyyaml>=6.0",
+    "types-pyyaml>=6.0",
     # CloudFormation linting for infra/bootstrap/account-bootstrap.yaml, the one
     # template a human uploads by hand. cfn-lint is Python-only; there is no Node
     # equivalent, which is why ADR-004 tolerates it here.

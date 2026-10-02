@@ -201,6 +201,19 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # Covers what OSV does not: misconfiguration in the IaC and licence problems in
       # vendored files. `exit-code: 1` is the difference between a gate and a dashboard.
+      #
+      # `skip-dirs` holds exactly one glob, and it is a shape rather than a list: the
+      # `test/` directory of a KICS query. Those files are templates that violate
+      # something on purpose — a bucket with no lifecycle rule, an ECR repository that
+      # should not exist — because that is how the KICS query proves it fires. Scanning
+      # them finds the violations they were written to contain. They are not scanned by
+      # Trivy, they are driven by tools/check_kics_queries.js, which asserts every
+      # positive fires and no negative does.
+      #
+      # tools/check_workflows.js checks this glob against the repository: every
+      # directory it matches must be a KICS query's own test directory, and every such
+      # directory must be matched. Skipping anything else means writing a query.rego
+      # next to it first, which is not something that happens by accident.
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
@@ -209,6 +222,11 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
+          skip-dirs: security/kics-queries/*/*/test
+          # Generated from security/suppressions.yaml; `make verify` fails if the two
+          # disagree. Named rather than left to Trivy's auto-discovery so that a rename
+          # is an error instead of a silently empty ignore list.
+          trivyignores: .trivyignore.yaml
 
   hygiene:
     name: Ledger, suppressions, secrets, shell

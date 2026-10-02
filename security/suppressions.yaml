@@ -1,18 +1,51 @@
 # Security-finding suppressions.
 #
-# Every entry needs an owner, a reason and an expiry no more than 90 days out. CI
-# fails on an expired entry (tools/check_suppressions.py), which is the point: a
+# Every entry needs an owner, a scope, a reason and an expiry no more than 90 days out.
+# CI fails on an expired entry (tools/check_suppressions.py), which is the point: a
 # suppression is a decision to accept risk for a while, not a way to delete a finding.
 #
 # Adding one is a review conversation, not a config change.
 #
 # `owner` is a GitHub handle, never an email address: this repository is public
 # and ADR-005 keeps personal data out of it.
+#
+# This file is the only place a suppression is written. `.trivyignore.yaml` is
+# GENERATED from the `tool: trivy` entries below — see the bottom of
+# tools/check_suppressions.py for why, and `make suppressions-write` to regenerate.
+# Hand-editing the generated file fails `make verify`, so a scanner cannot be quieted
+# without the paperwork, and paperwork cannot sit here describing a suppression that
+# the scanner is not actually applying.
+#
+# Entries with `tool: trivy` also need `kind`, naming which Trivy finding class the id
+# belongs to: misconfiguration | vulnerability | secret | license.
 
 version: 1
 max_age_days: 90
 
-suppressions: []
+suppressions:
+  - id: AWS-0095
+    tool: trivy
+    kind: misconfiguration
+    scope: infra/bootstrap/account-bootstrap.yaml
+    reason: >
+      "Topic does not have encryption enabled" on BillingTopic, which carries budget
+      alerts to one email address. Encrypting it is the one fix available and it costs
+      $1/month forever, which is not a rounding error against a $0 budget — it IS the
+      budget. SNS server-side encryption needs a KMS key, and the AWS-managed
+      alias/aws/sns cannot be used here: its key policy is not editable and does not
+      grant the budgets.amazonaws.com service principal the GenerateDataKey it needs to
+      publish. That leaves a customer-managed key, and a customer-managed key is $1 a
+      month whether or not anything uses it. Worse, the failure mode of getting its key
+      policy wrong is silent: budget notifications simply stop arriving, and the budget
+      alarm is one of the four layers that keep this account at $0. Paying a guaranteed
+      dollar for a chance of disabling the thing that guards the dollars is the wrong
+      direction. What is actually accepted: the text "your bill crossed $X" sits
+      unencrypted at rest in SNS, in a single-tenant account, readable by the one
+      principal who already gets it by email.
+    owner: Mandar77
+    opened: 2026-10-02
+    expires: 2026-12-31
+
 # Example of the required shape:
 #
 #   - id: KICS-a1b2c3d4

@@ -1,0 +1,20 @@
+# GENERATED FILE - do not edit.
+#
+# Written from security/suppressions.yaml by tools/check_suppressions.py. Edit the
+# suppression there and run `make suppressions-write`; `make verify` fails if this file
+# and that one disagree, so a Trivy finding cannot be silenced without an owner, a
+# reason and an expiry.
+#
+# `expired_at` is the same date as the suppression's `expires`. Trivy stops honouring
+# the rule on that day, which means a forgotten suppression shows up as the finding
+# returning rather than as nothing happening.
+
+vulnerabilities: []
+misconfigurations:
+- id: AWS-0095
+  paths:
+  - infra/bootstrap/account-bootstrap.yaml
+  statement: accepted by @Mandar77 until 2026-12-31 - see security/suppressions.yaml
+  expired_at: 2026-12-31
+secrets: []
+licenses: []
