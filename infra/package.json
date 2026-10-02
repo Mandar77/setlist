@@ -10,13 +10,13 @@
     "synth": "cdk synth --all"
   },
   "dependencies": {
-    "aws-cdk-lib": "2.173.4",
-    "constructs": "10.4.2",
-    "yaml": "2.6.1",
+    "aws-cdk-lib": "2.271.0",
+    "constructs": "10.8.1",
+    "yaml": "2.9.1",
     "cdk-nag": "2.34.12"
   },
   "devDependencies": {
-    "aws-cdk": "2.173.1",
-    "tsx": "4.19.2"
+    "aws-cdk": "2.1143.0",
+    "tsx": "4.23.15"
   }
 }
