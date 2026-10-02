@@ -9,11 +9,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "aws-cdk-lib": "2.173.4",
-    "constructs": "10.4.2",
-    "yaml": "2.6.1"
+    "aws-cdk-lib": "2.271.0",
+    "constructs": "10.8.1",
+    "yaml": "2.9.1"
   },
   "devDependencies": {
-    "tsx": "4.19.2"
+    "tsx": "4.23.15"
   }
 }
