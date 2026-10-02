@@ -297,18 +297,23 @@ jobs:
       - name: KICS zero-cost queries discriminate
         run: node tools/check_kics_queries.js
 
-      # The official action, pinned to the commit behind v2.1.20. It runs the DEFAULT
-      # catalog over the templates and these workflow files, covering security issues
-      # the zero-cost pack says nothing about — including whether the actions above are
-      # pinned, which is why this job scans itself.
+      # The DEFAULT catalog over the templates and these workflow files, covering
+      # security issues the zero-cost pack says nothing about — including whether the
+      # actions above are pinned, which is why this job scans itself.
+      #
+      # The pinned image, not Checkmarx/kics-github-action. The action was pinned to
+      # v2.1.20 and failed on the runner with
+      #   node: /usr/lib/libm.so.6: version `GLIBC_2.44' not found
+      # because its container image is older than the Node the runner injects into it.
+      # The image has no such problem, is the same thing `make kics` runs locally, and
+      # pins a version rather than a tag that moves.
       - name: KICS default catalog
-        uses: Checkmarx/kics-github-action@adb675615871acaa5238d433dce4807d485f993f # v2.1.20
-        with:
-          path: 'infra/cdk.out,.github/workflows'
-          fail_on: high,critical
-          output_formats: 'sarif'
-          output_path: kics-results
-          enable_comments: false
+        run: |
+          mkdir -p kics-results
+          docker run --rm -v "$PWD:/path" checkmarx/kics:v2.1.11 scan \
+            -p /path/infra/cdk.out,/path/.github/workflows \
+            -o /path/kics-results --report-formats sarif \
+            --fail-on high,critical --no-progress --no-color
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()

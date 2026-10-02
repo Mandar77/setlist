@@ -119,7 +119,11 @@ ALLOWLIST = re.compile(
     "|".join(
         (
             r"noreply@anthropic\.com",
-            r"noreply@github\.com",
+            # `support@github.com` appears in every Dependabot commit message, in the
+            # boilerplate about triggering it by comment. It is GitHub's own published
+            # address and identifies nobody -- but the rule is right to look at commit
+            # messages, so the answer is to name the address rather than stop looking.
+            r"(?:noreply|support)@github\.com",
             r"users\.noreply\.github\.com",
             r"example\.(?:com|org)",
             r"<[^>]*>",
