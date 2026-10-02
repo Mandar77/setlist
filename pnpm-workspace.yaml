@@ -25,15 +25,38 @@ packages:
 #
 # `minimumReleaseAge` is the one that earns its keep. The npm compromises that matter
 # are caught within hours — a maintainer account is taken over, a malicious version is
-# published, it is yanked the same day. Waiting 10080 minutes (seven days) before any newly published
-# version is resolvable means this repository simply never sees that window. The cost is
-# that an urgent legitimate patch is also a day late, which is the right trade for a
-# project with no users yet.
+# published, it is yanked the same day. Waiting 10080 minutes (seven days) before any
+# newly published version is resolvable means this repository simply never sees that
+# window. The cost is that an urgent legitimate patch is also a week late, which is the
+# right trade for a project with no users yet.
+#
+# It binds at resolution time only. A version already in the lockfile is replayed by
+# `--frozen-lockfile` without being re-checked, so this setting cannot notice that the
+# lockfile has drifted out of compliance with it — the `resolvable` job in ci.yml is
+# what notices, by resolving from nothing.
 minimumReleaseAge: 10080
 
 # Refuse a version that downgrades its own security settings — the shape of a malicious
 # update that quietly turns protections off.
 trustPolicy: no-downgrade
+
+# One package has to be forced forward to satisfy the policy above.
+#
+# `@types/node` on the 22 line asks for `undici-types ~6.20.0`, and neither 6.20.0 nor
+# 6.21.0 carries a provenance attestation while earlier-published versions of that
+# package did. pnpm reads that as a trust downgrade and refuses to resolve it, which is
+# correct and which made the whole workspace unresolvable from scratch — `pnpm install`
+# could not run at all, and Dependabot, whose first step is exactly that, stopped being
+# able to open a PR for anything.
+#
+# 6.23.0 is the first release back on provenance. This moves a dependency FORWARD to a
+# better-attested version rather than carving out an exception, so the guardrail still
+# applies to everything including this package: if 6.23.0 ever loses its attestation the
+# resolve fails again. It is type declarations only, so `tsc --build` is the test.
+#
+# Delete this the day @types/node 22.x ships a dependency on 6.23.0 or later.
+overrides:
+  undici-types: '6.23.0'
 
 # Sub-dependencies resolved from a git URL, a tarball or a local path rather than the
 # registry. Legitimate uses exist; none of them are here, and each is a way to pull in

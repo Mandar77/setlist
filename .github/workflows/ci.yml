@@ -180,6 +180,48 @@ jobs:
           docker run --rm -v "$PWD:/src" ghcr.io/google/osv-scanner:v2.2.4 \
             scan source --recursive /src
 
+  resolvable:
+    name: Lockfiles resolve under the supply-chain policies
+    runs-on: ubuntu-latest
+    # Every other job installs with --frozen-lockfile, which replays the lockfile and
+    # checks none of the policies that produced it. `minimumReleaseAge`, `trustPolicy`
+    # and `blockExoticSubdeps` are resolution-time rules, so anything already locked is
+    # grandfathered forever and the settings go on reporting success over a lockfile
+    # they would now reject.
+    #
+    # That is not hypothetical. The lockfile reached a state where `pnpm install` could
+    # not run at all — vitest, aws-cdk-lib and typescript-eslint pinned to releases
+    # younger than the seven-day cooldown, and `undici-types` sitting on a version whose
+    # provenance attestation had lapsed. Every `--frozen-lockfile` install stayed green.
+    # What noticed was Dependabot, by dying: its first step is a real resolve, so the
+    # dependency automation had quietly stopped being able to propose anything at all.
+    #
+    # This job is that resolve, run deliberately instead of discovered in a bot's logs.
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - name: Resolve pnpm from nothing
+        # The lockfile is deleted first on purpose: with it present pnpm reuses settled
+        # resolutions and the policies are never consulted, which is the whole bug.
+        # Nothing is committed from here — the checkout is thrown away with the runner.
+        run: |
+          rm pnpm-lock.yaml
+          pnpm install --lockfile-only
+
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Resolve uv from nothing
+        # The same question for Python, where `exclude-newer` is the cooldown.
+        run: |
+          rm uv.lock
+          uv lock
+
   sast:
     name: Semgrep
     runs-on: ubuntu-latest

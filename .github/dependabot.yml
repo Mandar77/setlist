@@ -14,6 +14,15 @@
 # would do the one thing those two settings exist to prevent: open a PR for a version
 # published minutes ago, which auto-merge would then land. Three cooldowns and one
 # automerge is not a contradiction only if all three agree.
+#
+# `default-days` alone did not do that. The per-type keys below are not redundant with
+# it: Dependabot's job definition carries `semver-major-days: 0`, `semver-minor-days: 0`
+# and `semver-patch-days: 0` unless they are set, and those win. The visible effect was
+# a PR bumping `@types/node` across four majors to a release three days old, opened
+# while `default-days: 7` sat right here — and then, because that landed versions pnpm
+# refuses to resolve, every later Dependabot run died at `pnpm install` before it could
+# propose anything. A cooldown that is configured, reported back, and acts on nothing
+# is the same shape as `blockExoticSubDependencies`, which was the last one of these.
 version: 2
 
 updates:
@@ -24,6 +33,9 @@ updates:
       day: tuesday
     cooldown:
       default-days: 7
+      semver-major-days: 7
+      semver-minor-days: 7
+      semver-patch-days: 7
     target-branch: develop
     open-pull-requests-limit: 5
     labels: [dependencies]
@@ -43,6 +55,9 @@ updates:
       day: tuesday
     cooldown:
       default-days: 7
+      semver-major-days: 7
+      semver-minor-days: 7
+      semver-patch-days: 7
     target-branch: develop
     open-pull-requests-limit: 5
     labels: [dependencies]
@@ -59,6 +74,9 @@ updates:
       day: tuesday
     cooldown:
       default-days: 7
+      semver-major-days: 7
+      semver-minor-days: 7
+      semver-patch-days: 7
     target-branch: develop
     open-pull-requests-limit: 5
     labels: [dependencies, actions]
