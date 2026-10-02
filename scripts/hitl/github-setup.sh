@@ -158,23 +158,50 @@ run gh repo edit "$SLUG" --default-branch develop
 
 # ---------------------------------------------------------------- 3. rulesets
 note "Adding branch rulesets"
+
+# JSON on stdin, not repeated `-f` flags. `rules` is an array of objects, and
+# `-f 'rules[][type]=pull_request'` repeated does not build one -- gh collapses the
+# repeats and the API answers 422 with no indication of which field it disliked.
+#
+# Idempotent: a ruleset of the same name already present is updated rather than
+# duplicated, so re-running this script does not leave two of everything.
+add_ruleset() {
+  local name="$1" body="$2" existing
+  if [[ $DRY_RUN -eq 1 ]]; then
+    printf '  [dry-run] create or update ruleset %s on %s\n' "$name" "$SLUG"
+    return 0
+  fi
+
+  existing="$(gh api "repos/${SLUG}/rulesets" --jq \
+    ".[] | select(.name == \"${name}\") | .id" 2>/dev/null || true)"
+
+  if [[ -n "$existing" ]]; then
+    printf '%s' "$body" | gh api --method PUT "repos/${SLUG}/rulesets/${existing}" --input - >/dev/null
+    printf '  updated ruleset %s\n' "$name"
+  else
+    printf '%s' "$body" | gh api --method POST "repos/${SLUG}/rulesets" --input - >/dev/null
+    printf '  created ruleset %s\n' "$name"
+  fi
+}
+
 # main: pull request required, no force pushes, no deletion.
-run_api --method POST "repos/${SLUG}/rulesets" \
-  -f name='protect-main' -f target='branch' -f enforcement='active' \
-  -f 'conditions[ref_name][include][]=refs/heads/main' \
-  -f 'conditions[ref_name][exclude][]=' \
-  -f 'rules[][type]=pull_request' \
-  -f 'rules[][type]=non_fast_forward' \
-  -f 'rules[][type]=deletion'
+add_ruleset protect-main '{
+  "name": "protect-main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {"ref_name": {"include": ["refs/heads/main"], "exclude": []}},
+  "rules": [{"type": "pull_request"}, {"type": "non_fast_forward"}, {"type": "deletion"}]
+}'
 
 # develop: no force pushes, no deletion. Claude Code fast-forwards it constantly,
 # so a pull-request requirement here would stop the autopilot loop dead.
-run_api --method POST "repos/${SLUG}/rulesets" \
-  -f name='protect-develop' -f target='branch' -f enforcement='active' \
-  -f 'conditions[ref_name][include][]=refs/heads/develop' \
-  -f 'conditions[ref_name][exclude][]=' \
-  -f 'rules[][type]=non_fast_forward' \
-  -f 'rules[][type]=deletion'
+add_ruleset protect-develop '{
+  "name": "protect-develop",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {"ref_name": {"include": ["refs/heads/develop"], "exclude": []}},
+  "rules": [{"type": "non_fast_forward"}, {"type": "deletion"}]
+}'
 
 # ---------------------------------------------------------------- 4. environments
 # These names are not cosmetic. The bootstrap template pins each deploy role's trust
