@@ -16,16 +16,22 @@ set -euo pipefail
 DRY_RUN=0
 REPO_NAME="setlist"
 SKIP_SCAN=0
+SKIP_MAIN_PUSH=0
 
 # The scanner itself — version pinning, resolution and invocation — lives in
 # scripts/hitl/scan-secrets.sh.
 
 usage() {
   cat <<'USAGE'
-Usage: github-setup.sh [--dry-run] [--repo NAME] [--skip-scan-I-ACCEPT-THE-RISK]
+Usage: github-setup.sh [--dry-run] [--repo NAME] [--skip-main-push] [--skip-scan-I-ACCEPT-THE-RISK]
 
   --dry-run   Print every command without executing it.
   --repo      Repository name (default: setlist).
+
+  --skip-main-push
+              Push develop only. ADR-005 reserves every write to main for you, and
+              Claude Code runs under a guard that blocks pushing it, so the agent
+              uses this. main arrives with your first release merge.
 
   --skip-scan-I-ACCEPT-THE-RISK
               Push without the secret scan. Named to be hard to type by accident.
@@ -43,6 +49,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) DRY_RUN=1; shift ;;
     --repo)    REPO_NAME="${2:?--repo needs a value}"; shift 2 ;;
+    --skip-main-push) SKIP_MAIN_PUSH=1; shift ;;
     --skip-scan-I-ACCEPT-THE-RISK) SKIP_SCAN=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; usage; exit 2 ;;
@@ -131,8 +138,18 @@ if ! git remote get-url origin >/dev/null 2>&1; then
 fi
 
 # ---------------------------------------------------------------- 2. push
-note "Pushing main and develop"
-run git push -u origin main
+# `main` is deliberately separable. ADR-005 reserves every write to main for the human,
+# and Claude Code runs under a guard that blocks `git push ... main` outright — so when
+# the agent does the initial push, this script has to be able to do everything else
+# without it. `main` then arrives the first time the human merges a release PR.
+#
+# Running it yourself, leave the flag off and both branches go up.
+if [[ $SKIP_MAIN_PUSH -eq 1 ]]; then
+  note "Pushing develop (skipping main, as asked)"
+else
+  note "Pushing main and develop"
+  run git push -u origin main
+fi
 run git push -u origin develop
 
 note "Setting the default branch to develop"
