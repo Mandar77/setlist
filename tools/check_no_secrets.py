@@ -126,9 +126,24 @@ ALLOWLIST = re.compile(
             r"@fontsource",
             r"@aws-sdk",
             r"@?your[-_]?(?:account|handle|email)",
+            # AWS's reserved documentation account. It appears in every AWS example and
+            # cannot be a real account, so allowlisting this exact value gives up
+            # nothing: a genuinely leaked id will never be these twelve digits. Narrow
+            # on purpose - the rule still fires on any other 12-digit run next to AWS
+            # context, which is what it is for.
+            r"\b123456789012\b",
         )
     )
 )
+
+#: Rules that must not fire inside a given path, because that path's whole purpose is
+#: to hold the thing the rule looks for.
+#:
+#: `security/published-identities.txt` is the file where publishing an address is
+#: declared. The email rule flagging it is the gate objecting to its own paperwork --
+#: and the identity check below governs that file properly, by requiring every address
+#: in commit metadata to appear in it.
+RULE_EXEMPT_PATHS: tuple[tuple[str, str], ...] = (("email", "security/published-identities.txt"),)
 
 
 #: One finding: (rule name, "where:line", the matched fragment, why it matters).
@@ -139,6 +154,8 @@ def _findings(label: str, text: str) -> list[Finding]:
     """Return a finding for every unallowlisted match."""
     out: list[Finding] = []
     for rule in RULES:
+        if any(rule.name == name and path in label for name, path in RULE_EXEMPT_PATHS):
+            continue
         for match in rule.pattern.finditer(text):
             fragment = match.group(0)
             if ALLOWLIST.search(fragment):

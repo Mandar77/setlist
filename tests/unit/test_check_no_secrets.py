@@ -103,6 +103,42 @@ def test_a_file_listed_twice_is_reported_once(repo: Path) -> None:
     assert _findings_for(repo).count("both.ts") == 1
 
 
+def test_a_real_looking_account_id_is_still_flagged(repo: Path) -> None:
+    """The documentation-account allowlist must not blunt the rule.
+
+    `123456789012` is AWS's reserved example account and is allowlisted, which gives up
+    nothing -- but an allowlist is exactly the kind of change that quietly turns a rule
+    off, so this pins the other side of it.
+    """
+    (repo / "real.ts").write_text(f"const role = '{FAKE_ACCOUNT_ARN}'\n", newline="\n")
+
+    assert "real.ts" in _findings_for(repo)
+
+
+def test_the_documentation_account_is_allowlisted(repo: Path) -> None:
+    """And the example account is not, so AWS's own snippets do not fail the build."""
+    doc_arn = "arn:aws:iam::" + "123456789012" + ":role/example"
+    (repo / "docs.ts").write_text(f"const role = '{doc_arn}'\n", newline="\n")
+
+    assert _findings_for(repo) == []
+
+
+def test_the_identities_file_may_hold_an_address(repo: Path) -> None:
+    """The file where publishing an address is DECLARED cannot fail the email rule.
+
+    Otherwise the gate objects to its own paperwork. The identity check governs that
+    file instead, by requiring every address in commit metadata to appear in it.
+    """
+    # Composed, not written out, for the reason in this module's docstring: an address
+    # the allowlist does not cover would fail the scan of this very file. It also has
+    # to be one the allowlist misses, or the test would pass for the wrong reason.
+    address = "someone" + "@" + "setlist.invalid"
+    (repo / "security").mkdir()
+    (repo / "security" / "published-identities.txt").write_text(f"{address}\n", newline="\n")
+
+    assert _findings_for(repo) == []
+
+
 def test_git_failure_is_not_a_clean_scan(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A gate must not report success because it could not look.
 

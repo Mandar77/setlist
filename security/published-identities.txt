@@ -22,4 +22,6 @@
 # already carry the old one — see docs/hitl/SESSION-1.md step 1b. `git commit --amend`
 # rewrites only the tip commit, so it is not sufficient by itself.
 
-# (no identities declared yet)
+# Declared 2026-10-01 by the repository owner, who chose to publish rather than rewrite
+# history to the noreply form. See docs/hitl/QUEUE.md.
+mandy0707.ma@gmail.com
