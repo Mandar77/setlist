@@ -33,7 +33,7 @@ M ?=
 .DEFAULT_GOAL := help
 .PHONY: help setup verify verify-fast test test-unit test-accuracy lint fmt types cov \
         lint-ts fmt-ts types-ts test-ts toolchain \
-        mutate ledger links eol oracle suppressions suppressions-write guard workflows \
+        mutate ledger links eol oracle seed suppressions suppressions-write guard workflows \
         no-secrets secrets-history golden \
         synth synth-matrix nag kics lint-cfn cdk-out-zero estimate preflight gate \
         unkill clean
@@ -50,7 +50,7 @@ setup: ## Install the pinned toolchains and all workspace packages
 ## ------------------------------------------------------------------ the gate
 
 verify: lint lint-ts lint-cfn types types-ts test-unit test-ts test-accuracy toolchain \
-        oracle ledger links eol suppressions guard workflows no-secrets ## Full local gate; no Docker required
+        oracle seed ledger links eol suppressions guard workflows no-secrets ## Full local gate; no Docker required
 	@echo "verify OK"
 
 verify-fast: lint lint-ts types types-ts test-unit test-ts ## Lint, types and unit tests only
@@ -128,6 +128,13 @@ eol: ## No CRLF in the working tree (breaks shebangs, shellcheck and span offset
 ## above, and running them twice would double the slowest part of the gate for nothing.
 oracle: ## The oracle still reproduces every golden output byte for byte
 	$(MAKE) -C tools/oracle-py golden
+
+## The committed seed, checked offline. The harvest itself is a thing a person runs
+## (`pnpm -C tools/seed-catalog harvest`) and is deliberately not in any gate: a build
+## that calls MusicBrainz every time would be unreliable and rude to a volunteer-run
+## service. What CI owes is a check on the file that is actually in git.
+seed: node_modules ## The seed catalog meets CORE-02's floors
+	$(PNPM) -C tools/seed-catalog exec tsx src/verify-cli.ts
 
 suppressions: ## Fail on expired suppressions, or a .trivyignore.yaml that drifted from them
 	$(UV) run python tools/check_suppressions.py

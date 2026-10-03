@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "docs": [
+    "No references. This tool talks to MusicBrainz and writes a data file; it shares no",
+    "code with infra or the core, and a reference it does not need would make `tsc",
+    "--build` rebuild it whenever infra changes."
+  ],
+
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

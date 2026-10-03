@@ -424,7 +424,7 @@ tasks:
   milestone: CORE
   title: Seed catalog builder (MusicBrainz)
   deps: []
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -435,7 +435,17 @@ tasks:
     - resumable - re-running continues rather than restarting
     - a test asserts the rate limiter is never exceeded
   verify: pnpm -C tools/seed-catalog test
-  evidence: []
+  evidence:
+    - "2,242 rows, 83.1% carrying an ISRC, tagged live 290 / remaster 201 / feat 216 / non_latin 386, from 133 requests"
+    - "the harvest is manual and the CHECK is the gate. `make seed` reads the committed file offline and enforces every floor above, because these are properties of a file in git rather than of the code that wrote it - and a build that called MusicBrainz every time would be unreliable and rude to a volunteer-run service"
+    - "the rate limiter takes its clock as a parameter, so the test asserts 500 consecutive acquisitions were spaced >=1000ms exactly rather than approximately, and does it in a millisecond. It also covers the case that actually bites: two concurrent callers reading the same last-start and both going at once"
+    - "writing that test found a real defect in its own observation - reading the clock after `await` reports when the continuation was scheduled, not when the turn was granted, which under a fake clock other callers are advancing is much later. `acquire()` now returns the grant time"
+    - "`type=album|live` is an AND, not an OR. Browse intersects type values, so asking for albums-or-live-albums asked for both: it returned Daft Punk's four live editions and hid Homework, Discovery and Random Access Memories entirely"
+    - "a global row target quietly deletes the diversity requirement. Artists are walked in list order and the non-Latin entries are last, so stopping at 2,000 rows filled the file from the first sixteen names and reached none of the last thirteen - row count perfect, hardest requirement at zero. Every artist gets an equal share instead, enforced per release because one page of 25 albums can be 200 recordings"
+    - "MusicBrainz does not model a remaster as its own recording, so the first harvest produced exactly ONE remaster row. The marker lives on releases, and reissues sit late in browse order - Queen's first three pages mention it zero times, page eight mentions it 43 times. Hence a short backwards sweep per artist, which mostly merges a tag onto rows already collected"
+    - "ISRC coverage and non-Latin names pull against each other: MusicBrainz has near-complete ISRCs for modern Western releases and almost none for older non-Western ones (Άννα Βίσση 0/67, أم كلثوم 0/46, فيروز 0/52, Lata Mangeshkar 1/70). The budget is therefore per artist - at most a fifth of anyone's share may lack an ISRC - so sparse catalogues contribute less rather than being dropped to make a percentage look better"
+    - "artist MBIDs are hardcoded and names are only a comment on them. Resolving by search would make the seed depend on MusicBrainz's ranking that day: searching 'Hikaru Utada' returns '[Hikaru Utada's son]' with a score of 100, a real entity, top hit, completely wrong"
+    - "nothing in the test suite touches the network - fetch and the clock are both injected"
 
 - id: CORE-03
   milestone: CORE

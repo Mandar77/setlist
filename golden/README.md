@@ -7,6 +7,8 @@ themselves live in the owner's private storage.
 | Path | Contents | Status |
 | --- | --- | --- |
 | `extraction/printed.json` | Text-in, songs-out cases for the deterministic parser | live, gates CI |
+| `oracle/` | `tools/oracle-py`'s output for every extraction case, frozen byte for byte | live, gates CI |
+| `seed/recordings.jsonl` | ~2,200 real recordings from MusicBrainz; the truth CORE-03 generates text from | live, gates CI |
 | `extraction/handwriting.json` | OCR output from the consented handwritten set | M2 |
 | `matching/` | (title, artist) to provider track, per platform | M3 |
 | `handwriting/INDEX.md` | Pointers + SHA-256 for the consented scans | M2 |

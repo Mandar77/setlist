@@ -10,13 +10,25 @@
     "the quiet way to end up with an unchecked package, so the CI job asserts that",
     "every workspace member with a tsconfig.json appears here."
   ],
-
   "files": [],
   "references": [
-    { "path": "infra" },
-    { "path": "tests/fixtures/ddb-ondemand" },
-    { "path": "tests/fixtures/nat-stack" },
-    { "path": "tools/free-tier-estimate" },
-    { "path": "tools/toolchain-smoke" }
+    {
+      "path": "infra"
+    },
+    {
+      "path": "tests/fixtures/ddb-ondemand"
+    },
+    {
+      "path": "tests/fixtures/nat-stack"
+    },
+    {
+      "path": "tools/free-tier-estimate"
+    },
+    {
+      "path": "tools/seed-catalog"
+    },
+    {
+      "path": "tools/toolchain-smoke"
+    }
   ]
 }

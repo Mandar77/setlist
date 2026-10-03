@@ -1,6 +1,6 @@
 # Autopilot state
 
-Milestone: M0 | Last done: CORE-01 | Next: CORE-02 | Blocked: 31 tasks — M0A-05 on ADR-008, M0A-06 on M0A-05, M0B-\* + M1-02/03 on H1
+Milestone: M0 | Last done: CORE-02 | Next: CORE-03 | Blocked: 31 tasks — M0A-05 on ADR-008, M0A-06 on M0A-05, M0B-\* + M1-02/03 on H1
 
 Metrics: coverage 95% (Python core) | text precision/recall 1.00 on 8 hand-written cases | free-tier max 160% of dev's YouTube share (see ADR-008) | quarantined tests 0 | `make verify` ~50s
 
@@ -58,6 +58,12 @@ Notes:
   noticed was Dependabot, by dying; dependency updates had silently stopped. There is a
   CI job now that deletes both lockfiles and resolves from nothing, which is the only
   way those policies are ever consulted.
+- **The seed catalog is in** (CORE-02): 2,242 real recordings from MusicBrainz, 83.1%
+  with an ISRC, tagged live/remaster/feat/non-Latin. The harvest is manual and polite
+  (1 req/s, UA naming the repo); `make seed` is the gate, and it reads the committed
+  file offline. Two bugs there are worth remembering: `type=album|live` is an AND in
+  MusicBrainz browse, not an OR, and a global row target silently drops every artist
+  below the cutoff — which were exactly the non-Latin ones.
 - **The Python core is frozen** as `tools/oracle-py` (CORE-01). It is what CORE-04's
   TypeScript port gets diffed against, so it takes no bug fixes: a wrong answer in there
   is behaviour to reproduce, not a defect. A CLI reads stdin and prints byte-stable JSON

@@ -106,6 +106,12 @@ importers:
         specifier: 4.23.15
         version: 4.23.15
 
+  tools/seed-catalog:
+    devDependencies:
+      tsx:
+        specifier: 4.23.15
+        version: 4.23.15
+
   tools/toolchain-smoke: {}
 
 packages:
