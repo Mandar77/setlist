@@ -58,6 +58,17 @@ Notes:
   noticed was Dependabot, by dying; dependency updates had silently stopped. There is a
   CI job now that deletes both lockfiles and resolves from nothing, which is the only
   way those policies are ever consulted.
+- **That job was not enough, and the same thing happened again** on 2026-10-01: the
+  lockfile took rolldown 1.2.12 one day after publication against a seven-day floor,
+  Dependabot died on every npm run for two days, and the job stayed green the whole time.
+  Resolving from nothing proves a compliant lockfile *could* exist; it cannot prove the
+  committed one is compliant, because it begins by deleting it — and vite's `~1.2.9`
+  means a fresh resolve keeps picking the mature 1.2.11 while git still held 1.2.12.
+  `tools/check_lockfile_maturity.js` now reads the committed artifact instead, 358
+  versions against the registry's own publish times, and treats "cannot establish age"
+  as a failure. Both must-fail directions are time-stable, which the obvious fixture is
+  not: a real package pinned to a recent version stops failing once it ages past the
+  floor. Dependency updates are flowing again — 11 open PRs.
 - **The TypeScript core reproduces the frozen oracle exactly** (CORE-04): all 8 golden
   cases field for field, all 10,000 generated inputs byte for byte, with
   `golden/diff-allowlist.yaml` empty and enforced from both directions. The differential
@@ -80,6 +91,20 @@ Notes:
   differential suites threw ENOENT during load, because the sandbox breaks a `../../..`
   path to `golden/`. That is the third and fourth thing in this repo found to report
   success while doing nothing.
+- **`normalize_document` is not idempotent, in both languages, and that is a decision
+  waiting.** It applies NFKC and then strips control characters, so the strip can make
+  two combining marks adjacent that NFKC never compared, and a second pass reorders them
+  by combining class. Hypothesis found the witness U+00B4, U+001F, U+1A7F — written by
+  codepoint because the middle one is a control character and must not sit literally in a
+  tracked file. NFKC turns U+00B4 into space + U+0301 (ccc 230); the strip then removes
+  the U+001F separating it from U+1A7F (ccc 220), and the two marks swap. Latent, not live — there is
+  one call site in each language, so nothing normalizes twice today; it would bite on a
+  round trip, shifting every span after the affected position, which is the failure the
+  ADR-007 span contract exists to prevent. The candidate fix is one more NFKC after the
+  strip and it was measured, not guessed: zero output changes across all 14,900 inputs in
+  the two differential corpora. It is still a change to the frozen oracle, so it needs an
+  ADR rather than a quiet edit, and until then the property test is a true red that CI
+  hits at random. The port reproduces the bug exactly, so CORE-04's parity claim stands.
 - **The golden text set is generated** (CORE-03): 433 cases, 2,538 expected songs, built
   from the seed so the expected answers never come from parser output. Two tiers — `clean`
   carries the PED gate (currently P=0.988 R=0.982 F1=0.985), `noisy` is prose and
