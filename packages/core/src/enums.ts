@@ -27,6 +27,23 @@ export type Qualifier = (typeof Qualifier)[keyof typeof Qualifier]
  * `DETERMINISTIC > LLM_GROUNDED > LLM_UNGROUNDED` (PRD §7.9.5); ungrounded LLM items
  * are rejected outright and never reach a result.
  */
+/**
+ * How a document reached the system (ADR-002).
+ *
+ * Added to the ingestion contract by ADR-002 as the input the orientation ladder falls
+ * back to. Deliberately NOT part of the oracle's world — the oracle reads text on stdin
+ * and nothing else — which is what lets orientation resolution exist without the port
+ * diverging from it. See `orientation.ts`.
+ */
+export const SourceKind = {
+  SCAN_HANDWRITING: 'scan_handwriting',
+  SCAN_PRINT: 'scan_print',
+  SCREENSHOT: 'screenshot',
+  PASTE: 'paste',
+  FILE: 'file',
+} as const
+export type SourceKind = (typeof SourceKind)[keyof typeof SourceKind]
+
 export const ExtractionMethod = {
   DETERMINISTIC: 'deterministic',
   LLM_GROUNDED: 'llm_grounded',
