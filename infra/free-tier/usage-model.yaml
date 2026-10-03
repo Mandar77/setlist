@@ -75,23 +75,46 @@ operations:
     cloudfront_requests: 15
     confidence: estimated
 
+# ---------------------------------------------------------------- ADR-008 is open
+#
+# These three numbers are what ADR-008 decides, and they live here - defined once, as
+# anchors - so the decision is a one-line edit each rather than a hunt.
+#
+# The conflict, in one line: a 15-song playlist costs 50 + 15*50 = 800 YouTube units, so
+# prod's 7,000/day buys ~8 a day, which is ~250 a month - and 250 a month is 95.2% of the
+# allowance against a gate set at 70%. PED S11 sized prod at 250 BECAUSE that is what the
+# quota buys, so the volume target and the gate cannot both stand. Dev is worse and is a
+# plain bug rather than a conflict: 500 units a day against 800 for one playlist means dev
+# cannot create a single playlist.
+#
+# Nothing here has been edited to make `make estimate` pass. It exits 1 on seven rows and
+# that is the accurate state - the gate working, not the tool failing (AUTOPILOT S2.4).
+# Everything that does not depend on the outcome is finished and shipped around it.
+#
+# `tools/free-tier-estimate/test/adr-008-single-source.test.ts` asserts each of these
+# appears exactly once as a literal, so the next edit cannot quietly spread them back out.
+adr008_playlists_per_month:
+  prod: &adr008_prod_playlists 250 # capped by YouTube units, not by us
+  stage: &adr008_stage_playlists 50
+  dev: &adr008_dev_playlists 30
+
 # Projected monthly volume per environment. These drive the CI gate, so they are
 # deliberately pessimistic: under-forecasting is the only direction that costs money.
 volumes:
   prod:
     on_device_scan: 30000
-    server_ocr_page: 6000       # 20% fallback rate
-    playlist_job_15_songs: 250  # capped by YouTube units, not by us
+    server_ocr_page: 6000 # 20% fallback rate
+    playlist_job_15_songs: *adr008_prod_playlists
     review_session: 8000
   stage:
     on_device_scan: 2000
     server_ocr_page: 400
-    playlist_job_15_songs: 50
+    playlist_job_15_songs: *adr008_stage_playlists
     review_session: 500
   dev:
     on_device_scan: 1000
     server_ocr_page: 200
-    playlist_job_15_songs: 30
+    playlist_job_15_songs: *adr008_dev_playlists
     review_session: 200
 
 # Fixed monthly overheads independent of traffic.

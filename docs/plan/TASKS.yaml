@@ -385,7 +385,7 @@ tasks:
   milestone: M0
   title: tools/free-tier-estimate
   deps: [M0A-02]
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -407,6 +407,11 @@ tasks:
   # not edited away - so it is deliberately NOT this task's verify command.
   verify: pnpm -C tools/free-tier-estimate test
   evidence:
+    - "ADR-008's three contested volumes are now YAML anchors in one `adr008_playlists_per_month` block (prod 250, stage 50, dev 30), and every consumer aliases them. gate_pct was already single. The decision is a one-line edit each"
+    - "a test pins that: every `playlist_job_15_songs` with a value must alias rather than restate, the anchor block holds exactly one literal per env, gate_pct is declared once, and the block is NOT referenced by model.ts - so it stays a holding pen rather than becoming load-bearing, and removing it once ADR-008 lands is a tidy-up and not a breaking change. 32 tests pass; restating a literal fails 2"
+    - "the first draft of that test counted bare digits across the config and was wrong: 30 is also `days_per_month` and 50 is a per-operation cost. The invariant is not `the digits 250 appear once`, it is `every consumer refers to the anchor instead of restating it`"
+    - "found while making this the verify command: `pnpm -C tools/free-tier-estimate test` was also collecting dist/test/*.test.js, the compiled copies left by `tsc --build`, which fail with a module-not-found from their own directory. Latent until something ran this package's tests directly. vitest.config.ts now excludes dist"
+    - "`make estimate` still exits 1 on seven rows and is deliberately NOT this task's verify command. That failure is the gate reporting a real conflict between the PED's volumes and its own 70% threshold; it is reported, not edited (AUTOPILOT S2.4)"
     - "tools/free-tier-estimate is TypeScript per ADR-004; the Makefile placeholder pointed at a Python module, which would have set the wrong precedent the day it was filled in"
     - "reads budget.yaml and usage-model.yaml and holds no numbers of its own - it imports infra/lib/config/budget.ts rather than parsing budget.yaml a second time, since that file is what CI gates on AND what the runtime sentinel trips on"
     - "21 vitest assertions; PED arithmetic checked against the real data (800 units a playlist = 50 + 15*50; 7000/800 = 8 playlists/day), gate behaviour against synthetic budgets so a legitimate budget change does not fail a test and create pressure to edit it"
