@@ -470,7 +470,7 @@ wheels = [
 [[package]]
 name = "setlist-core"
 version = "0.1.0"
-source = { editable = "packages/core" }
+source = { editable = "tools/oracle-py" }
 dependencies = [
     { name = "anyascii" },
     { name = "pydantic" },
@@ -513,7 +513,7 @@ dev = [
     { name = "pytest-randomly", specifier = ">=3.16" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "ruff", specifier = ">=0.9" },
-    { name = "setlist-core", editable = "packages/core" },
+    { name = "setlist-core", editable = "tools/oracle-py" },
     { name = "types-pyyaml", specifier = ">=6.0" },
 ]
 

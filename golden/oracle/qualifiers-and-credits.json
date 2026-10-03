@@ -1,0 +1,121 @@
+{
+  "document": {
+    "digest": "de926b750d2b411ad48cbe9bb9e4a42d26bb1f273d062143210163fe2c5d89d8",
+    "raw_length": 188,
+    "text": "- Arcade Fire - Wake Up (Live at Coachella)\n- Calvin Harris - One Kiss (feat. Dua Lipa)\n- The Beatles – While My Guitar Gently Weeps - Remastered 2009\n- Eric Prydz - Opus (Four Tet Remix)"
+  },
+  "items": [
+    {
+      "artist": "Arcade Fire",
+      "confidence": 0.9,
+      "duplicates": [],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": null,
+        "position": null,
+        "qualifiers": [
+          "live"
+        ],
+        "timestamp_s": null,
+        "version_label": "Live at Coachella",
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "dash",
+      "span": {
+        "end": 43,
+        "start": 2
+      },
+      "title": "Wake Up"
+    },
+    {
+      "artist": "Calvin Harris",
+      "confidence": 0.9,
+      "duplicates": [],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [
+          "Dua Lipa"
+        ],
+        "isrc": null,
+        "position": null,
+        "qualifiers": [],
+        "timestamp_s": null,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "dash",
+      "span": {
+        "end": 87,
+        "start": 46
+      },
+      "title": "One Kiss"
+    },
+    {
+      "artist": "The Beatles",
+      "confidence": 0.9,
+      "duplicates": [],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": null,
+        "position": null,
+        "qualifiers": [
+          "remaster"
+        ],
+        "timestamp_s": null,
+        "version_label": "Remastered 2009",
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "dash",
+      "span": {
+        "end": 150,
+        "start": 90
+      },
+      "title": "While My Guitar Gently Weeps"
+    },
+    {
+      "artist": "Eric Prydz",
+      "confidence": 0.85,
+      "duplicates": [],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": null,
+        "position": null,
+        "qualifiers": [
+          "remix"
+        ],
+        "timestamp_s": null,
+        "version_label": "Four Tet Remix",
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "dash",
+      "span": {
+        "end": 187,
+        "start": 153
+      },
+      "title": "Opus"
+    }
+  ],
+  "rejected": [],
+  "residual": [],
+  "schema": 1,
+  "source_kind": "printed",
+  "stats": {
+    "items_after_dedupe": 4,
+    "items_before_dedupe": 4,
+    "lines_parsed": 4,
+    "lines_residual": 0,
+    "lines_total": 4,
+    "rejected": 0
+  }
+}

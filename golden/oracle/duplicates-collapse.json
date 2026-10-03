@@ -1,0 +1,76 @@
+{
+  "document": {
+    "digest": "da3eca83c95b6b53d7b4d4efac8b8d64d702ba882438ad149e4e1d5b4ba44107",
+    "raw_length": 82,
+    "text": "Aphex Twin - Xtal\nBoards of Canada - Roygbiv\nAphex Twin - Xtal\naphex twin - xtal!"
+  },
+  "items": [
+    {
+      "artist": "Aphex Twin",
+      "confidence": 0.85,
+      "duplicates": [
+        {
+          "end": 62,
+          "start": 45
+        },
+        {
+          "end": 81,
+          "start": 63
+        }
+      ],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": null,
+        "position": null,
+        "qualifiers": [],
+        "timestamp_s": null,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "dash",
+      "span": {
+        "end": 17,
+        "start": 0
+      },
+      "title": "Xtal"
+    },
+    {
+      "artist": "Boards of Canada",
+      "confidence": 0.85,
+      "duplicates": [],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": null,
+        "position": null,
+        "qualifiers": [],
+        "timestamp_s": null,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "dash",
+      "span": {
+        "end": 44,
+        "start": 18
+      },
+      "title": "Roygbiv"
+    }
+  ],
+  "rejected": [],
+  "residual": [],
+  "schema": 1,
+  "source_kind": "printed",
+  "stats": {
+    "items_after_dedupe": 2,
+    "items_before_dedupe": 4,
+    "lines_parsed": 4,
+    "lines_residual": 0,
+    "lines_total": 4,
+    "rejected": 0
+  }
+}

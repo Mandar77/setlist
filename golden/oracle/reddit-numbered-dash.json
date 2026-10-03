@@ -1,0 +1,118 @@
+{
+  "document": {
+    "digest": "b85d7f140553285f8dad1b9e1f4aab37ce0df667da8e9c46e9c435e929c891b0",
+    "raw_length": 120,
+    "text": "Best tracks of the summer\n\n1. Daft Punk - One More Time\n2. Justice – Genesis\n3. Kaytranada - 10%\n4. Overmono - So U Kno"
+  },
+  "items": [
+    {
+      "artist": "Daft Punk",
+      "confidence": 0.92,
+      "duplicates": [],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": null,
+        "position": 1,
+        "qualifiers": [],
+        "timestamp_s": null,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "dash",
+      "span": {
+        "end": 55,
+        "start": 30
+      },
+      "title": "One More Time"
+    },
+    {
+      "artist": "Justice",
+      "confidence": 0.87,
+      "duplicates": [],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": null,
+        "position": 2,
+        "qualifiers": [],
+        "timestamp_s": null,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "dash",
+      "span": {
+        "end": 76,
+        "start": 59
+      },
+      "title": "Genesis"
+    },
+    {
+      "artist": "Kaytranada",
+      "confidence": 0.87,
+      "duplicates": [],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": null,
+        "position": 3,
+        "qualifiers": [],
+        "timestamp_s": null,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "dash",
+      "span": {
+        "end": 96,
+        "start": 80
+      },
+      "title": "10%"
+    },
+    {
+      "artist": "Overmono",
+      "confidence": 0.92,
+      "duplicates": [],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": null,
+        "position": 4,
+        "qualifiers": [],
+        "timestamp_s": null,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "dash",
+      "span": {
+        "end": 119,
+        "start": 100
+      },
+      "title": "So U Kno"
+    }
+  ],
+  "rejected": [],
+  "residual": [
+    {
+      "end": 25,
+      "start": 0
+    }
+  ],
+  "schema": 1,
+  "source_kind": "printed",
+  "stats": {
+    "items_after_dedupe": 4,
+    "items_before_dedupe": 4,
+    "lines_parsed": 4,
+    "lines_residual": 1,
+    "lines_total": 6,
+    "rejected": 0
+  }
+}

@@ -33,7 +33,7 @@ M ?=
 .DEFAULT_GOAL := help
 .PHONY: help setup verify verify-fast test test-unit test-accuracy lint fmt types cov \
         lint-ts fmt-ts types-ts test-ts toolchain \
-        mutate ledger links eol suppressions suppressions-write guard workflows \
+        mutate ledger links eol oracle suppressions suppressions-write guard workflows \
         no-secrets secrets-history golden \
         synth synth-matrix nag kics lint-cfn cdk-out-zero estimate preflight gate \
         unkill clean
@@ -50,7 +50,7 @@ setup: ## Install the pinned toolchains and all workspace packages
 ## ------------------------------------------------------------------ the gate
 
 verify: lint lint-ts lint-cfn types types-ts test-unit test-ts test-accuracy toolchain \
-        ledger links eol suppressions guard workflows no-secrets ## Full local gate; no Docker required
+        oracle ledger links eol suppressions guard workflows no-secrets ## Full local gate; no Docker required
 	@echo "verify OK"
 
 verify-fast: lint lint-ts types types-ts test-unit test-ts ## Lint, types and unit tests only
@@ -70,7 +70,7 @@ cov: ## Unit tests with the coverage gate (>=85% overall, >=90% core)
 	$(UV) run pytest --cov --cov-report=term-missing --cov-report=xml
 
 mutate: ## Mutation testing on the core (target >=70%)
-	$(UV) run mutmut run --paths-to-mutate packages/core/src
+	$(UV) run mutmut run --paths-to-mutate tools/oracle-py/src
 
 golden: ## Regenerate the generated golden sets from the seed catalog
 	@echo "golden: seed-derived generation lands with CORE-02/CORE-03"
@@ -122,6 +122,12 @@ links: ## Every relative markdown link and anchor resolves
 
 eol: ## No CRLF in the working tree (breaks shebangs, shellcheck and span offsets)
 	$(UV) run python tools/check_line_endings.py
+
+## The frozen reference implementation (CORE-01). Only the golden check runs here —
+## oracle-py's own lint, types and tests are already covered by the repo-wide targets
+## above, and running them twice would double the slowest part of the gate for nothing.
+oracle: ## The oracle still reproduces every golden output byte for byte
+	$(MAKE) -C tools/oracle-py golden
 
 suppressions: ## Fail on expired suppressions, or a .trivyignore.yaml that drifted from them
 	$(UV) run python tools/check_suppressions.py

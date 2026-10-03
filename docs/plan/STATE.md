@@ -1,6 +1,6 @@
 # Autopilot state
 
-Milestone: M0 | Last done: M0A-09 | Next: CORE-01 | Blocked: 31 tasks — M0A-05 on ADR-008, M0A-06 on M0A-05, M0B-\* + M1-02/03 on H1
+Milestone: M0 | Last done: CORE-01 | Next: CORE-02 | Blocked: 31 tasks — M0A-05 on ADR-008, M0A-06 on M0A-05, M0B-\* + M1-02/03 on H1
 
 Metrics: coverage 95% (Python core) | text precision/recall 1.00 on 8 hand-written cases | free-tier max 160% of dev's YouTube share (see ADR-008) | quarantined tests 0 | `make verify` ~50s
 
@@ -47,12 +47,23 @@ Notes:
   made the earlier verification look like confirmation. Then eslint three minors behind
   its own `@eslint/js`, and Trivy failing on the KICS fixtures — files written to contain
   violations, found to contain violations.
-- Two settings in this repo have now been found to do nothing while reporting success.
-  Both were supply-chain controls. `trustPolicy: no-downgrade` is the open one: it
-  refuses to *resolve* a package whose provenance regressed, but `--frozen-lockfile`
-  installs whatever is already locked, so `undici-types@6.20.0` — which pnpm will not
-  resolve fresh — installs clean every time. Everything locked before the policy existed
-  is grandfathered. Proven, not suspected; no check for it yet.
+- Three settings in this repo have now been found to do nothing while reporting success,
+  all three supply-chain controls: `blockExoticSubDependencies`, which was not a real
+  key; Dependabot's `cooldown`, whose per-semver-type days default to 0 and override the
+  `default-days: 7` sitting right above them; and `--frozen-lockfile` itself, which
+  replays a lockfile without consulting any of the resolution-time policies that
+  produced it. The third let the workspace reach a state where `pnpm install` could not
+  run at all — three pins younger than the seven-day cooldown, and an `undici-types`
+  whose provenance attestation had lapsed — while every CI install stayed green. What
+  noticed was Dependabot, by dying; dependency updates had silently stopped. There is a
+  CI job now that deletes both lockfiles and resolves from nothing, which is the only
+  way those policies are ever consulted.
+- **The Python core is frozen** as `tools/oracle-py` (CORE-01). It is what CORE-04's
+  TypeScript port gets diffed against, so it takes no bug fixes: a wrong answer in there
+  is behaviour to reproduce, not a defect. A CLI reads stdin and prints byte-stable JSON
+  — sorted keys, sorted qualifiers, literal UTF-8 — so another language can drive it,
+  and `golden/oracle/` pins the full output of all 8 golden cases. `make verify` fails
+  if a single byte moves.
 - A suppression now has to suppress something. `security/suppressions.yaml` was paperwork
   no scanner read; `.trivyignore.yaml` is generated from it and checked for staleness, and
   Trivy's own `expired_at` carries the same date — so the deadline is enforced by the

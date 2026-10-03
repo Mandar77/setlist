@@ -401,7 +401,7 @@ tasks:
   milestone: CORE
   title: Freeze the Python core as tools/oracle-py with a CLI
   deps: []
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -410,7 +410,15 @@ tasks:
     - reproduces every current golden output byte for byte
     - marked frozen in its README; no new features accepted
   verify: make -C tools/oracle-py verify
-  evidence: []
+  evidence:
+    - "moved with `git mv`, so the history follows; not one line of the 2,375 under src/ changed. The six unit test files that exercised it came along from tests/unit/, which is what makes `make -C tools/oracle-py verify` self-contained rather than a view onto the root suite"
+    - "the CLI exists so another language can call this. CORE-04 rewrites the core in TypeScript and the only way to show the port is faithful is to run both over the same text and diff - a Python API cannot be called from Vitest, a subprocess that reads stdin and prints JSON can"
+    - "so every value has exactly one spelling: keys sorted at every level, `qualifiers` sorted rather than frozenset-ordered, ensure_ascii=False, one trailing newline, stdin decoded as UTF-8 explicitly rather than through the locale codec"
+    - "the frozenset is the sharp one. `Hints.qualifiers` iterates in hash-table order, which is not a property any other implementation could reproduce and not one anybody should try to"
+    - "golden/oracle/ holds the full output for all 8 cases, committed. golden.py checks them and fails on three things: a changed byte, a case with no frozen output, and a frozen output whose case no longer exists"
+    - "verified in the failing direction, which is the only direction that proves anything: changing BASE_CONFIDENCE['dash'] from 0.90 to 0.89 failed 6 of 8 cases; deleting one frozen output failed; adding an orphan failed. A first attempt perturbed a literal no golden case reached and the check stayed green, which is exactly why the perturbation has to be checked too"
+    - "`make verify` runs the golden check, not the oracle's whole gate - lint, types and tests are already covered repo-wide and running them twice would double the slowest part for nothing"
+    - "this is the opposite instrument to tests/accuracy. That gate scores normalized pairs against a tolerance band so legitimate improvements do not fail it; this one pins every byte so that nothing counts as an improvement at all"
 
 - id: CORE-02
   milestone: CORE

@@ -74,7 +74,7 @@ jobs:
                   total += 1
                   covered += int(line.get("hits", "0")) > 0
           pct = 100.0 * covered / total if total else 0.0
-          print(f"packages/core line coverage: {pct:.2f}% ({covered}/{total})")
+          print(f"setlist_core line coverage: {pct:.2f}% ({covered}/{total})")
           if pct < 90.0:
               sys.exit(f"core coverage {pct:.2f}% is below the 90% gate")
           PY

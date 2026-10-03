@@ -36,14 +36,13 @@ dev = [
 # — and `services/adapters/*` referred to a layout that no longer exists.
 #
 # The exceptions, and why each one is allowed to be Python:
-#   packages/core    — moves to TypeScript at CORE-04; becomes tools/oracle-py (CORE-01)
+#   tools/oracle-py  — the frozen reference implementation (CORE-01); deleted at CORE-07
 #   packages/etl     — must stay Glue-compatible
 #   services/ocr     — RapidOCR is Python-first; it returns raw lines and holds no grammar
-#   tools/oracle-py  — the frozen reference implementation, deleted at CORE-07
 #
 # A member listed here that does not exist yet is simply not resolved, so entries can
 # land before their directories do.
-members = ["packages/core", "packages/etl", "services/ocr", "tools/oracle-py"]
+members = ["packages/etl", "services/ocr", "tools/oracle-py"]
 
 [tool.uv.sources]
 setlist-core = { workspace = true }
@@ -67,7 +66,7 @@ default-groups = ["dev"]
 [tool.ruff]
 target-version = "py313"
 line-length = 100
-src = ["packages/core/src", "services", "tests"]
+src = ["tools/oracle-py/src", "services", "tests"]
 extend-exclude = [
     "cdk.out",
     "node_modules",
@@ -114,7 +113,7 @@ ignore = [
 allowed-confusables = ["–", "—", "―", "‐", "−", "·", "⁃", "Ａ", "Ｂ"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "D", "ANN", "PLR2004"]   # asserts, docstrings, magic numbers
+"**/tests/**" = ["S101", "D", "ANN", "PLR2004"]   # asserts, docstrings, magic numbers
 "**/conftest.py" = ["D", "ANN"]
 # CLI entrypoints: stdout is the interface. These also shell out to `git` by name,
 # which S603/S607 flag - resolving git from PATH is correct here, and hardcoding an
@@ -139,9 +138,11 @@ warn_unreachable = true
 warn_unused_ignores = true
 disallow_any_explicit = false
 enable_error_code = ["redundant-expr", "possibly-undefined", "truthy-bool", "ignore-without-code"]
-mypy_path = ["packages/core/src"]
+# `tools/oracle-py` itself, not just its src, so that `golden` resolves: the oracle's
+# freeze script sits beside the package rather than inside it.
+mypy_path = ["tools/oracle-py/src", "tools/oracle-py"]
 # Add each service directory here as it gains code; mypy errors on empty ones.
-files = ["packages/core/src", "tests"]
+files = ["tools/oracle-py/src", "tools/oracle-py/tests", "tests"]
 exclude = '(cdk\.out|node_modules)'
 
 # tests/ is a package (see tests/__init__.py) so this pattern resolves.
@@ -151,10 +152,34 @@ disallow_untyped_defs = false
 disallow_incomplete_defs = false
 disallow_untyped_decorators = false
 
+# The oracle's tests, named one by one rather than globbed.
+#
+# They have no __init__.py, so mypy sees each as a top-level module named after its
+# file, and a pattern like `test_*` is not a legal override — mypy accepts `*` only as a
+# whole dotted component, and prints a warning rather than failing if you try.
+#
+# Listing them is the better shape anyway. These six moved here from tests/unit with
+# CORE-01 and carry the relaxation they already had; anything added later is checked
+# under full strictness, which is the right default for new code in a package whose
+# whole job is to not change.
+[[tool.mypy.overrides]]
+module = [
+    "conftest",
+    "test_dedupe",
+    "test_grounding",
+    "test_normalize",
+    "test_parsers",
+    "test_pipeline",
+    "test_properties",
+]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_decorators = false
+
 # ---------------------------------------------------------------- pytest
 [tool.pytest.ini_options]
 minversion = "8.0"
-testpaths = ["tests"]
+testpaths = ["tests", "tools/oracle-py/tests"]
 addopts = [
     "--strict-markers",
     "--strict-config",
@@ -173,7 +198,7 @@ filterwarnings = ["error"]
 # ---------------------------------------------------------------- coverage
 [tool.coverage.run]
 branch = true
-source = ["packages/core/src", "services"]
+source = ["tools/oracle-py/src", "services"]
 omit = ["*/tests/*", "*/__main__.py"]
 relative_files = true
 

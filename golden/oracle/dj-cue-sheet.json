@@ -1,0 +1,113 @@
+{
+  "document": {
+    "digest": "3237456177e850f75a4137fc8fb2e0c430f63a97d36d117b51437a0605f61ca6",
+    "raw_length": 118,
+    "text": "00:00 Bicep - Glue\n04:12 Overmono - So U Kno\n09:30 Four Tet – Baby\n14:58 Fred again.. - Delilah (pull me out of this)"
+  },
+  "items": [
+    {
+      "artist": "Bicep",
+      "confidence": 0.87,
+      "duplicates": [],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": null,
+        "position": null,
+        "qualifiers": [],
+        "timestamp_s": 0,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "dash",
+      "span": {
+        "end": 18,
+        "start": 6
+      },
+      "title": "Glue"
+    },
+    {
+      "artist": "Overmono",
+      "confidence": 0.92,
+      "duplicates": [],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": null,
+        "position": null,
+        "qualifiers": [],
+        "timestamp_s": 252,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "dash",
+      "span": {
+        "end": 44,
+        "start": 25
+      },
+      "title": "So U Kno"
+    },
+    {
+      "artist": "Four Tet",
+      "confidence": 0.87,
+      "duplicates": [],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": null,
+        "position": null,
+        "qualifiers": [],
+        "timestamp_s": 570,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "dash",
+      "span": {
+        "end": 66,
+        "start": 51
+      },
+      "title": "Baby"
+    },
+    {
+      "artist": "Fred again..",
+      "confidence": 0.92,
+      "duplicates": [],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": null,
+        "position": null,
+        "qualifiers": [],
+        "timestamp_s": 898,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "dash",
+      "span": {
+        "end": 117,
+        "start": 73
+      },
+      "title": "Delilah (pull me out of this)"
+    }
+  ],
+  "rejected": [],
+  "residual": [],
+  "schema": 1,
+  "source_kind": "printed",
+  "stats": {
+    "items_after_dedupe": 4,
+    "items_before_dedupe": 4,
+    "lines_parsed": 4,
+    "lines_residual": 0,
+    "lines_total": 4,
+    "rejected": 0
+  }
+}

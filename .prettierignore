@@ -31,3 +31,12 @@ tools/toolchain-smoke/fixtures/
 # JSON.stringify never will, so formatting these would fight the generator every run
 # and leave the --check gate permanently stale. The generator owns their shape.
 security/kics-queries/zero-cost/
+
+# The oracle's frozen outputs, where the bytes ARE the contract (CORE-01).
+#
+# This one is not a preference. `make verify` asserts that tools/oracle-py reproduces
+# these files byte for byte, so anything that reformats them breaks the freeze — and
+# Prettier wants to, because it wraps a long string where json.dumps does not. Two
+# tools cannot both own these bytes; the generator owns them, and the whole point of
+# the file is that nothing reformats it quietly.
+golden/oracle/

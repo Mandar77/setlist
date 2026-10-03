@@ -1,0 +1,72 @@
+{
+  "document": {
+    "digest": "87b5838582095487f6090f06cf0faf6d353aa6f30e84c1949ccc27bb77e7bb7f",
+    "raw_length": 171,
+    "text": "## My set from Friday\n\nHonestly the crowd was dead until the encore, which was a shame.\n\nRadiohead - Idioteque\nBurial – Archangel\n\nhttps://example.com/the-full-thread\n---"
+  },
+  "items": [
+    {
+      "artist": "Radiohead",
+      "confidence": 0.85,
+      "duplicates": [],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": null,
+        "position": null,
+        "qualifiers": [],
+        "timestamp_s": null,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "dash",
+      "span": {
+        "end": 110,
+        "start": 89
+      },
+      "title": "Idioteque"
+    },
+    {
+      "artist": "Burial",
+      "confidence": 0.85,
+      "duplicates": [],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": null,
+        "position": null,
+        "qualifiers": [],
+        "timestamp_s": null,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "dash",
+      "span": {
+        "end": 129,
+        "start": 111
+      },
+      "title": "Archangel"
+    }
+  ],
+  "rejected": [],
+  "residual": [
+    {
+      "end": 87,
+      "start": 23
+    }
+  ],
+  "schema": 1,
+  "source_kind": "printed",
+  "stats": {
+    "items_after_dedupe": 2,
+    "items_before_dedupe": 2,
+    "lines_parsed": 2,
+    "lines_residual": 1,
+    "lines_total": 9,
+    "rejected": 0
+  }
+}

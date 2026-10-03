@@ -1,0 +1,90 @@
+{
+  "document": {
+    "digest": "932c4ca83588f3002b304c96d48b3ac1bc5600d3155614ee8b8958e826c56c6a",
+    "raw_length": 78,
+    "text": "Sigur Rós - Hoppípolla\nBjörk – Hyperballad\nSébastien Tellier - La Ritournelle"
+  },
+  "items": [
+    {
+      "artist": "Sigur Rós",
+      "confidence": 0.85,
+      "duplicates": [],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": null,
+        "position": null,
+        "qualifiers": [],
+        "timestamp_s": null,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "dash",
+      "span": {
+        "end": 22,
+        "start": 0
+      },
+      "title": "Hoppípolla"
+    },
+    {
+      "artist": "Björk",
+      "confidence": 0.85,
+      "duplicates": [],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": null,
+        "position": null,
+        "qualifiers": [],
+        "timestamp_s": null,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "dash",
+      "span": {
+        "end": 42,
+        "start": 23
+      },
+      "title": "Hyperballad"
+    },
+    {
+      "artist": "Sébastien Tellier",
+      "confidence": 0.9,
+      "duplicates": [],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": null,
+        "position": null,
+        "qualifiers": [],
+        "timestamp_s": null,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "dash",
+      "span": {
+        "end": 77,
+        "start": 43
+      },
+      "title": "La Ritournelle"
+    }
+  ],
+  "rejected": [],
+  "residual": [],
+  "schema": 1,
+  "source_kind": "printed",
+  "stats": {
+    "items_after_dedupe": 3,
+    "items_before_dedupe": 3,
+    "lines_parsed": 3,
+    "lines_residual": 0,
+    "lines_total": 3,
+    "rejected": 0
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "document": {
+    "digest": "d00e4e68444965f12ee7eebfaf869315d65b6673355ae598b0899141fdbb3a43",
+    "raw_length": 146,
+    "text": "Artist,Title,Album,ISRC\nDaft Punk,Da Funk,Homework,USRC17607839\nJustice,Genesis,Cross,FRUM71200001\nAir,La Femme d'Argent,Moon Safari,FRZ109800012"
+  },
+  "items": [
+    {
+      "artist": "Daft Punk",
+      "confidence": 1.0,
+      "duplicates": [],
+      "hints": {
+        "album": "Homework",
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": "USRC17607839",
+        "position": 2,
+        "qualifiers": [],
+        "timestamp_s": null,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "csv",
+      "span": {
+        "end": 63,
+        "start": 24
+      },
+      "title": "Da Funk"
+    },
+    {
+      "artist": "Justice",
+      "confidence": 0.97,
+      "duplicates": [],
+      "hints": {
+        "album": "Cross",
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": "FRUM71200001",
+        "position": 3,
+        "qualifiers": [],
+        "timestamp_s": null,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "csv",
+      "span": {
+        "end": 98,
+        "start": 64
+      },
+      "title": "Genesis"
+    },
+    {
+      "artist": "Air",
+      "confidence": 1.0,
+      "duplicates": [],
+      "hints": {
+        "album": "Moon Safari",
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": "FRZ109800012",
+        "position": 4,
+        "qualifiers": [],
+        "timestamp_s": null,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "csv",
+      "span": {
+        "end": 145,
+        "start": 99
+      },
+      "title": "La Femme d'Argent"
+    }
+  ],
+  "rejected": [],
+  "residual": [],
+  "schema": 1,
+  "source_kind": "printed",
+  "stats": {
+    "items_after_dedupe": 3,
+    "items_before_dedupe": 3,
+    "lines_parsed": 3,
+    "lines_residual": 0,
+    "lines_total": 4,
+    "rejected": 0
+  }
+}

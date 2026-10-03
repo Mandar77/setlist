@@ -1,0 +1,95 @@
+{
+  "document": {
+    "digest": "4504cfc3c313e32b302bc7ce025a2f386c93fdab1fd03fbc3dbc8b859764400b",
+    "raw_length": 125,
+    "text": "Our picks, compiled by the editorial team.\n\n\"Midnight City\" by M83\n\"Teardrop\" by Massive Attack\n\"Bohemian Rhapsody\" by Queen"
+  },
+  "items": [
+    {
+      "artist": "M83",
+      "confidence": 0.95,
+      "duplicates": [],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": null,
+        "position": null,
+        "qualifiers": [],
+        "timestamp_s": null,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "quoted",
+      "span": {
+        "end": 66,
+        "start": 44
+      },
+      "title": "Midnight City"
+    },
+    {
+      "artist": "Massive Attack",
+      "confidence": 0.8999999999999999,
+      "duplicates": [],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": null,
+        "position": null,
+        "qualifiers": [],
+        "timestamp_s": null,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "quoted",
+      "span": {
+        "end": 95,
+        "start": 67
+      },
+      "title": "Teardrop"
+    },
+    {
+      "artist": "Queen",
+      "confidence": 0.95,
+      "duplicates": [],
+      "hints": {
+        "album": null,
+        "duration_s": null,
+        "featured_artists": [],
+        "isrc": null,
+        "position": null,
+        "qualifiers": [],
+        "timestamp_s": null,
+        "version_label": null,
+        "year": null
+      },
+      "method": "deterministic",
+      "parser": "quoted",
+      "span": {
+        "end": 124,
+        "start": 96
+      },
+      "title": "Bohemian Rhapsody"
+    }
+  ],
+  "rejected": [],
+  "residual": [
+    {
+      "end": 42,
+      "start": 0
+    }
+  ],
+  "schema": 1,
+  "source_kind": "printed",
+  "stats": {
+    "items_after_dedupe": 3,
+    "items_before_dedupe": 3,
+    "lines_parsed": 3,
+    "lines_residual": 1,
+    "lines_total": 5,
+    "rejected": 0
+  }
+}
