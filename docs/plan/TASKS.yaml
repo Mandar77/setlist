@@ -476,7 +476,7 @@ tasks:
   milestone: CORE
   title: TypeScript core
   deps: [CORE-01]
-  status: todo
+  status: doing
   blocked_on: null
   not_before: null
   done_when:
@@ -487,7 +487,22 @@ tasks:
     - coverage at least 90%, Stryker at least 70%
     - all ADR-007 porting notes covered by ported regression tests, including the zero-ordinal crash and both M0 precision bugs
   verify: pnpm -C packages/core test
-  evidence: []
+  # Five of six done_when items are met. The sixth is HALF met and is the reason this is
+  # still `doing`: coverage clears 90%, Stryker is at 55.41% against a floor of 70%. The
+  # threshold is left where CLAUDE.md puts it and `make mutate-ts` fails on it.
+  evidence:
+    - "the port reproduces the frozen oracle on all 8 golden cases field for field and on all 10,000 generated inputs. That is the ADR-001 deliverable: it converts a rewrite, which would silently lose hard-won behaviour, into a verified migration"
+    - "the differential was built first rather than last, and earned it six times: `\\w` and `\\b` are Unicode-aware in Python and ASCII in JS; `\\s` is a different SET in each (JS has U+FEFF, Python has U+001C-001F and U+0085); pydantic's `str_strip_whitespace` reaches `SourceDocument.text` so `lines_total` was 7 against the oracle's 6 on most cases; the digest is computed BEFORE that strip, so it is not the hash of `text`; Python's `sum()` has used Neumaier compensated summation since 3.12, making 0.55 + sum([-0.25,-0.05,0.02]) exactly 0.27 where JS gives 0.2700000000000001"
+    - "widening the sentence lookahead from `[A-Z0-9\"]` to `\\p{Lu}` looked like a fix and was a bug: a Greek tracklist returned one item where the oracle returned three. Porting means reproducing, including the parts that look wrong - if the ASCII lookahead is wrong it gets fixed once, deliberately, after CORE-07"
+    - "SHA-256 is implemented in the core (60 lines of FIPS 180-4) because `node:crypto` violates the purity rule and `crypto.subtle.digest` is async - making it the digest source would make the whole extraction pipeline async, on a path with a 6s p95 that also runs in a React render on device"
+    - "golden/diff-allowlist.yaml is empty and enforced from both directions: an unlisted difference fails the differential, and a listed one fails as stale if the case has stopped diverging. Verified by swapping artist/title in parseDash with a matching entry (that case alone stays green), reverting it (the entry goes stale and fails), and perturbing BASE_CONFIDENCE by 0.01 (the allowlisted case fails too - an entry excuses an orientation change, not a difference that happens to be on an allowlisted case)"
+    - "running a real swap through the allowlist found the design wrong: orientation moves the CONFIDENCE too, because the penalties are computed on the title and the artist. Excusing confidence would hide a scoring bug forever, so the entry must state the number it expects and the test holds the port to it - the oracle stops being the authority for an allowlisted item and a reviewed YAML line takes over"
+    - "coverage 96.03% statements / 90.66% branches / 100% functions / 97.65% lines, thresholds in vitest.config.ts so `vitest run --coverage` fails on its own. Checked in both directions: raising the threshold fails, and hiding one suite drops branches to 89.65%"
+    - "26 tests became 674 across 14 files, ported from the oracle's pytest suite. Six of the expectations were wrong when first written and the code was right every time - `(with X)` is not a feat credit, corner brackets are not quoted titles, `#2 Genesis` is not an ordinal, csv cells are stripped even inside quotes, control characters are removed rather than spaced, and credits peel right to left so the rightmost spelling wins"
+    - "mutation testing found a test that could not fail: 96 of 127 sha256 mutants survived because the only test asserted `document.digest === sha256Hex(normalizeDocument(raw))` - both sides call the mutated function. FIPS 180-4 known-answer vectors replaced it, and a one-bit change to one round constant now fails eight tests where it previously failed none"
+    - "and a mutation run that was silently testing two-thirds of the suite: Stryker's sandbox is packages/core, so the differentials' `resolve(here,'..','..','..')` missed golden/ and both files threw while loading. The dry run said 'Ran 230 tests' and carried on. test/support/repo-root.ts walks up looking for golden/oracle and throws with the paths it searched"
+    - "the 10,000-input diff cannot be mutated against: instrumented it blows past any per-test timeout and failed Stryker's own dry run at 30s. Raising the timeout is worse than failing - a mutant that merely made the core slower would score as killed-by-timeout and the number would start measuring performance. It lives in its own file, excluded by name"
+    - "OPEN: Stryker is 55.41%, floor is 70%. It went 42.51 -> 47.32 -> 53.91 -> 55.41 as the table-driven tests landed. The remaining 809 survivors are conditionals inside the csv reader's character loop (reachable), regex-source mutations (mostly equivalent) and StringLiteral mutations of throw messages (killable only by asserting exact error text). More work, not a relaxed floor"
 
 - id: CORE-05
   milestone: CORE

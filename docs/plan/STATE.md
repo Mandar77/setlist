@@ -1,8 +1,8 @@
 # Autopilot state
 
-Milestone: M0 | Last done: CORE-03 | Next: CORE-04 | Blocked: 31 tasks — M0A-05 on ADR-008, M0A-06 on M0A-05, M0B-\* + M1-02/03 on H1
+Milestone: M0 | Last done: CORE-03 | Doing: CORE-04 (5 of 6 done_when met) | Blocked: 31 tasks — M0A-05 on ADR-008, M0A-06 on M0A-05, M0B-\* + M1-02/03 on H1
 
-Metrics: coverage 95% (Python core) | extraction P=0.988 R=0.982 F1=0.985 on 319 generated clean cases, 1.00 on the 8 hand-written | free-tier max 160% of dev's YouTube share (see ADR-008) | quarantined tests 0 | `make verify` ~50s
+Metrics: coverage 95% (Python core), 96.0% stmts / 90.7% branches (`packages/core`) | **Stryker 55.4% against a 70% floor — CORE-04's one unmet item** | extraction P=0.988 R=0.982 F1=0.985 on 319 generated clean cases, 1.00 on the 8 hand-written | free-tier max 160% of dev's YouTube share (see ADR-008) | quarantined tests 0 | `make verify` ~60s
 
 Notes:
 
@@ -58,6 +58,28 @@ Notes:
   noticed was Dependabot, by dying; dependency updates had silently stopped. There is a
   CI job now that deletes both lockfiles and resolves from nothing, which is the only
   way those policies are ever consulted.
+- **The TypeScript core reproduces the frozen oracle exactly** (CORE-04): all 8 golden
+  cases field for field, all 10,000 generated inputs byte for byte, with
+  `golden/diff-allowlist.yaml` empty and enforced from both directions. The differential
+  was built before the code rather than after, and earned it: `\w` and `\s` mean
+  different things in the two languages, pydantic was stripping the document text,
+  the digest is computed *before* that strip, and Python's `sum()` has used Neumaier
+  compensated summation since 3.12. A well-intentioned widening of the sentence lookahead
+  to `\p{Lu}` broke a Greek tracklist — porting means reproducing, including the parts
+  that look wrong.
+- **CORE-04 is not done, and the open item is the mutation floor.** Coverage clears 90%;
+  Stryker is at 55.4% against 70%. It moved 42.5 → 47.3 → 53.9 → 55.4 as table-driven
+  tests landed, and the remaining survivors are csv-reader conditionals (reachable),
+  regex-source mutants (mostly equivalent) and `throw`-message strings (killable only by
+  asserting exact error text). The threshold stays where CLAUDE.md puts it and
+  `make mutate-ts` fails on it; relaxing it would be a `human-needed` issue with an ADR.
+- **Two instruments were found measuring nothing, both by mutation testing.** A SHA-256
+  test that asserted `digest === sha256Hex(normalize(raw))` — both sides call the function
+  under test, so a corrupted round constant changed both and the assertion held; FIPS
+  180-4 vectors replaced it. And a Stryker run reporting "Ran 230 tests" while the two
+  differential suites threw ENOENT during load, because the sandbox breaks a `../../..`
+  path to `golden/`. That is the third and fourth thing in this repo found to report
+  success while doing nothing.
 - **The golden text set is generated** (CORE-03): 433 cases, 2,538 expected songs, built
   from the seed so the expected answers never come from parser output. Two tiers — `clean`
   carries the PED gate (currently P=0.988 R=0.982 F1=0.985), `noisy` is prose and
