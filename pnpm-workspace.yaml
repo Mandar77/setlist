@@ -55,8 +55,20 @@ trustPolicy: no-downgrade
 # resolve fails again. It is type declarations only, so `tsc --build` is the test.
 #
 # Delete this the day @types/node 22.x ships a dependency on 6.23.0 or later.
+# `qs` arrives three levels down from Stryker — @stryker-mutator/core depends on
+# typed-rest-client, which depends on qs — and 6.15.1 carries three MEDIUM CVEs
+# (GHSA-4mjr-xmp4-gh2g, GHSA-q8mj-m7cp-5q26, GHSA-x5fp-wj9c-mxmx), all fixed in 6.16.0.
+#
+# Same shape as the override above and the same justification: it moves a dependency
+# FORWARD to a fixed version rather than suppressing a finding. Nothing in this repo
+# calls `qs` — it is a transitive dependency of a mutation-testing tool that never runs
+# in production — but a dependency scan that has an exception list is a dependency scan
+# nobody reads.
+#
+# Delete this once typed-rest-client ships a dependency on 6.16.0 or later.
 overrides:
   undici-types: '6.23.0'
+  qs: '6.16.0'
 
 # Sub-dependencies resolved from a git URL, a tarball or a local path rather than the
 # registry. Legitimate uses exist; none of them are here, and each is a way to pull in
