@@ -233,13 +233,22 @@ jobs:
         # push it would be ~350 registry requests to re-answer a question whose answer
         # cannot have changed — publish dates only get older, so a lockfile that was
         # compliant yesterday is still compliant today unless it moved.
+        # Through `env:`, never interpolated into the script. `github.base_ref` is a
+        # branch name, and a branch name on a fork's pull request is attacker-chosen —
+        # `${{ }}` splices it in before the shell ever sees it, so a name containing
+        # `$(...)` would execute on the runner. Semgrep's run-shell-injection rule
+        # caught exactly this here, which is the rule earning its place.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
         run: |
           base=''
-          if [ "${{ github.event_name }}" = 'pull_request' ]; then
-            base="origin/${{ github.base_ref }}"
-          elif [ -n "${{ github.event.before }}" ] \
-               && [ "${{ github.event.before }}" != '0000000000000000000000000000000000000000' ]; then
-            base="${{ github.event.before }}"
+          if [ "$EVENT_NAME" = 'pull_request' ]; then
+            base="origin/$BASE_REF"
+          elif [ -n "$BEFORE_SHA" ] \
+               && [ "$BEFORE_SHA" != '0000000000000000000000000000000000000000' ]; then
+            base="$BEFORE_SHA"
           fi
           if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
             # A new branch, a force-push, or a base we cannot see. Unknown means run it:
