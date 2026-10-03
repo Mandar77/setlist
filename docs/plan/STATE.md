@@ -69,6 +69,17 @@ Notes:
   as a failure. Both must-fail directions are time-stable, which the obvious fixture is
   not: a real package pinned to a recent version stops failing once it ages past the
   floor. Dependency updates are flowing again — 11 open PRs.
+- **And unblocking Dependabot immediately produced the next failure, from the same
+  outage.** A TypeScript major merged itself into develop against the auto-merge
+  workflow's own "majors never do", and broke `types-ts` with 22 errors. No step in the
+  sequence was wrong: the PR was opened as the patch 5.7.2 -> 5.7.3 and auto-merge was
+  armed correctly; it then sat for two days unable to resolve; when it could, Dependabot
+  rewrote that same PR on that same branch into 6.0.3; the workflow re-ran, read
+  `semver-major` and skipped arming. Skipping is not disarming — auto-merge is
+  GitHub-side state, not a per-push decision — so the old arming fired. The workflow had
+  one state transition and needed two, and the negative branch now acts rather than does
+  nothing. `check_workflows.js` asserts the two conditions are complements. Reverted;
+  TypeScript 6 goes back to being a thing a person opts into.
 - **The TypeScript core reproduces the frozen oracle exactly** (CORE-04): all 8 golden
   cases field for field, all 10,000 generated inputs byte for byte, with
   `golden/diff-allowlist.yaml` empty and enforced from both directions. The differential
