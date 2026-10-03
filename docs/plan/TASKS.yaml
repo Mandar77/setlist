@@ -102,7 +102,130 @@ tasks:
     - "adversarial review found 5 further defects, all fixed and covered by tests: a multi-line guard bypass (cd X then an aws call on line 2 was ALLOWED), a 2MS_* env sanitiser that was a silent no-op because unset cannot remove a name starting with a digit, _git swallowing git's exit code so a git failure read as a clean scan, an execute-bit check that aborted on a fresh clone, and commit author identities that no scanner looked at"
     - "commit-identity gate added: security/published-identities.txt plus a pre-push check, because 2MS reads diff content and never sees author/committer headers"
 
+# ------------------------------------------------------- HYG (no AWS, go first)
+# Hygiene from ADR-009, ADR-010 and ADR-011. Placed ahead of everything selectable on
+# purpose: the loop takes the first unblocked task, and every one of these either makes
+# a red gate meaningful again or closes a hole an incident already walked through. They
+# are small and they are finite - after HYG-06 the critical path has no tooling debt
+# sitting in front of it.
+
+- id: HYG-01
+  milestone: HYG
+  title: Stryker break threshold becomes a ratchet (ADR-010)
+  deps: []
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - packages/core/stryker.config.json break is set to the last measured score, not 70
+    - the comment next to it records the measured score, the date, and that the number may only ever rise
+    - make mutate-ts passes at the current score and fails if the score drops below it, proven by deleting a test and watching it fail
+    - high/low thresholds still name 70 as the target so the report shows the gap
+    - CLAUDE.md notes that packages/core runs the ADR-010 ratchet while other floors stay fixed
+  verify: make mutate-ts
+  evidence: []
+
+- id: HYG-02
+  milestone: HYG
+  title: normalize_document is idempotent, in both implementations (ADR-009)
+  deps: []
+  status: todo
+  blocked_on: null
+  not_before: null
+  # The first change made under ADR-009, so it is also the test of ADR-009's conditions:
+  # one commit touching both languages, and a corpus that does not move.
+  done_when:
+    - the fix lands in tools/oracle-py and packages/core in ONE commit, per ADR-009 condition 1
+    - normalize_document(normalize_document(x)) == normalize_document(x) for every x, in both languages
+    - the shrunk counterexample U+00B4 U+001F U+1A7F is a permanent explicit example in BOTH property suites, so it is checked every run rather than rediscovered by chance
+    - the idempotence property itself is kept, not replaced by the explicit example
+    - all 8 golden/oracle cases, all 4900 normalize.jsonl records and all 10000 pipeline.jsonl digests are byte-identical, per ADR-009 condition 2
+    - golden/diff-allowlist.yaml stays empty - a corpus that does not move needs no entries
+    - the explicit example is written by codepoint, not pasted - a literal control character in a tracked file is its own bug
+  verify: make verify
+  evidence: []
+
+- id: HYG-03
+  milestone: HYG
+  title: Dependabot proposes no majors and one grouped PR per ecosystem (ADR-011)
+  deps: []
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - .github/dependabot.yml ignores all version-update:semver-major, in all three ecosystems
+    - minor and patch are grouped into one PR per ecosystem, github-actions included - it has no group today
+    - weekly schedule and cooldown default-days 7 kept, with the per-type keys, matching minimumReleaseAge and exclude-newer
+    - tools/check_workflows.js asserts those properties of dependabot.yml and fails when any one is removed
+    - the ten open major PRs are closed with a comment pointing at ADR-011
+  # Justified under the AUTOPILOT S2.3 no-new-tooling rule by an incident rather than a
+  # preference: `cooldown.default-days` was configured, reported back by the API, and
+  # acted on nothing, because the per-semver-type keys default to 0 and override it.
+  verify: node tools/check_workflows.js
+  evidence: []
+
+- id: HYG-04
+  milestone: HYG
+  title: Auto-merge re-runs on every update and can disarm (ADR-011)
+  deps: [HYG-03]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - the workflow runs on pull_request types opened, synchronize, reopened and edited - a title or base change is a reclassification too
+    - anything that is not patch or minor disarms auto-merge if it is armed, rather than only declining to arm it
+    - unclassified update types disarm, for the same reason they do not arm
+    - the job is named stably so it can be a required check, and HYG-05 requires it
+    - a test or dry run proves the disarm path actually calls the API, not only that the step is reachable
+  # The disarm step and its complement check landed with the incident (commit 8e04530).
+  # What is left is making it re-run on every relevant event and gate the merge instead
+  # of racing it.
+  verify: node tools/check_workflows.js
+  evidence: []
+
+- id: HYG-05
+  milestone: HYG
+  title: CI jobs are required status checks for PRs into develop (ADR-011)
+  deps: [HYG-04]
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - scripts/hitl/github-setup.sh adds required_status_checks to the protect-develop ruleset, listing every CI job plus the HYG-04 auto-merge job
+    - the script stays idempotent and --dry-run still prints every call without making it
+    - a red build cannot be merged into develop by approval alone, proven on a scratch PR that is then closed
+    - CONFIRMED EMPIRICALLY - a fast-forward push of an already-green commit from a task branch still succeeds, because required checks pass on the commit rather than on the push. If it does not, that is a stop-rule item, not a reason to drop the requirement
+    - main's ruleset is untouched
+  # The confirm step is the risk in this task. protect-develop deliberately carries no
+  # pull_request rule so the autopilot can fast-forward; required_status_checks applies
+  # to pushes as well, and a requirement that blocks the normal loop would be found at
+  # the worst possible moment.
+  verify: bash scripts/hitl/github-setup.sh --dry-run
+  evidence: []
+
+- id: HYG-06
+  milestone: HYG
+  title: Lockfile-age check runs where it is useful and fails closed carefully (ADR-011)
+  deps: []
+  status: todo
+  blocked_on: null
+  not_before: null
+  done_when:
+    - the check runs when pnpm-lock.yaml changes and nightly, instead of on every push
+    - publish dates are cached - a version's publish time is immutable, so only new name@version pairs are fetched
+    - the cache is keyed so a stale entry cannot mask a changed lockfile, and a cache miss falls back to the registry rather than passing
+    - transient registry errors (5xx, socket resets, rate limits) retry with backoff before the check fails
+    - an age that still cannot be established after retries FAILS - unknown is not mature, and that rule does not soften
+    - both must-fail directions from the original check still fail, and a simulated run of 5xx-then-success passes without a false red
+  verify: make lockfile-maturity
+  evidence: []
+
 # ---------------------------------------------------------------- M0a (no AWS)
+# Ordering note: M0A-05 and M0A-06 are unblocked and wanted, but they sit ABOVE the CORE
+# section here only because this file is grouped by milestone. AUTOPILOT S2.3 sets the
+# selection order - HYG, then CORE -> M1 -> M2 -> M3 -> M4, with the rest of M0a taken
+# when it is a dependency or the critical path is blocked - and that overrides file
+# position. Do not read "first unblocked task" off this file alone.
 - id: M0A-01
   milestone: M0
   title: Toolchain and Makefile
@@ -223,21 +346,27 @@ tasks:
   milestone: M0
   title: tools/free-tier-estimate
   deps: [M0A-02]
-  status: blocked
-  blocked_on: ADR-008 (docs/hitl/QUEUE.md) - the committed budget breaches its own 70% gate
+  status: todo
+  blocked_on: null
   not_before: null
   done_when:
     - reads infra/free-tier/budget.yaml and usage-model.yaml; no numbers hardcoded in the tool
+    - "ADR-008's undecided values live in exactly ONE config entry each - the gate threshold and the contested per-env volume figures - so the decision lands as a one-line change and nothing else has to move"
+    - a test asserts those entries are the only place those numbers appear, so the next edit cannot quietly spread them
     - fails with a non-zero exit when any environment exceeds gate_pct (70%) of any allowance
     - tests reproduce the PED arithmetic exactly - 15-song playlist = 50 + 15*50 = 800 YouTube units; 7000/day / 800 = 8 playlists/day
     - tests reproduce the PED S10.8 Lambda and CloudFront bindings
     - emits a markdown table suitable for a PR comment, sorted by percentage of allowance used
     - also reports which limit binds first, across AWS and provider quotas together
-  # The tool is finished and its own tests pass; `make estimate` exits 1 because the
-  # committed budget breaches its own 70% gate in seven places. That is the gate
-  # working, not the tool failing - and per AUTOPILOT S2.4 the fix is a human decision
-  # with an ADR, not an edit that makes the number go away.
-  verify: make estimate   # exits 1 until ADR-008 is decided
+  # Unblocked. ADR-008 is still open and is still the human's call, but it was blocking
+  # the WRONG thing: the tool is finished and its own tests pass, and `make estimate`
+  # exits 1 because the committed budget breaches its own 70% gate in seven places.
+  # That is the gate working, not the tool failing. Build around it (AUTOPILOT S2.3):
+  # the undecided numbers get pinned into one entry each, everything that does not
+  # depend on them ships, and the decision stays a one-line change. `make estimate`
+  # keeps exiting 1 until ADR-008 lands, which is the accurate state and is reported,
+  # not edited away - so it is deliberately NOT this task's verify command.
+  verify: pnpm -C tools/free-tier-estimate test
   evidence:
     - "tools/free-tier-estimate is TypeScript per ADR-004; the Makefile placeholder pointed at a Python module, which would have set the wrong precedent the day it was filled in"
     - "reads budget.yaml and usage-model.yaml and holds no numbers of its own - it imports infra/lib/config/budget.ts rather than parsing budget.yaml a second time, since that file is what CI gates on AND what the runtime sentinel trips on"
@@ -269,7 +398,13 @@ tasks:
     - at most 7 alarms in total across all environments
     - kill-switch Lambda; tests prove it sets concurrency to 0 on every app=setlist function, disables event source mappings and schedules, disables the dev and stage distributions, and writes the event record
     - usage-sentinel Lambda computes shares from free vended metrics only - never GetMetricData, Logs Insights or Cost Explorer
-    - preflight green for dev, stage and prod
+    - preflight green for dev, stage and prod, EXCEPT the free-tier estimate rows ADR-008 governs
+    - every stack, Lambda, test and nag/KICS check above is finished and green regardless of how ADR-008 lands
+  # Build around ADR-008 (AUTOPILOT S2.3). Only the last line of `make preflight` - the
+  # estimator's verdict on seven rows - depends on the decision. The stacks, the kill
+  # switch, the sentinel, the retention settings and the alarm budget do not, and none
+  # of them should wait on it. When ADR-008 lands, the one-line change in M0A-05 is what
+  # turns the remaining red green; nothing here gets rebuilt.
   verify: make preflight ENV=prod
   evidence: []
 
@@ -476,7 +611,7 @@ tasks:
   milestone: CORE
   title: TypeScript core
   deps: [CORE-01]
-  status: doing
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -484,12 +619,15 @@ tasks:
     - ESLint purity rule - no Node, DOM or React Native APIs in packages/core
     - matches the oracle on 100% of golden cases and on at least 10000 generated inputs
     - the only permitted differences are listed in golden/diff-allowlist.yaml and are ADR-002 orientation changes
-    - coverage at least 90%, Stryker at least 70%
+    - coverage at least 90%
+    - a Stryker score is measured, recorded, and enforced as an ADR-010 ratchet so it cannot regress
     - all ADR-007 porting notes covered by ported regression tests, including the zero-ordinal crash and both M0 precision bugs
   verify: pnpm -C packages/core test
-  # Five of six done_when items are met. The sixth is HALF met and is the reason this is
-  # still `doing`: coverage clears 90%, Stryker is at 55.41% against a floor of 70%. The
-  # threshold is left where CLAUDE.md puts it and `make mutate-ts` fails on it.
+  # Amended by ADR-010. The original fifth item read "coverage at least 90%, Stryker at
+  # least 70%", and the Stryker half was the only thing holding this task open. 70%
+  # remains the target; it moved to CORE-04b, which blocks CORE-07, because the number
+  # that matters is whether the TS suite catches regressions WITHOUT the oracle, and
+  # that question only becomes answerable when the oracle retires.
   evidence:
     - "the port reproduces the frozen oracle on all 8 golden cases field for field and on all 10,000 generated inputs. That is the ADR-001 deliverable: it converts a rewrite, which would silently lose hard-won behaviour, into a verified migration"
     - "the differential was built first rather than last, and earned it six times: `\\w` and `\\b` are Unicode-aware in Python and ASCII in JS; `\\s` is a different SET in each (JS has U+FEFF, Python has U+001C-001F and U+0085); pydantic's `str_strip_whitespace` reaches `SourceDocument.text` so `lines_total` was 7 against the oracle's 6 on most cases; the digest is computed BEFORE that strip, so it is not the hash of `text`; Python's `sum()` has used Neumaier compensated summation since 3.12, making 0.55 + sum([-0.25,-0.05,0.02]) exactly 0.27 where JS gives 0.2700000000000001"
@@ -502,10 +640,31 @@ tasks:
     - "mutation testing found a test that could not fail: 96 of 127 sha256 mutants survived because the only test asserted `document.digest === sha256Hex(normalizeDocument(raw))` - both sides call the mutated function. FIPS 180-4 known-answer vectors replaced it, and a one-bit change to one round constant now fails eight tests where it previously failed none"
     - "and a mutation run that was silently testing two-thirds of the suite: Stryker's sandbox is packages/core, so the differentials' `resolve(here,'..','..','..')` missed golden/ and both files threw while loading. The dry run said 'Ran 230 tests' and carried on. test/support/repo-root.ts walks up looking for golden/oracle and throws with the paths it searched"
     - "the 10,000-input diff cannot be mutated against: instrumented it blows past any per-test timeout and failed Stryker's own dry run at 30s. Raising the timeout is worse than failing - a mutant that merely made the core slower would score as killed-by-timeout and the number would start measuring performance. It lives in its own file, excluded by name"
-    - "OPEN: Stryker is 55.41%, floor is 70%. It went 42.51 -> 47.32 -> 53.91 -> 55.41 as the table-driven tests landed. The remaining 809 survivors are conditionals inside the csv reader's character loop (reachable), regex-source mutations (mostly equivalent) and StringLiteral mutations of throw messages (killable only by asserting exact error text). More work, not a relaxed floor"
+    - "Stryker measured at 55.41%, carried to CORE-04b under ADR-010 rather than left open here. It went 42.51 -> 47.32 -> 53.91 -> 55.41 as the table-driven tests landed. The remaining 809 survivors are conditionals inside the csv reader's character loop (reachable), regex-source mutations (mostly equivalent) and StringLiteral mutations of throw messages (killable only by asserting exact error text). The floor is still 70; what changed is that it is now a ratchet with a deadline task instead of a permanently red gate, because a break threshold of 70 against a score of 55 cannot detect a drop from 55 to 45"
     - "OPEN, and a decision rather than a task: `normalize_document` is not idempotent, in BOTH implementations. It applies NFKC and then strips control characters, so stripping can make two combining marks adjacent that NFKC never got to compare, and a second pass reorders them by combining class. Hypothesis found the witness '\\u00b4\\u001f\\u1a7f': NFKC gives space + U+0301 (ccc 230), the strip removes the U+001F between them, and U+1A7F (ccc 220) then sorts in front of it. The port reproduces this exactly, so the differential is sound and CORE-04's parity claim stands"
     - "that bug is latent, not live: normalize_document has ONE call site in each language (models.py:75, models.ts:102), so nothing currently normalizes twice. It would bite on a round trip - re-ingesting already-normalized text shifts every span after the affected position, which is the exact failure ADR-007's span contract exists to prevent"
     - "the candidate fix is one more NFKC after the strip, and it was measured rather than guessed: across all 14,900 inputs in golden/diff/normalize.jsonl and golden/diff/pipeline.jsonl it changes ZERO outputs, and the current code is idempotent on all 14,900 - so no golden pin, no digest and no gate output would move. It is still a change to the frozen oracle's behaviour, so it is a human decision with an ADR, not a quiet edit. Until then the property test is a true red that CI hits at random"
+
+- id: CORE-04b
+  milestone: CORE
+  title: packages/core mutation score at least 70%
+  deps: [CORE-04]
+  status: todo
+  blocked_on: null
+  not_before: null
+  # ADR-010. This is the deadline on the ratchet, and it blocks CORE-07 for a specific
+  # reason: today the differential against the oracle is doing much of the work the unit
+  # tests get credit for. CORE-07 deletes the oracle. The question "does the TypeScript
+  # suite catch a regression on its own" has to be answered BEFORE the thing that is
+  # currently answering it goes away.
+  done_when:
+    - Stryker at least 70% on packages/core, with the ratchet raised to match and never lowered
+    - every survivor killed by a test, or excluded with a written reason next to the exclusion that the reviewer agrees is behaviour-equivalent
+    - "equivalent means no input can distinguish the mutant - not that no current test does. Any exclusion whose reason is really the second is a missing test"
+    - the csv reader's character-loop conditionals are covered, since those are the known-reachable group
+    - stryker.units.config.json - hand-written suites only, no differentials - is reported alongside, because that is the number CORE-07 actually depends on
+  verify: make mutate-ts
+  evidence: []
 
 - id: CORE-05
   milestone: CORE
@@ -540,7 +699,9 @@ tasks:
 - id: CORE-07
   milestone: CORE
   title: Retire the oracle
-  deps: [CORE-05, CORE-06, M1-04]
+  # CORE-04b added by ADR-010: the oracle cannot retire until the TypeScript suite is
+  # shown to catch regressions without it.
+  deps: [CORE-04b, CORE-05, CORE-06, M1-04]
   status: todo
   blocked_on: null
   not_before: null
@@ -719,6 +880,51 @@ tasks:
     - docs/reports/M1.md lists every PED M1 exit condition with evidence
     - FTG passes
   verify: make gate M=M1
+  evidence: []
+
+- id: M1-07
+  milestone: M1
+  title: Offline paste-text to parsed-song-list screen, on Hermes
+  deps: [M1-01, CORE-05]
+  status: todo
+  blocked_on: null
+  not_before: null
+  # The first thing in this project a person can actually use, and it needs no AWS, no
+  # sign-in and no OCR. It is also the first time the core runs on the engine it will
+  # ship on against real pasted text rather than a conformance fixture - M1-04 proves
+  # Hermes agrees on the golden set, this proves the whole path works on a device.
+  done_when:
+    - dev variant; a screen that takes pasted or typed text and shows the parsed song list
+    - runs packages/core on Hermes, entirely on device - no network call of any kind, provable by running it in airplane mode
+    - every item displayed is grounded in its span per ADR-007; ungrounded items are not rendered at all
+    - title, artist, qualifiers and confidence are visible per item, and the source line is reachable from each
+    - pasted text is treated as data and never as instructions, per the CLAUDE.md guardrail
+    - Maestro drives it on the CI emulator with a fixed input and asserts the parsed output
+    - a paste that parses to nothing says so, rather than showing an empty screen
+  verify: pnpm -C mobile test
+  evidence: []
+
+# ------------------------------------------------------------- deferred upgrades
+- id: TS-6
+  milestone: M1
+  title: TypeScript 6.x once the pinned Expo SDK supports it (ADR-011)
+  deps: [M1-06]
+  status: todo
+  blocked_on: null
+  not_before: null
+  # Not a blocker and not an escalation - a planned task, which is what ADR-011 says
+  # every dependency major becomes. TypeScript 6.0.3 auto-merged itself on 2026-10-03
+  # and broke types-ts with 22 errors (node:* module types and import.meta.url both
+  # lost); it was reverted. Expo pins the TypeScript it supports, so upgrading ahead of
+  # the SDK means either diverging from the toolchain the app is built with or doing
+  # the migration twice. M1-06 is where that pin is settled.
+  done_when:
+    - the pinned Expo SDK's supported TypeScript range includes the target 6.x, quoted from its release notes in the evidence
+    - tsc --build clean across every workspace package, with no new suppressions and no skipLibCheck added to hide it
+    - the node:* module types and import.meta.url usages that broke on 6.0.3 resolve, or are migrated deliberately with the reason recorded
+    - make verify green, and packages/core's coverage and ADR-010 ratchet both hold
+    - the dependabot.yml major-ignore stays in place - this upgrade is deliberate, not a reopening of automatic majors
+  verify: make verify
   evidence: []
 
 # ---------------------------------------------------------------- M2

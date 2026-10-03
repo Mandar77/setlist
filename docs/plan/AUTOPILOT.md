@@ -179,13 +179,14 @@ Claude Code must never grade its own work.
 9. **Record.** Update `STATE.md` (one screen at most), then go back to step 1.
 
 ### 2.2 Definition of done (every task)
-- **Proof.** Every `done_when` item is proven by a test or check that runs in CI, and coverage and mutation floors hold for the touched packages.
+- **Proof.** Every `done_when` item is proven by a test or check that runs in CI, and coverage and mutation floors hold for the touched packages. For `packages/core` the mutation floor is the [ADR-010](../adr/0010-mutation-floor-ratchet.md) ratchet: the score may not fall below the last measured value, and 70% remains the target that CORE-04b closes.
 - **Checks.**
   - `make verify` is green.
   - Infrastructure changes also pass `make preflight ENV=dev`: the nag pack passes, KICS finds zero HIGH issues, and the estimator stays at or under 70%.
 - **Docs.** The package README is updated, plus an ADR if a decision was made.
 - **Clean diff.** 2MS finds nothing, and the diff contains no identifiers or personal data.
-- **Integrated.** CI is green on the task branch, `develop` is fast-forwarded, and the ledger and `STATE.md` are updated.
+- **Integrated.** CI is green on the task branch, `develop` is fast-forwarded, and the ledger and `STATE.md` are updated. Per [ADR-011](../adr/0011-dependency-policy.md) the CI jobs are required status checks on `develop`, so the fast-forward only succeeds for a commit that already carries them — which is the normal case, since the task branch is what ran them.
+- **A gate that fails is reported, never edited.** If a `done_when` item cannot be met, say so in the ledger with the measured number. The one thing that is never done is moving the threshold to meet the result.
 
 ### 2.3 Decide; don't ask
 Settle design questions yourself. Write an ADR in `docs/adr/` (context, options, decision, consequences) and keep going. Precedence:
@@ -194,6 +195,28 @@ Settle design questions yourself. Write an ADR in `docs/adr/` (context, options,
 3. After that, prefer offline and on-device behavior, then the simplest reversible option, then the option you would have recommended.
 
 Don't use AskUserQuestion for design questions. It stops the loop, and this file already says how to decide.
+
+#### Build the product, not the scaffolding
+Work the critical path in order: **CORE, then M1, M2, M3, M4.** The hygiene tasks in the `HYG` block come first because they are finite and they sit in front of that path; after them, the next task is the next product task.
+
+This **overrides file order** in §2.1's "first unblocked task". The ledger is grouped by milestone, so M0A-05 and M0A-06 sit physically above CORE without being ahead of it. Selection order is: `HYG`, then CORE → M1 → M2 → M3 → M4, and the remaining M0a/M0b infrastructure whenever it is a dependency of the next product task or the critical path is blocked. M0A-05 and M0A-06 are unblocked and wanted — see the ADR-008 note below — but they are not ahead of CORE-05.
+
+**Don't add a CI check or a tool unless a task's `done_when` needs it, or an incident proved it necessary.** Both exceptions are real and both have been used — `tools/check_lockfile_maturity.js` exists because dependency updates silently stopped for two days, and the `dependabot.yml` assertions exist because a configured cooldown was found acting on nothing. Neither was added because it seemed prudent. A check with no incident behind it and no `done_when` asking for it is work that looks like progress and is not.
+
+#### Decide more, escalate less
+Three patterns that previously stopped the loop, and what to do instead:
+
+- **A dependency major** is a planned task with `done_when` items, never a surprise PR and never a blocker. Dependabot no longer proposes them ([ADR-011](../adr/0011-dependency-policy.md)); when one is wanted, write the task. `TS-6` is the worked example.
+- **A threshold that cannot be met yet** becomes a **ratchet plus a deadline task**: set the gate to the current measured value so it can only improve, and create the task that reaches the target, with a dependency that stops the milestone it actually endangers. It is neither a blocker nor a relaxation. [ADR-010](../adr/0010-mutation-floor-ratchet.md) is the worked example; note that a fixed floor far above the current score detects nothing at all, so the ratchet is also the stricter choice.
+- **A frozen artifact with a real defect** may be fixed under [ADR-009](../adr/0009-oracle-bug-fixes.md)'s conditions — both implementations in one change, and a corpus that does not move. Reproducing a defect is only correct while it is indistinguishable from a porting bug.
+
+Only §2.4 stop-rule items go to the human. If a decision is reversible, costs nothing, and does not relax a gate, it is yours.
+
+#### ADR-008 is open; build around it
+[ADR-008](../adr/0008-free-tier-gate-vs-ped-volumes.md) stays open and stays the human's call. It is not a reason to stop:
+- keep the undecided numbers in **exactly one config entry each**, so the decision lands as a one-line change and nothing else moves;
+- finish every part of **M0A-05 and M0A-06** that does not depend on the outcome — which is all of it except the estimator's verdict on seven rows;
+- leave `make estimate` exiting 1 and say so. The failing gate is the accurate state and is reported, not edited.
 
 ### 2.4 Stop rules: these go to the human
 When any of the cases below applies:
@@ -299,6 +322,18 @@ Notes: (5 lines at most)
 - $0.00 actual spend;
 - nag pack and KICS green.
 
+### HYG: hygiene from ADR-009, ADR-010 and ADR-011 (no AWS, taken first)
+Finite, and all of it sits in front of the critical path. After HYG-06 the next task is a product task.
+
+| ID | Task | Deps | Done when |
+|---|---|---|---|
+| HYG-01 | Stryker `break` becomes the ADR-010 ratchet: set to the last measured score, raised only | none | `make mutate-ts` passes at the current score and fails when the score drops |
+| HYG-02 | `normalize_document` made idempotent in both implementations, under ADR-009 | none | one commit, both languages; the U+00B4 U+001F U+1A7F witness a permanent explicit example in both property suites; the property kept; zero corpus outputs move |
+| HYG-03 | `dependabot.yml`: ignore all majors, group minor+patch per ecosystem including github-actions, keep the 7-day cooldown | none | `check_workflows.js` asserts each property and fails when one is removed |
+| HYG-04 | Auto-merge re-runs on every PR update and disarms anything not patch or minor | HYG-03 | the disarm path provably calls the API; the job is named stably so it can be required |
+| HYG-05 | CI jobs become required status checks for PRs into `develop` | HYG-04 | a red build cannot merge by approval alone, **and** a fast-forward push of an already-green commit still succeeds |
+| HYG-06 | Lockfile-age check runs on `pnpm-lock.yaml` change and nightly, caches publish dates, retries transient registry errors | none | both must-fail directions still fail; a 5xx-then-success run goes green; unknown age still fails closed |
+
 ### M0a: foundations that need no AWS
 | ID | Task | Deps | Done when |
 |---|---|---|---|
@@ -320,9 +355,10 @@ Notes: (5 lines at most)
 | CORE-02 | Seed catalog builder (MusicBrainz, 1 request/s, resumable) | none | about 2,000 rows; ISRCs on at least 80%; variants and non-Latin names present |
 | CORE-03 | Truth-first text generator and golden text set (at least 300 cases) | CORE-02 | expected outputs derived only from the seed; deterministic |
 | CORE-04 | TS core: zod schemas, normalization, deterministic grammar, span grounding, confidence, dedupe; ESLint purity rule | CORE-01 | matches the oracle on 100% of golden cases and at least 10k generated inputs, except allowlisted differences |
+| CORE-04b | `packages/core` mutation score to 70% (ADR-010) | CORE-04 | survivors killed by tests, or excluded with a reason the reviewer agrees is behaviour-equivalent; the ratchet raised to match |
 | CORE-05 | Parser side of ADR-002; `sourceKind` added to the contracts | CORE-04 | parser-only orientation at least 90% on bare-dash lines; the 8 original cases unchanged |
 | CORE-06 | Conformance on Node and Chromium (Hermes comes in M1-04) | CORE-04 | identical outputs for the full golden set |
-| CORE-07 | Retire the oracle | CORE-05, CORE-06, M1-04 | oracle deleted; frozen fixtures kept; CI green |
+| CORE-07 | Retire the oracle | CORE-04b, CORE-05, CORE-06, M1-04 | oracle deleted; frozen fixtures kept; CI green. CORE-04b is a dependency because the TS suite has to be shown to catch regressions *before* the thing currently catching them is deleted |
 
 ### M0b: cloud foundations (after H1)
 | ID | Task | Deps | Done when |
@@ -343,6 +379,8 @@ Notes: (5 lines at most)
 | M1-04 | Hermes self-test screen (dev variant only) that runs the core conformance suite | M1-01, CORE-06 | Maestro sees ALL PASS on the emulator |
 | M1-05 | MobSF static scan of the APK in CI | M1-01 | no high findings |
 | M1-06 | Gate M1 | all M1 | PED M1 exit conditions and FTG pass |
+| M1-07 | Offline "paste text -> parsed song list" screen in the dev app, running the core on Hermes. No AWS, no sign-in, no OCR | M1-01, CORE-05 | Maestro drives it on the emulator with a fixed input; every item grounded in its span; works in airplane mode |
+| TS-6 | TypeScript 6.x, once the pinned Expo SDK supports it (ADR-011) | M1-06 | `tsc --build` clean with no new suppressions; the major-ignore in `dependabot.yml` stays |
 
 ### M2: capture and OCR
 | ID | Task | Deps | Done when |

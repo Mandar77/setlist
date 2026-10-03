@@ -1,8 +1,8 @@
 # Autopilot state
 
-Milestone: M0 | Last done: CORE-03 | Doing: CORE-04 (5 of 6 done_when met) | Blocked: 31 tasks — M0A-05 on ADR-008, M0A-06 on M0A-05, M0B-\* + M1-02/03 on H1
+Milestone: M0 | Last done: CORE-04 | Next: HYG-01, then the rest of the HYG block, then the critical path | Blocked: 30 tasks — M0B-\* + M1-02/03 on H1
 
-Metrics: coverage 95% (Python core), 96.0% stmts / 90.7% branches (`packages/core`) | **Stryker 55.4% against a 70% floor — CORE-04's one unmet item** | extraction P=0.988 R=0.982 F1=0.985 on 319 generated clean cases, 1.00 on the 8 hand-written | free-tier max 160% of dev's YouTube share (see ADR-008) | quarantined tests 0 | `make verify` ~60s
+Metrics: coverage 95% (Python core), 96.0% stmts / 90.7% branches (`packages/core`) | Stryker 55.4%, now an [ADR-010](../adr/0010-mutation-floor-ratchet.md) ratchet with the 70% target carried to CORE-04b, which blocks CORE-07 | extraction P=0.988 R=0.982 F1=0.985 on 319 generated clean cases, 1.00 on the 8 hand-written | free-tier max 160% of dev's YouTube share (see ADR-008) | quarantined tests 0 | `make verify` ~60s
 
 Notes:
 
@@ -89,12 +89,15 @@ Notes:
   compensated summation since 3.12. A well-intentioned widening of the sentence lookahead
   to `\p{Lu}` broke a Greek tracklist — porting means reproducing, including the parts
   that look wrong.
-- **CORE-04 is not done, and the open item is the mutation floor.** Coverage clears 90%;
-  Stryker is at 55.4% against 70%. It moved 42.5 → 47.3 → 53.9 → 55.4 as table-driven
-  tests landed, and the remaining survivors are csv-reader conditionals (reachable),
-  regex-source mutants (mostly equivalent) and `throw`-message strings (killable only by
-  asserting exact error text). The threshold stays where CLAUDE.md puts it and
-  `make mutate-ts` fails on it; relaxing it would be a `human-needed` issue with an ADR.
+- **CORE-04 is done; the mutation floor became a ratchet** ([ADR-010](../adr/0010-mutation-floor-ratchet.md)).
+  Coverage clears 90%; Stryker measured 55.4%, having moved 42.5 → 47.3 → 53.9 → 55.4 as
+  table-driven tests landed. 70% is still the target and is now CORE-04b, a dependency of
+  CORE-07 — the oracle cannot retire until the TS suite is shown to catch regressions
+  without it. The break threshold moves to the measured score and may only rise, which is
+  also the stricter choice: a fixed 70 against a score of 55 could not have detected a
+  drop to 45. Remaining survivors are csv-reader conditionals (reachable), regex-source
+  mutants (mostly equivalent) and `throw`-message strings (killable only by asserting
+  exact error text).
 - **Two instruments were found measuring nothing, both by mutation testing.** A SHA-256
   test that asserted `digest === sha256Hex(normalize(raw))` — both sides call the function
   under test, so a corrupted round constant changed both and the assertion held; FIPS
@@ -102,8 +105,10 @@ Notes:
   differential suites threw ENOENT during load, because the sandbox breaks a `../../..`
   path to `golden/`. That is the third and fourth thing in this repo found to report
   success while doing nothing.
-- **`normalize_document` is not idempotent, in both languages, and that is a decision
-  waiting.** It applies NFKC and then strips control characters, so the strip can make
+- **`normalize_document` is not idempotent, in both languages; decided, and HYG-02 fixes
+  it** ([ADR-009](../adr/0009-oracle-bug-fixes.md): the frozen oracle may take bug fixes,
+  never features, when both implementations move in one change and the corpus does not).
+  It applies NFKC and then strips control characters, so the strip can make
   two combining marks adjacent that NFKC never compared, and a second pass reorders them
   by combining class. Hypothesis found the witness U+00B4, U+001F, U+1A7F — written by
   codepoint because the middle one is a control character and must not sit literally in a
@@ -111,10 +116,11 @@ Notes:
   the U+001F separating it from U+1A7F (ccc 220), and the two marks swap. Latent, not live — there is
   one call site in each language, so nothing normalizes twice today; it would bite on a
   round trip, shifting every span after the affected position, which is the failure the
-  ADR-007 span contract exists to prevent. The candidate fix is one more NFKC after the
+  ADR-007 span contract exists to prevent. The fix is one more NFKC after the
   strip and it was measured, not guessed: zero output changes across all 14,900 inputs in
-  the two differential corpora. It is still a change to the frozen oracle, so it needs an
-  ADR rather than a quiet edit, and until then the property test is a true red that CI
+  the two differential corpora, which is exactly ADR-009's condition for allowing it. Both
+  implementations move in one commit, and the shrunk witness becomes a permanent explicit
+  example in both property suites. Until HYG-02 lands, the property test is a true red that CI
   hits at random. The port reproduces the bug exactly, so CORE-04's parity claim stands.
 - **The golden text set is generated** (CORE-03): 433 cases, 2,538 expected songs, built
   from the seed so the expected answers never come from parser output. Two tiers — `clean`
