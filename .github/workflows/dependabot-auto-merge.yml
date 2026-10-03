@@ -47,6 +47,38 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Disarm auto-merge on anything that is not patch or minor
+        # This step exists because the workflow could previously only ARM auto-merge and
+        # never disarm it, and on 2026-10-03 a major merged itself into develop anyway.
+        #
+        # Dependabot had been unable to resolve for two days, so PR #14 sat open as the
+        # patch 5.7.2 -> 5.7.3 with auto-merge correctly armed. When resolution started
+        # working it rewrote that same PR, on that same branch, into 5.7.2 -> 6.0.3. The
+        # workflow re-ran on `synchronize`, read `semver-major`, and correctly skipped
+        # the arming step — but auto-merge is GitHub-side state, not a per-push decision,
+        # so the arming from when it was a patch was still live. CI went green and
+        # TypeScript 6 landed on develop, breaking `types-ts` with 22 errors.
+        #
+        # Skipping an arm is not the same as disarming. A PR's classification can change
+        # under an arming that was right when it was made, so the negative branch has to
+        # act rather than do nothing. Unclassified counts as not-safe here too, for the
+        # same reason it does above.
+        if: >-
+          steps.metadata.outputs.update-type != 'version-update:semver-patch' &&
+          steps.metadata.outputs.update-type != 'version-update:semver-minor'
+        # Querying first rather than `|| true`: disabling auto-merge that was never armed
+        # is an error, and swallowing every error would also swallow a real one.
+        run: |
+          if [ -n "$(gh pr view "$PR_URL" --json autoMergeRequest -q '.autoMergeRequest // empty')" ]; then
+            gh pr merge --disable-auto "$PR_URL"
+            echo "auto-merge was armed on a ${{ steps.metadata.outputs.update-type }} — disarmed"
+          else
+            echo "auto-merge not armed; nothing to disarm"
+          fi
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Say why a major was left alone
         if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-major' }}
         run: gh pr comment "$PR_URL" --body "Major version bump — left for a human to read the changelog."

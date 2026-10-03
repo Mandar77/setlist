@@ -347,6 +347,62 @@ for (const file of files) {
   }
 }
 
+// Dependabot auto-merge must be able to DISARM, not only arm.
+//
+// On 2026-10-03 a TypeScript major merged itself into develop. The workflow had done
+// nothing wrong by its own logic: the PR was opened as a patch, auto-merge was armed,
+// Dependabot later rewrote that same PR into a major, and the re-run correctly declined
+// to arm it again. But auto-merge is GitHub-side state — declining to arm does not
+// unarm — so the stale arming fired and `types-ts` broke with 22 errors.
+//
+// So the negative branch has to act. This asserts that it exists and that it covers
+// exactly the cases the arming branch does not: same update types named, `==`/`||` on
+// the arm, `!=`/`&&` on the disarm. It is a structural check rather than an expression
+// evaluator, which is enough to catch the step being deleted or its condition being
+// narrowed to a subset.
+{
+  const file = 'dependabot-auto-merge.yml'
+  const path = join(workflowDir, file)
+  const workflow = parse(readFileSync(path, 'utf8'))
+  const steps = Object.values(workflow.jobs ?? {}).flatMap(job => job.steps ?? [])
+
+  const runOf = step => (typeof step.run === 'string' ? step.run : '')
+  const arm = steps.find(s => /gh pr merge\b[^\n]*--auto\b/.test(runOf(s)))
+  const disarm = steps.find(s => /--disable-auto\b/.test(runOf(s)))
+
+  const typesIn = step => new Set(String(step?.if ?? '').match(/version-update:semver-\w+/g) ?? [])
+
+  if (!arm) {
+    fail(file, 'no step arms auto-merge (`gh pr merge --auto`) — is this the right file?')
+  } else if (!disarm) {
+    fail(
+      file,
+      'nothing disarms auto-merge. Declining to arm a PR does not unarm one that was ' +
+        'armed when it was classified differently, which is how a major merged itself',
+    )
+  } else {
+    const armed = typesIn(arm)
+    const disarmed = typesIn(disarm)
+    const sameTypes =
+      armed.size > 0 && armed.size === disarmed.size && [...armed].every(type => disarmed.has(type))
+
+    if (!sameTypes) {
+      fail(
+        file,
+        `the disarm condition names {${[...disarmed].join(', ')}} but the arm names ` +
+          `{${[...armed].join(', ')}} — they must be complements, or some classification ` +
+          'is left armed',
+      )
+    } else if (!/!=/.test(String(disarm.if)) || !/&&/.test(String(disarm.if))) {
+      fail(file, 'the disarm condition must be `!=` joined by `&&` to be the complement of the arm')
+    } else if (!/==/.test(String(arm.if)) || !/\|\|/.test(String(arm.if))) {
+      fail(file, 'the arm condition must be `==` joined by `||`')
+    } else {
+      ok(`auto-merge arms and disarms over the same ${armed.size} update types`)
+    }
+  }
+}
+
 // The control. Every check above reports a problem by its absence, so a bug that made
 // the loop read nothing would print a clean run. This asserts the suite actually looked
 // at something.
