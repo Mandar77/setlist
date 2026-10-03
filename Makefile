@@ -33,7 +33,8 @@ M ?=
 .DEFAULT_GOAL := help
 .PHONY: help setup verify verify-fast test test-unit test-accuracy lint fmt types cov \
         lint-ts fmt-ts types-ts test-ts toolchain \
-        mutate ledger links eol oracle seed golden golden-check diff-check diff-write \n        pipeline-diff-check pipeline-diff-write \
+        mutate ledger links eol oracle seed golden golden-check diff-check diff-write \
+        pipeline-diff-check pipeline-diff-write allowlist \
         suppressions suppressions-write guard workflows \
         no-secrets secrets-history \
         synth synth-matrix nag kics lint-cfn cdk-out-zero estimate preflight gate \
@@ -51,7 +52,7 @@ setup: ## Install the pinned toolchains and all workspace packages
 ## ------------------------------------------------------------------ the gate
 
 verify: lint lint-ts lint-cfn types types-ts test-unit test-ts test-accuracy toolchain \
-        oracle seed golden-check diff-check ledger links eol suppressions guard workflows no-secrets ## Full local gate; no Docker required
+        oracle seed golden-check diff-check allowlist ledger links eol suppressions guard workflows no-secrets ## Full local gate; no Docker required
 	@echo "verify OK"
 
 verify-fast: lint lint-ts types types-ts test-unit test-ts ## Lint, types and unit tests only
@@ -152,6 +153,12 @@ pipeline-diff-check: ## The committed oracle digests match the frozen oracle
 
 pipeline-diff-write: ## Regenerate golden/diff/pipeline.jsonl from the oracle
 	$(UV) run python tools/oracle-py/pipeline_diff.py --write
+
+## ADR-001 lets the port differ from the oracle only where golden/diff-allowlist.yaml
+## says so, and only for an ADR-002 orientation change. The differential suite catches an
+## UNLISTED difference; nothing catches a listed one unless something reads the list.
+allowlist: node_modules ## The diff allowlist is in scope and in schema
+	node tools/check_diff_allowlist.js
 
 ## The committed seed, checked offline. The harvest itself is a thing a person runs
 ## (`pnpm -C tools/seed-catalog harvest`) and is deliberately not in any gate: a build

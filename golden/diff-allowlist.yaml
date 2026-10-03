@@ -1,0 +1,69 @@
+# Differences the TypeScript core is permitted to have from the frozen Python oracle.
+#
+# ADR-001: "TypeScript output must equal the oracle's on every golden case and on >=10,000
+# generated inputs. Permitted differences live in `golden/diff-allowlist.yaml`, and only
+# ADR-002 orientation changes may be listed."
+#
+# ## It is empty, and empty is the goal
+#
+# At CORE-04 the port reproduces the oracle exactly — all eight golden cases field for
+# field, all ten thousand generated inputs byte for byte. Nothing is listed here because
+# nothing differs.
+#
+# The file is not decorative for being empty. `tools/check_diff_allowlist.js` enforces
+# its schema and its scope, and `packages/core/test/pipeline-differential.test.ts` reads
+# it: a divergence with no entry fails, and an entry whose case no longer diverges fails
+# as stale. Both directions are checked by adding an entry and watching it fail, so an
+# empty file is a verified claim rather than an absent one.
+#
+# ## What may be listed, and what may not
+#
+# Only ADR-002 orientation changes: the TypeScript core reading "Wonderwall - Oasis" as
+# title-first where the oracle read it artist-first. Those arrive deliberately at
+# CORE-05, which is the only reason this file exists.
+#
+# Nothing else. Not a rounding difference, not a Unicode class that behaves differently
+# in JavaScript, not a regex that was "obviously" wrong in Python. Every one of those is
+# a porting bug, and three of them have already been found here by assuming they were
+# not — a `\p{Lu}` lookahead that broke a Greek tracklist, a naive float sum, and a
+# pydantic whitespace strip. An allowlist that accepts "small" differences is a list of
+# bugs with permission slips.
+#
+# ## Entry shape
+#
+# Each entry must make its difference checkable. A case id alone says "these two outputs
+# differ, trust me"; the `items` list says exactly what the TypeScript core reads
+# instead, and the test verifies the difference really is a title/artist swap and
+# nothing else — same item count, same spans, same parsers, same hints, same residual.
+#
+#   entries:
+#     - case: handwritten-setlist      # a golden case id, i.e. a file in golden/oracle/
+#       kind: orientation              # the only permitted kind
+#       adr: ADR-002
+#       opened: 2026-11-01
+#       owner: Mandar77
+#       reason: >-
+#         A source_kind of scan_handwriting takes the title-first prior (ADR-002 step 3);
+#         the frozen oracle has no source-kind input and always reads artist-first.
+#       items:                         # the TypeScript reading, in document order
+#         - { title: Wonderwall, artist: Oasis, confidence: 0.87 }
+#
+# The confidence is required, and it is the part people will want to leave out. Swapping
+# a pair genuinely moves it — the penalties are computed on the title and the artist, so
+# reading "Justice - Genesis" the other way round makes "Justice" a single-token title
+# and costs 0.05. Excusing confidence on an allowlisted case would let a scoring bug
+# through on that case forever, so it is not excused: these numbers become the authority
+# the oracle no longer is here, and they have to be read by whoever approves the entry.
+#
+# ## The ten thousand are not addressable here
+#
+# `golden/diff/pipeline.jsonl` stores a SHA-256 of the oracle's output, not the output,
+# so a mismatch there proves only that something differs — a digest cannot show that the
+# difference is an orientation swap and nothing else, which is the whole thing this file
+# has to establish. Entries naming a pipeline input are therefore refused by the checker.
+#
+# CORE-05 is where that bites: it will change orientation on generated inputs too. The
+# fixture has to carry the oracle's items for any input CORE-05 intends to diverge on,
+# which is a change to `tools/oracle-py/pipeline_diff.py` and not something to fake here.
+
+entries: []
