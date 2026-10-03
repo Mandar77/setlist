@@ -32,8 +32,20 @@ const SECTION_LABEL_RE = new RegExp(`^${PY_S}*${PY_NOT_S}[^:]{0,40}:${PY_S}*$`, 
 /** A line with more words than this is prose, not a track entry. */
 export const PROSE_WORD_LIMIT = 12
 
-/** A sentence break: terminal punctuation followed by the start of a new sentence. */
-const SENTENCE_RE = new RegExp(`([\\p{L}\\p{N}_']+)?[.!?]+[)"'”]?${PY_S}+(?=["“\\p{Lu}0-9])`, 'gu')
+/**
+ * A sentence break: terminal punctuation followed by the start of a new sentence.
+ *
+ * The word before the period uses Unicode classes, because Python's `\w` is
+ * Unicode-aware. The lookahead after it deliberately does **not**: the oracle writes
+ * `[A-Z0-9"“]`, and ASCII is what that means.
+ *
+ * Widening it to `\p{Lu}` looked like a fix and was a bug. "49. Μ’ αγαπούσες…" then read
+ * as a sentence break, the line counted as prose, the document fell below the
+ * list-shaped threshold, and the bare-title parser never ran — so a three-line Greek
+ * tracklist returned one item where the oracle returned three. Found by the
+ * ten-thousand-input diff, on input nobody would have thought to write by hand.
+ */
+const SENTENCE_RE = new RegExp(`([\\p{L}\\p{N}_']+)?[.!?]+[)"'”]?${PY_S}+(?=["“A-Z0-9])`, 'gu')
 
 /**
  * Abbreviations whose period is not a sentence break.

@@ -116,8 +116,31 @@ export function deterministicConfidence(
   return apply(base, adjustments, ExtractionMethod.DETERMINISTIC)
 }
 
+/**
+ * Python's `sum()` over floats, which is not a loop that adds.
+ *
+ * Since 3.12, CPython's builtin `sum` uses Neumaier compensated summation on floats, and
+ * it is measurably more accurate than left-to-right addition. `0.55 + sum([-0.25, -0.05,
+ * 0.02])` is exactly 0.27 in Python and 0.2700000000000001 with a naive JavaScript
+ * reduce — a confidence that differs in the sixteenth decimal place, serializes
+ * differently, and fails a byte comparison.
+ *
+ * Nothing downstream would have cared about the value. The differential test compares
+ * bytes, though, and a port that is almost identical is a port nobody can check — so the
+ * summation algorithm is part of the behaviour being ported.
+ */
+function pySum(values: readonly number[]): number {
+  let sum = 0
+  let compensation = 0
+  for (const value of values) {
+    const t = sum + value
+    compensation += Math.abs(sum) >= Math.abs(value) ? sum - t + value : value - t + sum
+    sum = t
+  }
+  return sum + compensation
+}
+
 /** Sum adjustments onto `base` and clamp to the method ceiling. */
 function apply(base: number, adjustments: number[], method: ExtractionMethod): number {
-  const total = adjustments.reduce((sum, value) => sum + value, base)
-  return Math.min(clamp(total), methodCeiling(method))
+  return Math.min(clamp(base + pySum(adjustments)), methodCeiling(method))
 }

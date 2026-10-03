@@ -33,7 +33,7 @@ M ?=
 .DEFAULT_GOAL := help
 .PHONY: help setup verify verify-fast test test-unit test-accuracy lint fmt types cov \
         lint-ts fmt-ts types-ts test-ts toolchain \
-        mutate ledger links eol oracle seed golden golden-check diff-check diff-write \
+        mutate ledger links eol oracle seed golden golden-check diff-check diff-write \n        pipeline-diff-check pipeline-diff-write \
         suppressions suppressions-write guard workflows \
         no-secrets secrets-history \
         synth synth-matrix nag kics lint-cfn cdk-out-zero estimate preflight gate \
@@ -144,6 +144,14 @@ diff-check: ## The committed oracle answers match the frozen oracle
 
 diff-write: ## Regenerate golden/diff/normalize.jsonl from the oracle
 	$(UV) run python tools/oracle-py/differential.py --write
+
+## The ten thousand inputs ADR-001 requires the port to match the oracle on. Slow enough
+## to be its own target: regenerating runs the whole pipeline ten thousand times.
+pipeline-diff-check: ## The committed oracle digests match the frozen oracle
+	$(UV) run python tools/oracle-py/pipeline_diff.py
+
+pipeline-diff-write: ## Regenerate golden/diff/pipeline.jsonl from the oracle
+	$(UV) run python tools/oracle-py/pipeline_diff.py --write
 
 ## The committed seed, checked offline. The harvest itself is a thing a person runs
 ## (`pnpm -C tools/seed-catalog harvest`) and is deliberately not in any gate: a build

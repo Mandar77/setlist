@@ -75,3 +75,6 @@ cdk.out/
 # Scratch resume state for the seed harvest. The rows file beside it is the artifact
 # and is committed; this is the bookmark, and it is deleted when a harvest completes.
 golden/seed/.harvest-state.json
+
+# Scratch space used while debugging a differential failure.
+.scratch/
