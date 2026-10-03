@@ -16,6 +16,9 @@
       "path": "infra"
     },
     {
+      "path": "packages/core"
+    },
+    {
       "path": "tests/fixtures/ddb-ondemand"
     },
     {

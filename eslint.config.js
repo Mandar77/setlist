@@ -125,6 +125,24 @@ export default tseslint.config(
   },
 
   {
+    // The core's own tests may touch Node; the core may not.
+    //
+    // The purity rule above exists so that `packages/core` runs unchanged on Hermes and
+    // in a browser (ADR-001). Its tests are a different thing: the differential suite
+    // has to read a 3 MB fixture off disk to compare 4,897 oracle answers, and there is
+    // no portable way to do that, nor any reason to want one. What must stay pure is
+    // what ships, and `src/` is what ships.
+    //
+    // CORE-06's conformance suite is deliberately NOT covered by this exemption — it is
+    // a reusable export that runs on Chromium and Hermes as well as Node, so it lives
+    // in `src/` and is bound by the rule like the rest of the core.
+    files: ['packages/core/test/**/*.ts'],
+    rules: {
+      'no-restricted-imports': 'off',
+    },
+  },
+
+  {
     // CLI entrypoints: stdout is the interface, not a debugging leftover. Mirrors the
     // `tools/**` exemption for T201 on the Python side.
     // `infra/bootstrap/generate.ts` and the estimator CLI are the same thing wearing a

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "docs": [
+    "No `types: [node]`. ADR-001 keeps this package pure — it runs on Hermes and in a",
+    "browser as well as on Node — so pulling in Node's ambient types would let a",
+    "`process.env` or a `Buffer` typecheck cleanly and fail on a phone. The ESLint",
+    "purity rule catches the imports; this catches the globals."
+  ],
+
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "lib": ["ES2023"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

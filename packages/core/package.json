@@ -1,0 +1,21 @@
+{
+  "name": "@setlist/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The deterministic song grammar: normalization, parsers, grounding, confidence, dedupe.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "any-ascii": "0.3.3",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "tsx": "4.23.15"
+  }
+}

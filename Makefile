@@ -33,7 +33,7 @@ M ?=
 .DEFAULT_GOAL := help
 .PHONY: help setup verify verify-fast test test-unit test-accuracy lint fmt types cov \
         lint-ts fmt-ts types-ts test-ts toolchain \
-        mutate ledger links eol oracle seed golden golden-check \
+        mutate ledger links eol oracle seed golden golden-check diff-check diff-write \
         suppressions suppressions-write guard workflows \
         no-secrets secrets-history \
         synth synth-matrix nag kics lint-cfn cdk-out-zero estimate preflight gate \
@@ -51,7 +51,7 @@ setup: ## Install the pinned toolchains and all workspace packages
 ## ------------------------------------------------------------------ the gate
 
 verify: lint lint-ts lint-cfn types types-ts test-unit test-ts test-accuracy toolchain \
-        oracle seed golden-check ledger links eol suppressions guard workflows no-secrets ## Full local gate; no Docker required
+        oracle seed golden-check diff-check ledger links eol suppressions guard workflows no-secrets ## Full local gate; no Docker required
 	@echo "verify OK"
 
 verify-fast: lint lint-ts types types-ts test-unit test-ts ## Lint, types and unit tests only
@@ -136,6 +136,14 @@ eol: ## No CRLF in the working tree (breaks shebangs, shellcheck and span offset
 ## above, and running them twice would double the slowest part of the gate for nothing.
 oracle: ## The oracle still reproduces every golden output byte for byte
 	$(MAKE) -C tools/oracle-py golden
+
+## The oracle's recorded answers for the differential test (ADR-001, CORE-04). The
+## oracle is frozen, so this fixture only changes when the corpus it is built from does.
+diff-check: ## The committed oracle answers match the frozen oracle
+	$(UV) run python tools/oracle-py/differential.py
+
+diff-write: ## Regenerate golden/diff/normalize.jsonl from the oracle
+	$(UV) run python tools/oracle-py/differential.py --write
 
 ## The committed seed, checked offline. The harvest itself is a thing a person runs
 ## (`pnpm -C tools/seed-catalog harvest`) and is deliberately not in any gate: a build
