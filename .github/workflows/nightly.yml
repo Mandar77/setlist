@@ -95,6 +95,31 @@ jobs:
             echo "$stack: detection $id"
           done
 
+  lockfile-age:
+    name: Committed lockfile still clears minimumReleaseAge
+    runs-on: ubuntu-latest
+    # The CI run only asks this when pnpm-lock.yaml moves, which is correct for the
+    # common case — publish dates only get older, so a compliant lockfile stays
+    # compliant. This nightly run catches the uncommon case that has nothing to do with
+    # the lockfile changing: a version being UNPUBLISHED or yanked out from under it,
+    # which turns an established age into one that cannot be established at all. That is
+    # a supply-chain event, and the check already treats unknown as failure.
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - name: Install from the committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      # No cache, deliberately. The point of the nightly run is to ask the registry
+      # again, and a cached publish date would answer from the very memory this run
+      # exists to re-check.
+      - name: Every locked version clears minimumReleaseAge
+        run: node tools/check_lockfile_maturity.js --no-cache
+
   resume-dated-work:
     name: Tasks whose not_before has arrived
     runs-on: ubuntu-latest

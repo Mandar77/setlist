@@ -368,7 +368,11 @@ for (const file of files) {
 
   const runOf = step => (typeof step.run === 'string' ? step.run : '')
   const arm = steps.find(s => /gh pr merge\b[^\n]*--auto\b/.test(runOf(s)))
-  const disarm = steps.find(s => /--disable-auto\b/.test(runOf(s)))
+  // Matches either the API call inline or the extracted script that makes it. The logic
+  // moved into scripts/ci/dependabot-disarm.sh so it could be tested against a stubbed
+  // `gh` — this check is that the step exists and is the arm's complement;
+  // tools/test-dependabot-disarm.sh is that it works.
+  const disarm = steps.find(s => /--disable-auto\b|dependabot-disarm\.sh/.test(runOf(s)))
 
   const typesIn = step => new Set(String(step?.if ?? '').match(/version-update:semver-\w+/g) ?? [])
 
@@ -399,6 +403,84 @@ for (const file of files) {
       fail(file, 'the arm condition must be `==` joined by `||`')
     } else {
       ok(`auto-merge arms and disarms over the same ${armed.size} update types`)
+    }
+  }
+}
+
+// The required status checks on develop must name jobs that exist.
+//
+// ADR-011 gates merges into develop on the CI jobs passing. A required check is matched
+// BY NAME, which makes the list in github-setup.sh a second copy of every job name in
+// ci.yml — and second copies drift. The two ways it drifts are both silent:
+//
+//   * a job is RENAMED and the ruleset keeps requiring the old name. The old check never
+//     reports, so it is "required but absent", and every push to develop is blocked. Loud
+//     but baffling.
+//   * a job is ADDED and nobody adds it to the list. It runs, it can fail, and the
+//     failure gates nothing. Silent, and the worse of the two.
+//
+// So: every context must be a real job, and every ci.yml job must be a context.
+{
+  const file = 'scripts/hitl/github-setup.sh'
+  const script = readFileSync(join(repoRoot, 'scripts', 'hitl', 'github-setup.sh'), 'utf8')
+  const match = script.match(/add_ruleset protect-develop '([\s\S]*?)'\n/)
+
+  if (!match) {
+    fail(file, 'could not find the protect-develop ruleset — has it been renamed or removed?')
+  } else {
+    let ruleset
+    try {
+      ruleset = JSON.parse(match[1])
+    } catch (error) {
+      ruleset = null
+      fail(file, `protect-develop is not valid JSON: ${error.message}`)
+    }
+
+    const rule = (ruleset?.rules ?? []).find(r => r.type === 'required_status_checks')
+    if (ruleset && !rule) {
+      fail(
+        file,
+        'protect-develop has no required_status_checks rule — a red build could be ' +
+          'merged into develop by approval alone (ADR-011)',
+      )
+    } else if (rule) {
+      const required = new Set(
+        (rule.parameters?.required_status_checks ?? []).map(check => check.context),
+      )
+
+      // Every job that can report a check on a commit reaching develop.
+      const actual = new Set()
+      for (const name of ['ci.yml', 'dependabot-auto-merge.yml']) {
+        const doc = parse(readFileSync(join(workflowDir, name), 'utf8'))
+        for (const [id, job] of Object.entries(doc.jobs ?? {})) {
+          const label = job.name ?? id
+          const matrix = job.strategy?.matrix
+          if (matrix) {
+            // A matrix job reports one check per combination, named "label (value)".
+            const key = Object.keys(matrix)[0]
+            for (const value of matrix[key]) actual.add(`${label} (${value})`)
+          } else {
+            actual.add(label)
+          }
+        }
+      }
+
+      const missing = [...actual].filter(name => !required.has(name))
+      const stale = [...required].filter(name => !actual.has(name))
+
+      if (missing.length > 0) {
+        fail(file, `these jobs exist but are not required: ${missing.join(', ')}`)
+      }
+      if (stale.length > 0) {
+        fail(
+          file,
+          `these checks are required but no job produces them, which blocks every push ` +
+            `to develop: ${stale.join(', ')}`,
+        )
+      }
+      if (missing.length === 0 && stale.length === 0) {
+        ok(`protect-develop requires all ${required.size} CI checks, and no others`)
+      }
     }
   }
 }

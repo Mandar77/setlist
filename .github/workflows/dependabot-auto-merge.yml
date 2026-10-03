@@ -15,23 +15,56 @@ name: Dependabot auto-merge
 # gates it on CI.
 on:
   pull_request:
+    # Spelled out rather than left to the default, because the default is where the
+    # 2026-10-03 failure lived. `synchronize` is the event that fires when Dependabot
+    # rewrites a PR in place — the patch 5.7.2 -> 5.7.3 becoming the major 5.7.2 -> 6.0.3
+    # on the same branch — and `edited` covers a retargeted base or a rewritten title.
+    # Every one of these is a chance for the PR's classification to have changed under an
+    # arming that was correct when it was made.
+    types: [opened, synchronize, reopened, edited]
+  # Also on push, which is not about policing anything — it is about EXISTING.
+  #
+  # ADR-011 makes this job a required status check on develop. A ruleset's required
+  # checks apply to direct pushes as well as to pull requests, and the autopilot's normal
+  # flow is a fast-forward push of a commit built on a task branch (ADR-005). A check
+  # that only ever runs on `pull_request` would simply never be present on such a commit,
+  # and "required but absent" blocks the push — which would stop the loop dead in the
+  # name of a Dependabot rule that has nothing to say about it.
+  #
+  # So the job runs on these pushes too and reports success immediately. The condition
+  # that used to live on the job now lives on the steps: see `policing` below.
+  push:
+    branches: [develop, 'task/**']
 
 permissions:
   contents: read
 
 jobs:
   auto-merge:
-    name: Enable auto-merge for patch and minor
+    # Stable name: ADR-011 makes this a required status check, and a required check is
+    # matched by name. Renaming it silently stops gating. It covers both directions now,
+    # so the name says policy rather than "enable".
+    name: Dependabot auto-merge policy
     runs-on: ubuntu-latest
-    # Both halves are needed. `github.actor` alone is spoofable by a PR title; the
-    # metadata step below verifies against Dependabot's own data.
-    if: ${{ github.actor == 'dependabot[bot]' && github.event.pull_request.base.ref == 'develop' }}
     permissions:
       contents: write
       pull-requests: write
+    env:
+      # Both halves are needed. `github.actor` alone is spoofable by a PR title; the
+      # metadata step verifies against Dependabot's own data.
+      #
+      # This was the job-level `if`. It had to move to the steps so the job still runs —
+      # and therefore still reports — on everything else. A skipped job and a successful
+      # job are not the same thing to a required status check.
+      POLICING: ${{ github.event_name == 'pull_request' && github.actor == 'dependabot[bot]' && github.event.pull_request.base.ref == 'develop' }}
     steps:
+      - name: Nothing to police
+        if: env.POLICING != 'true'
+        run: echo "not a Dependabot pull request into develop — reporting success so the required check exists"
+
       - name: Read the update's metadata
         id: metadata
+        if: env.POLICING == 'true'
         uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -40,8 +73,9 @@ jobs:
         # `semver-major` is excluded, and so is anything the metadata step could not
         # classify — an unknown update type is not a safe one.
         if: >-
-          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+          env.POLICING == 'true' &&
+          (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor')
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
@@ -63,20 +97,24 @@ jobs:
         # under an arming that was right when it was made, so the negative branch has to
         # act rather than do nothing. Unclassified counts as not-safe here too, for the
         # same reason it does above.
+        # `env.POLICING` is load-bearing here and not merely tidy. On a push the metadata
+        # step is skipped, so `update-type` is the empty string — and an empty string is
+        # neither 'semver-patch' nor 'semver-minor', so without this guard the condition
+        # is TRUE and the disarm would run on every push with no pull request to disarm.
+        # A negative condition over a value that may not exist defaults to firing.
         if: >-
+          env.POLICING == 'true' &&
           steps.metadata.outputs.update-type != 'version-update:semver-patch' &&
           steps.metadata.outputs.update-type != 'version-update:semver-minor'
-        # Querying first rather than `|| true`: disabling auto-merge that was never armed
-        # is an error, and swallowing every error would also swallow a real one.
-        run: |
-          if [ -n "$(gh pr view "$PR_URL" --json autoMergeRequest -q '.autoMergeRequest // empty')" ]; then
-            gh pr merge --disable-auto "$PR_URL"
-            echo "auto-merge was armed on a ${{ steps.metadata.outputs.update-type }} — disarmed"
-          else
-            echo "auto-merge not armed; nothing to disarm"
-          fi
+        # The logic lives in a script so it can be tested. A workflow step is unreachable
+        # from a test runner, and "the step exists" is not the property that matters —
+        # "the step calls the API" is. tools/test-dependabot-disarm.sh runs it against a
+        # stubbed `gh` and asserts five behaviours, including that an API failure fails
+        # the job rather than passing silently.
+        run: bash scripts/ci/dependabot-disarm.sh "$PR_URL" "$UPDATE_TYPE"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Say why a major was left alone

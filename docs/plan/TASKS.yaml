@@ -113,7 +113,7 @@ tasks:
   milestone: HYG
   title: Stryker break threshold becomes a ratchet (ADR-010)
   deps: []
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -123,7 +123,13 @@ tasks:
     - high/low thresholds still name 70 as the target so the report shows the gap
     - CLAUDE.md notes that packages/core runs the ADR-010 ratchet while other floors stay fixed
   verify: make mutate-ts
-  evidence: []
+  evidence:
+    - "break: 55.43, measured 2026-10-03 over 1869 mutants (809 survived, 24 timed out, 678 tests in the dry run). high/low still name 70 so the report keeps showing the gap"
+    - "PASSES at the ratchet: `Final mutation score of 55.43 is greater than or equal to break threshold 55.43`, exit 0. The score reproduced EXACTLY across two independent runs, which also answers the timeout-variance worry written into the config comment"
+    - "FAILS below it, proven by deleting a test: holding models.test.ts aside drops the score to 53.34 and `make mutate-ts` exits 1 with `Final mutation score 53.34 under breaking threshold 55.43`. Restored after; the suite is back to 15 files / 681 tests"
+    - "and the fixed floor was ALSO proven to fire, earlier the same day: at break 70 against 55.43 it exited 1. So both sides of the comparison are measured, not assumed"
+    - "FINDING worth more than the task: deleting sha256.test.ts - 11 FIPS known-answer tests - does not move the score AT ALL. Still exactly 55.43, still 809 survivors; only the killed/timeout split shifts (1010/26 to 1008/28). The differentials compare digests byte for byte against the oracle, so they already kill every sha256 mutant those tests kill"
+    - "that is direct evidence for ADR-010's reason for making CORE-04b block CORE-07: the differential is doing work the unit tests are getting credit for, and CORE-07 deletes the differential. stryker.units.config.json is the number that actually matters there"
 
 - id: HYG-02
   milestone: HYG
@@ -179,7 +185,7 @@ tasks:
   milestone: HYG
   title: Auto-merge re-runs on every update and can disarm (ADR-011)
   deps: [HYG-03]
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -191,8 +197,14 @@ tasks:
   # The disarm step and its complement check landed with the incident (commit 8e04530).
   # What is left is making it re-run on every relevant event and gate the merge instead
   # of racing it.
-  verify: node tools/check_workflows.js
-  evidence: []
+  verify: bash tools/test-dependabot-disarm.sh
+  evidence:
+    - "triggers spelled out as [opened, synchronize, reopened, edited] rather than left to the pull_request default. `synchronize` is the event that fired on 2026-10-03 when Dependabot rewrote the patch PR into a major on the same branch; `edited` covers a retargeted base or rewritten title. Each is a chance for the classification to have changed under an arming that was correct when it was made"
+    - "the job is renamed `Dependabot auto-merge policy` - stable, and it says policy rather than `enable` now that it covers both directions. ADR-011 makes it a required check and a required check is matched BY NAME, so renaming it later silently stops it gating. HYG-05 adds it to the ruleset"
+    - "the disarm logic moved to scripts/ci/dependabot-disarm.sh so it could be tested at all. A workflow step is unreachable from a test runner, and `the step exists` is not the property that matters - `the step calls the API` is"
+    - "tools/test-dependabot-disarm.sh runs it against a stubbed `gh` that logs every invocation: armed major disarms, unarmed does not call merge at all (calling --disable-auto on an unarmed PR is an error, and `|| true` would swallow a real failure with it), unclassified disarms like a major, a patch is REFUSED outright so a caller/script disagreement is loud, and an API failure exits non-zero. 5 passed"
+    - "checked in the failing direction: removing the disarm call fails 3 of the 5, including the one named after the incident. check_workflows.js also failed correctly when the logic moved out of the step, which is how that regex got updated rather than silently stopping matching"
+    - "scripts/ci/*.sh added to the CI shellcheck glob - it covered scripts/hitl, tools and .claude/hooks, so a new script directory would have gone unchecked"
 
 - id: HYG-05
   milestone: HYG
@@ -218,7 +230,7 @@ tasks:
   milestone: HYG
   title: Lockfile-age check runs where it is useful and fails closed carefully (ADR-011)
   deps: []
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -229,7 +241,17 @@ tasks:
     - an age that still cannot be established after retries FAILS - unknown is not mature, and that rule does not soften
     - both must-fail directions from the original check still fail, and a simulated run of 5xx-then-success passes without a false red
   verify: make lockfile-maturity
-  evidence: []
+  evidence:
+    - "cache at .cache/lockfile-maturity.json, keyed by name@version and holding the publish DATE, never the verdict. A cached `mature` would be a cached answer to a question whose answer depends on when it is asked; a cached publish date cannot go stale because a version's publish time is immutable"
+    - "that key shape is also why it cannot mask a changed lockfile: a lockfile that moves to a new version introduces a key the cache does not have, so it is fetched. There is no key under which a stale answer and a new question could collide"
+    - "cold 6.6s / 360 fetched, warm 0.6s / 360 from cache - an 11x difference, which is what makes it cheap enough to run on every lockfile change"
+    - "a corrupt or truncated cache returns empty and everything is fetched. It fails toward the network, never toward `assume mature`"
+    - "retries: 4 attempts, exponential backoff with jitter so twelve workers hitting a rate limit do not all return at the same instant. A 404 is an ANSWER and is NOT retried - the package is not there - while 5xx, 429 and socket resets are registry weather"
+    - "proven with a stand-in registry rather than argued: 503 twice then 200 -> check exits 0 (6 failures, 3 successes served, no false red); 503 forever -> check exits 1 with `cannot establish age` (12 failures = 4 attempts x 3 packages). A transient error never becomes a pass"
+    - "tests/fixtures/lockfile-maturity/three-packages.yaml exists because the retry test needs a registry that decides when to fail, and a stand-in registry has to know every version the lockfile names. Three is enough for concurrency, a scoped name and the cache together"
+    - "ci.yml runs it only when pnpm-lock.yaml moved (git diff against the PR base or the push's before-SHA; an unknown base runs it, since the expensive answer is always safe and the skipped one is not). nightly.yml runs it with --no-cache, which catches the case that has nothing to do with the lockfile changing: a version being unpublished or yanked turns an established age into one that cannot be established"
+    - "the original must-fail directions still fail with caching in play: the unknown-version fixture, and the real lockfile against a hundred-year floor"
+    - "NEAR MISS worth recording: the actions/cache pin was written from memory and was a fabricated SHA. check_workflows.js validates the 40-hex FORMAT, not existence, so it passed. Caught by checking the tag against the API - the real v4 commit is 0057852. GitHub fails loudly on a nonexistent pin, so the blast radius is a red run rather than a silent hole, but format-valid is not the same as real"
 
 # ---------------------------------------------------------------- M0a (no AWS)
 # Ordering note: M0A-05 and M0A-06 are unblocked and wanted, but they sit ABOVE the CORE

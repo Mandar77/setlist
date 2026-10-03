@@ -21,6 +21,10 @@ cdk.out/
 # Vitest v8 coverage output. The gate is the threshold in vitest.config.ts, not the
 # report, so the report is a build artifact like any other.
 coverage/
+
+# Publish dates remembered by tools/check_lockfile_maturity.js. Derived data, rebuilt
+# from the registry on a miss; CI restores it with actions/cache rather than from git.
+.cache/
 # Stryker scratch space and its mutation report.
 .stryker-tmp/
 .stryker-units-tmp/

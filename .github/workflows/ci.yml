@@ -206,10 +206,55 @@ jobs:
     # Hence the maturity check below, which reads the committed artifact.
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # Needed to diff against the base: the maturity check below only runs when the
+          # lockfile actually moved, and a shallow clone cannot answer that.
+          fetch-depth: 0
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
+
+      # Publish dates are immutable, so this cache never goes stale — a version's publish
+      # time is not a fact that later changes. The key rolls per run so each run writes
+      # back what it learned; `restore-keys` means a new key still starts from the newest
+      # previous cache rather than from nothing.
+      - name: Restore remembered publish dates
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .cache/lockfile-maturity.json
+          key: lockfile-maturity-${{ github.run_id }}
+          restore-keys: |
+            lockfile-maturity-
+
+      - name: Did the lockfile move?
+        id: lockfile
+        # ADR-011: run the age check when pnpm-lock.yaml changes, and nightly. On every
+        # push it would be ~350 registry requests to re-answer a question whose answer
+        # cannot have changed — publish dates only get older, so a lockfile that was
+        # compliant yesterday is still compliant today unless it moved.
+        run: |
+          base=''
+          if [ "${{ github.event_name }}" = 'pull_request' ]; then
+            base="origin/${{ github.base_ref }}"
+          elif [ -n "${{ github.event.before }}" ] \
+               && [ "${{ github.event.before }}" != '0000000000000000000000000000000000000000' ]; then
+            base="${{ github.event.before }}"
+          fi
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            # A new branch, a force-push, or a base we cannot see. Unknown means run it:
+            # the expensive answer is always safe, the skipped one is not.
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "no usable base ref — running the age check"
+            exit 0
+          fi
+          if git diff --name-only "$base" -- pnpm-lock.yaml | grep -q .; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "pnpm-lock.yaml changed since $base"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "pnpm-lock.yaml unchanged since $base — skipping the age check"
+          fi
 
       # Everything below the fresh resolve asks "could a compliant lockfile exist?".
       # These three steps ask the question that actually bit: "is the committed one
@@ -219,9 +264,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Every locked version clears minimumReleaseAge
+        if: steps.lockfile.outputs.changed == 'true'
         run: node tools/check_lockfile_maturity.js
 
       - name: ...and that check can fail
+        if: steps.lockfile.outputs.changed == 'true'
         # A gate nobody has watched fail is a gate nobody has tested. Both directions are
         # time-stable: a floor of a hundred years rejects every real package however old
         # it gets, and a package that does not exist never starts existing.
@@ -335,7 +382,7 @@ jobs:
       - name: Shell scripts
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
-          shellcheck scripts/hitl/*.sh tools/*.sh .claude/hooks/*.sh
+          shellcheck scripts/hitl/*.sh scripts/ci/*.sh tools/*.sh .claude/hooks/*.sh
 
       # Syntax, expressions and action inputs.
       - name: Workflow syntax

@@ -193,14 +193,53 @@ add_ruleset protect-main '{
   "rules": [{"type": "pull_request"}, {"type": "non_fast_forward"}, {"type": "deletion"}]
 }'
 
-# develop: no force pushes, no deletion. Claude Code fast-forwards it constantly,
-# so a pull-request requirement here would stop the autopilot loop dead.
+# develop: no force pushes, no deletion, and every CI job must have passed on the commit.
+#
+# Still no pull-request requirement. Claude Code fast-forwards develop constantly
+# (ADR-005), and requiring a PR here would stop the autopilot loop dead.
+#
+# `required_status_checks` is the ADR-011 addition, and it is the rule that needed the
+# most care, because a ruleset's required checks apply to DIRECT PUSHES as well as to
+# pull requests. The normal flow is: push task/*, CI runs there, fast-forward develop.
+# That works precisely because required checks are evaluated against the COMMIT, and the
+# commit already carries its green checks from the task branch — nothing re-runs, and
+# nothing blocks. What would break it is requiring a check that never runs on a task
+# branch at all, since "required but absent" blocks the push. That is why
+# `Dependabot auto-merge policy` also triggers on push: it reports success immediately
+# when there is nothing to police, so the check exists on every commit that could reach
+# develop.
+#
+# `strict_required_status_checks_policy` is false on purpose. Strict means "the branch
+# must be up to date with the base before merging", which for a fast-forward flow would
+# demand a rebase-and-rerun cycle for every push that lost a race.
 add_ruleset protect-develop '{
   "name": "protect-develop",
   "target": "branch",
   "enforcement": "active",
   "conditions": {"ref_name": {"include": ["refs/heads/develop"], "exclude": []}},
-  "rules": [{"type": "non_fast_forward"}, {"type": "deletion"}]
+  "rules": [
+    {"type": "non_fast_forward"},
+    {"type": "deletion"},
+    {"type": "required_status_checks", "parameters": {
+      "strict_required_status_checks_policy": false,
+      "do_not_enforce_on_create": true,
+      "required_status_checks": [
+        {"context": "make verify"},
+        {"context": "cdk synth (6 combinations, offline)"},
+        {"context": "Extraction accuracy gate"},
+        {"context": "Secret scanning (2MS)"},
+        {"context": "CodeQL (python)"},
+        {"context": "CodeQL (javascript-typescript)"},
+        {"context": "Dependency scan"},
+        {"context": "Lockfiles resolve under the supply-chain policies"},
+        {"context": "Semgrep"},
+        {"context": "Trivy"},
+        {"context": "Ledger, suppressions, secrets, shell"},
+        {"context": "Zero-cost guardrails (cdk-nag + KICS)"},
+        {"context": "Dependabot auto-merge policy"}
+      ]
+    }}
+  ]
 }'
 
 # ---------------------------------------------------------------- 4. environments

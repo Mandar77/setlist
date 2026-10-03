@@ -1,0 +1,27 @@
+# Three packages at known versions, for exercising tools/check_lockfile_maturity.js
+# against a stand-in registry rather than the real one.
+#
+# The real lockfile cannot be used for the retry tests: proving that a 503-then-200
+# sequence passes needs a server that decides when to fail, and pointing the check at a
+# fake registry means that server has to know every version the lockfile names. Three is
+# enough to exercise concurrency, scoped names and the cache together, and small enough
+# that the stand-in can simply enumerate them.
+#
+# Nothing here is ever installed. The names are deliberately not real packages.
+
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+packages:
+  'setlist-fixture-alpha@1.0.0':
+    resolution:
+      { integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA }
+  'setlist-fixture-beta@2.3.4':
+    resolution:
+      { integrity: sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB }
+  '@setlist-fixture/gamma@0.1.2':
+    resolution:
+      { integrity: sha512-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC }

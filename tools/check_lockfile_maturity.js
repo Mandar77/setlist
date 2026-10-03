@@ -32,7 +32,7 @@
 //     built-in default. A gate that invents its own threshold when the configured one
 //     disappears is a gate that cannot notice the configuration being deleted.
 
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -49,14 +49,33 @@ const REGISTRY = process.env['NPM_CONFIG_REGISTRY'] ?? 'https://registry.npmjs.o
 /** Parallel packument fetches. The registry is fine with this; it is ~350 requests. */
 const CONCURRENCY = 12
 /** A transient 5xx or socket reset should not read as a policy violation. */
-const RETRIES = 3
+const RETRIES = 4
+
+/**
+ * Where publish dates are remembered between runs.
+ *
+ * A version's publish time is immutable — 1.2.3 was published when it was published, and
+ * no later event changes that — so an entry here never needs invalidating and the cache
+ * never needs a TTL. That is also why it cannot mask a changed lockfile: entries are
+ * keyed by `name@version`, so a lockfile that moves to a version introduces a key that
+ * is not in the cache and gets fetched. There is no key under which a stale answer and
+ * a new question could collide.
+ *
+ * A miss falls through to the registry. It never falls through to "assume mature".
+ */
+const DEFAULT_CACHE = join(repoRoot, '.cache', 'lockfile-maturity.json')
+const CACHE_SCHEMA = 1
 
 function parseArgs(argv) {
-  const args = { lockfile: null, floorMinutes: null }
+  const args = { lockfile: null, floorMinutes: null, cache: DEFAULT_CACHE }
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i]
     if (flag === '--lockfile') {
       args.lockfile = argv[(i += 1)]
+    } else if (flag === '--cache') {
+      args.cache = argv[(i += 1)]
+    } else if (flag === '--no-cache') {
+      args.cache = null
     } else if (flag === '--floor-minutes') {
       args.floorMinutes = Number(argv[(i += 1)])
       if (!Number.isFinite(args.floorMinutes) || args.floorMinutes < 0) {
@@ -67,6 +86,38 @@ function parseArgs(argv) {
     }
   }
   return args
+}
+
+/**
+ * Read the publish-date cache. Any problem returns an empty cache rather than throwing:
+ * a corrupt or truncated file should cost a slower run, not a red build, and the only
+ * consequence of starting empty is that everything is fetched.
+ */
+function loadCache(path) {
+  if (!path) return {}
+  try {
+    const parsed = JSON.parse(readFileSync(path, 'utf8'))
+    if (parsed?.schema !== CACHE_SCHEMA) return {}
+    return parsed.published ?? {}
+  } catch {
+    return {}
+  }
+}
+
+/** Write the cache back. A failure here is not worth failing the check over. */
+function saveCache(path, published) {
+  if (!path) return
+  try {
+    mkdirSync(dirname(path), { recursive: true })
+    // Keys sorted so the file is stable between runs: an unordered dump would churn on
+    // every write and make the CI cache miss far more often than it needs to.
+    const sorted = Object.fromEntries(
+      Object.entries(published).sort(([a], [b]) => (a < b ? -1 : 1)),
+    )
+    writeFileSync(path, `${JSON.stringify({ schema: CACHE_SCHEMA, published: sorted }, null, 2)}\n`)
+  } catch (error) {
+    console.warn(`could not write ${path}: ${error.message}`)
+  }
 }
 
 /**
@@ -95,6 +146,18 @@ function splitSpec(spec) {
   return { name: spec.slice(0, at), version: spec.slice(at + 1) }
 }
 
+/**
+ * Fetch one packument, retrying what is worth retrying.
+ *
+ * The distinction that matters: a 404 is an ANSWER — the package is not there — and is
+ * returned immediately, because retrying it four times would only delay a real failure.
+ * A 5xx, a 429 or a socket reset is not an answer, it is registry weather, and failing
+ * the build on it would teach everyone to re-run the job without reading it. Those get
+ * exponential backoff with jitter.
+ *
+ * What never happens is a transient error turning into a pass. After the last attempt
+ * this throws, the caller records "cannot establish age", and the check fails closed.
+ */
 async function fetchPackument(name) {
   // A scoped name is one path segment, so the slash has to be escaped.
   const url = `${REGISTRY}/${name.replace('/', '%2f')}`
@@ -103,15 +166,19 @@ async function fetchPackument(name) {
     try {
       const response = await fetch(url)
       if (response.ok) return await response.json()
-      // 404 is an answer, not a glitch: the package is not there. Do not retry it.
       if (response.status === 404) return null
       lastError = new Error(`HTTP ${response.status}`)
     } catch (error) {
       lastError = error
     }
-    await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)))
+    if (attempt < RETRIES - 1) {
+      // Exponential, plus jitter so twelve workers hitting a rate limit together do not
+      // all come back at the same instant and trip it again.
+      const backoff = 250 * 2 ** attempt + Math.floor(Math.random() * 100)
+      await new Promise(resolve => setTimeout(resolve, backoff))
+    }
   }
-  throw new Error(`${name}: ${lastError?.message ?? 'unreachable'}`)
+  throw new Error(`${name}: ${lastError?.message ?? 'unreachable'} (after ${RETRIES} attempts)`)
 }
 
 async function main() {
@@ -143,6 +210,28 @@ async function main() {
   const now = Date.now()
   const tooYoung = []
   const unknown = []
+
+  // Resolve from the cache first, and only go to the registry for names that still have
+  // an unanswered version. On a run where the lockfile has not moved that is no names at
+  // all; on a normal dependency bump it is the handful that changed.
+  const cache = loadCache(args.cache)
+  const resolved = new Map()
+  let fromCache = 0
+  for (const [name, versions] of wanted) {
+    const missing = new Set()
+    for (const version of versions) {
+      const cached = cache[`${name}@${version}`]
+      if (cached) {
+        resolved.set(`${name}@${version}`, cached)
+        fromCache += 1
+      } else {
+        missing.add(version)
+      }
+    }
+    if (missing.size > 0) wanted.set(name, missing)
+    else wanted.delete(name)
+  }
+
   const names = [...wanted.keys()]
 
   let cursor = 0
@@ -162,8 +251,7 @@ async function main() {
       const times = packument?.time ?? {}
       for (const version of wanted.get(name)) {
         const published = times[version]
-        const at = published ? Date.parse(published) : Number.NaN
-        if (!Number.isFinite(at)) {
+        if (!published || !Number.isFinite(Date.parse(published))) {
           unknown.push({
             name,
             version,
@@ -171,19 +259,30 @@ async function main() {
           })
           continue
         }
-        const ageMs = now - at
-        if (ageMs < floorMs) {
-          tooYoung.push({ name, version, published, ageDays: ageMs / 86_400_000 })
-        }
+        resolved.set(`${name}@${version}`, published)
       }
     }
   }
   await Promise.all(Array.from({ length: CONCURRENCY }, worker))
 
+  // Age every version the same way, whether it came from the cache or the network. The
+  // cache stores the publish DATE, never the verdict — a cached "mature" would be a
+  // cached answer to a question whose answer depends on when it is asked.
+  for (const [spec, published] of resolved) {
+    const { name, version } = splitSpec(spec)
+    const ageMs = now - Date.parse(published)
+    if (ageMs < floorMs) {
+      tooYoung.push({ name, version, published, ageDays: ageMs / 86_400_000 })
+    }
+  }
+
+  saveCache(args.cache, Object.fromEntries(resolved))
+
   const floorDays = (floorMinutes / 1440).toFixed(1)
   console.log(
-    `checked ${specs.length} locked versions across ${names.length} packages ` +
-      `against a ${floorMinutes}-minute (${floorDays}-day) floor`,
+    `checked ${specs.length} locked versions against a ${floorMinutes}-minute ` +
+      `(${floorDays}-day) floor — ${fromCache} from cache, ${resolved.size - fromCache} fetched ` +
+      `across ${names.length} packages`,
   )
 
   if (malformed.length === 0 && tooYoung.length === 0 && unknown.length === 0) {

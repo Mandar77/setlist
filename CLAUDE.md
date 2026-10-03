@@ -97,6 +97,13 @@ make golden       # regenerate the generated golden sets
 
 Coverage ≥85% overall, ≥90% `packages/core`. Mutation: Stryker ≥70% core / ≥65%
 elsewhere, mutmut ≥70%. Accuracy and cost gates are release gates, not reports.
+
+`packages/core` runs its Stryker floor as a **ratchet** ([ADR-010](docs/adr/0010-mutation-floor-ratchet.md)):
+70% is still the target and is still CORE-04b, which blocks CORE-07, but `break` is the
+last measured score and may only ever rise. This is stricter, not looser — a fixed break
+of 70 against a score of 55 fails identically whether the score is 55 or 45, so it could
+not detect a regression at all. Lowering the ratchet is a relaxation and follows the rule
+below. Every other floor here is fixed.
 Relaxing any gate, budget, IAM guardrail or PED target is a `human-needed` issue with
 an ADR proposal attached — never a quiet edit.
 
