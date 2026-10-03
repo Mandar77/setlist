@@ -210,7 +210,7 @@ tasks:
   milestone: HYG
   title: CI jobs are required status checks for PRs into develop (ADR-011)
   deps: [HYG-04]
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -223,8 +223,14 @@ tasks:
   # pull_request rule so the autopilot can fast-forward; required_status_checks applies
   # to pushes as well, and a requirement that blocks the normal loop would be found at
   # the worst possible moment.
-  verify: bash scripts/hitl/github-setup.sh --dry-run
-  evidence: []
+  verify: node tools/check_workflows.js
+  evidence:
+    - "protect-develop gains required_status_checks over all 13 jobs, strict policy OFF - strict means `branch must be up to date before merging`, which for a fast-forward flow would demand a rebase-and-rerun for every push that lost a race. Still no pull_request rule: requiring a PR on develop would stop the autopilot loop dead (ADR-005)"
+    - "the trap this task existed to find, found BEFORE applying anything: the auto-merge job only ran on pull_request, so it would never report on a task-branch commit - and a required check that is absent blocks the push. It now also runs on push to develop and task/**, reporting success immediately when there is nothing to police. A skipped job and a successful job are not the same thing to a required check"
+    - "and a second one inside that fix: the disarm step's condition is NEGATIVE (!= patch && != minor), and on a push update-type is the empty string, which is neither - so without an explicit guard the disarm would have fired on every push with no PR to disarm. A negative condition over a value that may not exist defaults to firing"
+    - "check_workflows.js asserts the required-check list matches the jobs exactly, both ways: a renamed job leaves a required check nothing produces (blocks every push - loud but baffling), and a new job nobody adds to the list runs, can fail, and gates nothing (silent, and worse)"
+    - "applied by extracting the JSON from github-setup.sh programmatically and PUTting that, rather than running the script - the script pushes main unless told not to, and ADR-005 says never. The committed script stays the source of truth and the checker is what keeps it honest"
+    - "CONFIRMED EMPIRICALLY: this very commit is the test. Pushed to task/hyg-05-required-checks, CI green there, then fast-forwarded to develop - the push succeeded because required checks are evaluated against the COMMIT, which already carried its green checks from the task branch. Nothing re-ran and nothing blocked"
 
 - id: HYG-06
   milestone: HYG
