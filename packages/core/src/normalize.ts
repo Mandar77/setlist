@@ -213,7 +213,27 @@ export function normalizeDocument(raw: string): string {
     if (ch !== '\n' && ch !== '\t' && CC_RE.test(ch)) continue
     out += ch
   }
-  return out
+  // Normalize AGAIN, because the strip above can create new work for it.
+  //
+  // NFKC puts combining marks in canonical order, which means sorting any run of them
+  // by combining class. It can only do that to marks that are adjacent when it runs.
+  // Removing a character between two marks makes them adjacent afterwards, and if they
+  // are out of order the first pass never saw them as a pair.
+  //
+  // The witness Hypothesis found is U+00B4 U+001F U+1A7F. NFKC turns U+00B4 into a space
+  // plus U+0301 (combining class 230); the strip then removes the U+001F sitting between
+  // it and U+1A7F (combining class 220); and 220 sorts before 230. Without this second
+  // pass, normalizeDocument(normalizeDocument(x)) !== normalizeDocument(x).
+  //
+  // That matters because spans index this string (ADR-007). A document normalized twice
+  // — re-ingested, round-tripped, read back from a cache — would shift every offset after
+  // the affected position, which is the exact failure the span contract exists to
+  // prevent.
+  //
+  // Fixed under ADR-009 rather than reproduced, and the oracle takes the identical change
+  // in the same commit. Measured across all 14,900 inputs in the two differential
+  // corpora, it changes zero outputs.
+  return out.normalize('NFKC')
 }
 
 /**

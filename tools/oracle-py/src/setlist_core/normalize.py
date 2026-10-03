@@ -107,11 +107,32 @@ def normalize_document(raw: str) -> str:
     """
     text = raw.replace("\r\n", "\n").replace("\r", "\n")
     text = unicodedata.normalize("NFKC", text)
-    return "".join(
+    stripped = "".join(
         ch
         for ch in text
         if ch not in _INVISIBLE and (ch in "\n\t" or unicodedata.category(ch) != "Cc")
     )
+    # Normalize AGAIN, because the strip above can create new work for it.
+    #
+    # NFKC puts combining marks in canonical order, which means sorting any run of them
+    # by combining class. It can only do that to marks that are adjacent when it runs.
+    # Removing a character between two marks makes them adjacent afterwards, and if they
+    # are out of order the first pass never saw them as a pair.
+    #
+    # The witness Hypothesis found is U+00B4 U+001F U+1A7F. NFKC turns U+00B4 into a
+    # space plus U+0301 (combining class 230); the strip then removes the U+001F sitting
+    # between it and U+1A7F (combining class 220); and 220 sorts before 230. Without this
+    # second pass, normalize_document(normalize_document(x)) != normalize_document(x).
+    #
+    # That matters because spans index this string (ADR-007). A document normalized twice
+    # - re-ingested, round-tripped, read back from a cache - would shift every offset
+    # after the affected position, which is the exact failure the span contract exists to
+    # prevent.
+    #
+    # Fixed under ADR-009 rather than reproduced: measured across all 14,900 inputs in
+    # golden/diff/normalize.jsonl and golden/diff/pipeline.jsonl, this changes zero
+    # outputs, and the same change lands in packages/core in the same commit.
+    return unicodedata.normalize("NFKC", stripped)
 
 
 def fold(value: str) -> str:

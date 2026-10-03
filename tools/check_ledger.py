@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import sys
 from collections import Counter
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -113,9 +114,68 @@ def _check_task(
     return problems
 
 
+def selectable(tasks: list[dict[str, Any]], today: date | None = None) -> list[dict[str, Any]]:
+    """Tasks the autopilot loop could pick up right now.
+
+    A task is selectable when there is nothing left to wait for: it is not finished, it
+    is not parked on a human session or an open ADR, every dependency is `done`, and any
+    `not_before` date has passed.
+
+    `needs-rethink` counts as selectable on purpose. It is work that still has to happen
+    and it has no `blocked_on` to explain itself, so letting it read as "not selectable"
+    would be exactly the silent stall this file exists to prevent.
+    """
+    # UTC rather than local time. `not_before` is a bare ISO date with no zone, and the
+    # same ledger is read by CI on a Linux runner and locally on a Windows machine; a
+    # local-time "today" would make a task selectable in one place and not the other
+    # for several hours a day.
+    today = today or datetime.now(tz=UTC).date()
+    by_id = {task["id"]: task for task in tasks if "id" in task}
+    ready = []
+    for task in tasks:
+        if task["status"] not in {"todo", "doing", "needs-rethink"}:
+            continue
+        if any(by_id.get(dep, {}).get("status") != "done" for dep in task["deps"]):
+            continue
+        not_before = task.get("not_before")
+        if not_before and _as_date(not_before) > today:
+            continue
+        ready.append(task)
+    return ready
+
+
+def _as_date(value: date | datetime | str) -> date:
+    """Coerce a ledger `not_before` to a date. PyYAML already parses bare ISO dates."""
+    # datetime first: it is a subclass of date, so the order here is load-bearing.
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return date.fromisoformat(str(value))
+
+
+def _print_status(tasks: list[dict[str, Any]]) -> None:
+    """Counts by status, then every task the loop could take right now."""
+    counts = Counter(task["status"] for task in tasks)
+    print(f"ledger: {len(tasks)} tasks, {dict(counts)}\n")
+
+    ready = selectable(tasks)
+    if not ready:
+        print("selectable tasks: none")
+        print("  every task is done, blocked, or waiting on a not_before date")
+        return
+
+    print(f"selectable tasks: {len(ready)}")
+    for task in ready:
+        print(f"  {task['id']:10} {task['status']:14} {task['title']}")
+
+
 def main(argv: list[str]) -> int:
     """Entry point: print problems and return non-zero if any exist."""
-    path = Path(argv[1]) if len(argv) > 1 else DEFAULT_PATH
+    args = [arg for arg in argv[1:] if not arg.startswith("--")]
+    flags = {arg for arg in argv[1:] if arg.startswith("--")}
+    path = Path(args[0]) if args else DEFAULT_PATH
+
     problems = check(path)
     if problems:
         print(f"{len(problems)} ledger problem(s) in {path}:")
@@ -125,6 +185,11 @@ def main(argv: list[str]) -> int:
 
     document = yaml.safe_load(path.read_text(encoding="utf-8"))
     tasks = document["tasks"]
+
+    if "--status" in flags:
+        _print_status(tasks)
+        return 0
+
     counts = Counter(task["status"] for task in tasks)
     print(f"ledger OK: {len(tasks)} tasks, {dict(counts)}")
     return 0

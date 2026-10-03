@@ -129,7 +129,7 @@ tasks:
   milestone: HYG
   title: normalize_document is idempotent, in both implementations (ADR-009)
   deps: []
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   # The first change made under ADR-009, so it is also the test of ADR-009's conditions:
@@ -143,7 +143,13 @@ tasks:
     - golden/diff-allowlist.yaml stays empty - a corpus that does not move needs no entries
     - the explicit example is written by codepoint, not pasted - a literal control character in a tracked file is its own bug
   verify: make verify
-  evidence: []
+  evidence:
+    - "the fix is one more NFKC after the strip, in both languages in one commit: normalize.py returns unicodedata.normalize('NFKC', stripped), normalize.ts returns out.normalize('NFKC'). ADR-009 condition 1 met by construction"
+    - "ADR-009 condition 2 measured, not assumed: `make verify` green (8 golden/oracle cases byte for byte, 4900 normalize.jsonl records), `make pipeline-diff-check` reports 10000 oracle digests current, and the 3 TS differential suites pass 27/27. Zero outputs moved across all 14,900 corpus inputs, so golden/diff-allowlist.yaml stays empty"
+    - "checked in the failing direction, which is the half that matters: reverting the second NFKC fails exactly 2 tests in EACH language - the property and the direct witness assertion. fast-check reports 'Property failed after 1 tests', proving the seeded example actually fires rather than being decorative"
+    - "the witness is built with chr(0x00B4)+chr(0x001F)+chr(0x1A7F) and String.fromCodePoint(0x00b4, 0x001f, 0x1a7f), never as a literal. Twice in this repo a tool has decoded an escape into the real invisible character on the way to disk; a literal U+001F in a tracked file would also be a line-ending and secret-scanner hazard"
+    - "the assertion is not only 'idempotent' but the specific ordering: the normalized witness is [0x20, 0x1A7F, 0x0301]. A fix that made the function idempotent by some other route would still have to produce canonical order"
+    - "NEW: packages/core/test/properties.test.ts, 7 property tests over fold, pyStrip and normalizeDocument. The TS side had NO property suite, which is why it reproduced the bug silently - the differential compares the two implementations against each other, so a defect they share is invisible to it by construction. fast-check 4.10.2 added (14 days old, clears the cooldown)"
 
 - id: HYG-03
   milestone: HYG

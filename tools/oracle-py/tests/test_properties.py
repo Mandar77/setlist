@@ -8,7 +8,7 @@ honest way to claim "no hallucinated songs" about a system fed arbitrary interne
 import bisect
 
 import pytest
-from hypothesis import HealthCheck, given, settings
+from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 from setlist_core.dedupe import dedupe
@@ -80,12 +80,38 @@ SLOW = settings(
 )
 
 
+# The counterexample Hypothesis shrank to, kept as a permanent example rather than left
+# to be rediscovered. Built with chr() instead of written as a literal for two reasons:
+# U+001F is a control character and must not sit literally in a tracked file, and an
+# escape in a source string is exactly the thing several tools in this repo have silently
+# decoded into the real character on the way to disk.
+#
+# ACUTE ACCENT, UNIT SEPARATOR, TAI THAM COMBINING CRYPTOGRAMMIC DOT. NFKC turns the
+# first into space + U+0301 (combining class 230); the strip removes the U+001F between
+# it and U+1A7F (combining class 220); 220 sorts before 230, so a second pass reorders
+# them. See ADR-009 and the comment in normalize_document.
+NON_IDEMPOTENT_WITNESS = chr(0x00B4) + chr(0x001F) + chr(0x1A7F)
+
+
 class TestNormalizationProperties:
     @given(NASTY_TEXT)
+    @example(NON_IDEMPOTENT_WITNESS)
     @SLOW
     def test_normalization_is_idempotent(self, raw):
         once = normalize_document(raw)
         assert normalize_document(once) == once
+
+    def test_the_known_witness_is_idempotent(self):
+        """The shrunk counterexample, asserted directly.
+
+        The `@example` above already pins it, but only while the property survives. This
+        fails on its own if someone reverts the second NFKC, and it says which input to
+        look at rather than making the next person re-shrink it.
+        """
+        once = normalize_document(NON_IDEMPOTENT_WITNESS)
+        assert normalize_document(once) == once
+        # And the specific thing that used to go wrong: the two marks keep their order.
+        assert [ord(ch) for ch in once] == [0x20, 0x1A7F, 0x0301]
 
     @given(NASTY_TEXT)
     @SLOW

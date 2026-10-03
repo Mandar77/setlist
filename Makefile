@@ -34,7 +34,7 @@ M ?=
 .PHONY: help setup verify verify-fast test test-unit test-accuracy lint fmt types cov \
         lint-ts fmt-ts types-ts test-ts cov-ts toolchain \
         mutate mutate-ts mutate-ts-units ledger links eol oracle seed golden golden-check diff-check diff-write \
-        pipeline-diff-check pipeline-diff-write allowlist lockfile-maturity \
+        pipeline-diff-check pipeline-diff-write allowlist lockfile-maturity ledger-status \
         suppressions suppressions-write guard workflows \
         no-secrets secrets-history \
         synth synth-matrix nag kics lint-cfn cdk-out-zero estimate preflight gate \
@@ -153,6 +153,12 @@ node_modules: package.json pnpm-lock.yaml
 
 ledger: ## Validate docs/plan/TASKS.yaml (ids, deps, cycles, evidence)
 	$(UV) run python tools/check_ledger.py
+
+## What the loop would pick up next, and why there is or is not anything to pick.
+## Validates first - a ledger with a bad dependency would report a selectable set that
+## is wrong rather than empty, which is the one answer worse than no answer.
+ledger-status: ## Counts by status, plus every task the loop could take right now
+	$(UV) run python tools/check_ledger.py --status
 
 links: ## Every relative markdown link and anchor resolves
 	$(UV) run python tools/check_links.py --anchors
