@@ -48,6 +48,7 @@ class GoldenCase(TypedDict):
     text: str
     expected: list[ExpectedSong]
     comment: NotRequired[str]
+    tier: NotRequired[str]
 
 
 @dataclass(frozen=True)
@@ -86,6 +87,21 @@ def _load(name: str) -> list[GoldenCase]:
 
 
 PRINTED_CASES = _load("printed.json")
+
+#: The generated corpus (CORE-03), built from golden/seed/recordings.jsonl by
+#: tools/golden-gen. Two tiers, and they are gated differently on purpose.
+#:
+#: `clean` is layout the deterministic pass is responsible for, and it carries the real
+#: gate. `noisy` is chat prose, heavy typos, reversed columns with nothing to
+#: disambiguate them, and two recorded extractor gaps — none of which the deterministic
+#: pass claims to resolve, because that is what the residual and the LLM pass are for
+#: (PRD S7.9.3). Scoring recall on those would be demanding the parser guess.
+#:
+#: What every tier is held to is grounding: G2 says no hallucinated songs, and that
+#: promise does not weaken on input the parser cannot read.
+GENERATED_CASES = _load("generated.json")
+CLEAN_CASES = [c for c in GENERATED_CASES if c.get("tier") == "clean"]
+NOISY_CASES = [c for c in GENERATED_CASES if c.get("tier") == "noisy"]
 
 
 def _score_case(
@@ -136,14 +152,50 @@ def test_corpus_meets_the_accuracy_gate() -> None:
     assert total.f1 >= MIN_F1, f"F1 gate: {report}"
 
 
+def _aggregate(cases: list[GoldenCase]) -> Score:
+    """Sum the per-case scores across a corpus."""
+    total = Score(0, 0, 0)
+    for case in cases:
+        score, _, _ = _score_case(case)
+        total = Score(
+            total.true_positives + score.true_positives,
+            total.false_positives + score.false_positives,
+            total.false_negatives + score.false_negatives,
+        )
+    return total
+
+
+def test_generated_clean_corpus_meets_the_accuracy_gate() -> None:
+    """The generated corpus, on the shapes the deterministic pass owns.
+
+    This is the gate CORE-03 exists to make possible. Eight hand-written cases cannot
+    tell you whether the extractor handles Cyrillic titles, fullwidth punctuation,
+    ragged whitespace from a PDF or a Reddit post with three distractor lines in it;
+    a few hundred generated ones can, and their expected answers come from the seed
+    rather than from what the parser said last time.
+    """
+    total = _aggregate(CLEAN_CASES)
+    report = (
+        f"precision={total.precision:.3f} recall={total.recall:.3f} f1={total.f1:.3f} "
+        f"(tp={total.true_positives} fp={total.false_positives} fn={total.false_negatives})"
+    )
+    assert total.precision >= MIN_PRECISION, f"generated precision gate: {report}"
+    assert total.recall >= MIN_RECALL, f"generated recall gate: {report}"
+    assert total.f1 >= MIN_F1, f"generated F1 gate: {report}"
+
+
 def test_no_extracted_song_is_ungrounded() -> None:
     """PED FR-M-007 / E4: zero ungrounded songs across the corpus.
 
     Grounding is enforced inside the pipeline, so this asserts the end-to-end promise
     rather than the unit behaviour: nothing reaches a preview that the source text
     does not support.
+
+    Every tier, including the noisy one. A parser that cannot read a chat message is
+    allowed to return nothing; it is never allowed to return something that is not
+    there.
     """
-    for case in PRINTED_CASES:
+    for case in [*PRINTED_CASES, *GENERATED_CASES]:
         result = extract_deterministic(case["text"])
         for item in result.items:
             covered = fold(item.span.slice(result.document.text))
@@ -156,3 +208,10 @@ def test_golden_set_is_not_empty() -> None:
     """Guard against the gate silently passing because the corpus failed to load."""
     assert len(PRINTED_CASES) >= 8
     assert sum(len(case["expected"]) for case in PRINTED_CASES) >= 25
+    # CORE-03 asks for at least 300 generated cases. The assertion is here rather than
+    # only in the generator's own tests because this is the file that would quietly pass
+    # on an empty corpus.
+    assert len(GENERATED_CASES) >= 300
+    assert len(CLEAN_CASES) >= 200
+    assert len(NOISY_CASES) >= 50
+    assert sum(len(case["expected"]) for case in GENERATED_CASES) >= 1500

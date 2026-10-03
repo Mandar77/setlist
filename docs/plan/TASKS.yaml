@@ -451,7 +451,7 @@ tasks:
   milestone: CORE
   title: Truth-first text generator and golden text set
   deps: [CORE-02]
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -460,7 +460,17 @@ tasks:
     - deterministic for a fixed seed
     - the 8 hand-written M0 cases are retained as a readable smoke corpus
   verify: make golden
-  evidence: []
+  evidence:
+    - "433 cases, 2,538 expected songs, 22 recipes. The 8 hand-written cases keep their own per-case exact gate as the readable smoke corpus; the generated ones carry the aggregate gate"
+    - "truth-first means nothing in tools/golden-gen reads the extractor. Cases start from seed rows whose title and credit are already known, and renderers may only ADD things the contract says are removable - a list marker, a timestamp, a qualifier - so whatever the renderer did, the answer is still the seed's title and the seed's primary credit"
+    - "the primary credit is computed from MusicBrainz's own join phrases rather than by splitting a rendered string, mirroring `split_artist_credits`: feat./ft./featuring split, & and x and with do not"
+    - "rows whose title already carries an annotation are excluded. 'Too Original (TJR remix)' has two defensible answers - the seed's and the one qualifier stripping produces - and a case built on it would assert a disagreement about the contract rather than test extraction"
+    - "two tiers. `clean` (319 cases) is layout the deterministic pass owns and carries the PED gate; `noisy` (114) is prose, typos and undecidable orders, gated on grounding only, because PRD S7.9.3 hands the residual to the LLM and demanding recall there would be demanding a guess. Every tier is held to G2: no hallucinated songs, including on input the parser cannot read"
+    - "clean scores precision 0.988, recall 0.982, F1 0.985 against gates of 0.95/0.90/0.92"
+    - "the corpus found four generator mistakes that each first looked like an extractor problem: ` -- ` is not a contract separator (scored a recipe at 0.37); ` | ` collides with markdown table detection; headerless CSV has no answer unless the column order is fixed (0.54, every failure a swap); `numbered-bare` is not a marker the contract names. Fixing those four took clean F1 from 0.606 to 0.985"
+    - "and three real extractor gaps, generated as noisy cases so they stay visible: a `feat.` credit on the left flips the orientation, so 'Calvin Harris feat. Dua Lipa - One Kiss' returns the title 'Calvin Harris'; `fold()` transliterates emoji via anyascii so a trailing emoji joins the title as 'sob' or 'cd'; a leading emoji is not stripped as a list marker. All three are for CORE-04"
+    - "deterministic from one seed with no clock and no filesystem order; `make golden-check` is in `make verify` and a test asserts two different seeds produce different corpora, without which the staleness check would hold for a generator that ignored its seed"
+    - "the oracle's byte-freeze was scoped to hand-written corpora in the same change - freezing 433 generated outputs would rewrite 433 files on every generator edit and get none of them reviewed"
 
 - id: CORE-04
   milestone: CORE

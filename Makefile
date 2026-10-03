@@ -33,8 +33,9 @@ M ?=
 .DEFAULT_GOAL := help
 .PHONY: help setup verify verify-fast test test-unit test-accuracy lint fmt types cov \
         lint-ts fmt-ts types-ts test-ts toolchain \
-        mutate ledger links eol oracle seed suppressions suppressions-write guard workflows \
-        no-secrets secrets-history golden \
+        mutate ledger links eol oracle seed golden golden-check \
+        suppressions suppressions-write guard workflows \
+        no-secrets secrets-history \
         synth synth-matrix nag kics lint-cfn cdk-out-zero estimate preflight gate \
         unkill clean
 
@@ -50,7 +51,7 @@ setup: ## Install the pinned toolchains and all workspace packages
 ## ------------------------------------------------------------------ the gate
 
 verify: lint lint-ts lint-cfn types types-ts test-unit test-ts test-accuracy toolchain \
-        oracle seed ledger links eol suppressions guard workflows no-secrets ## Full local gate; no Docker required
+        oracle seed golden-check ledger links eol suppressions guard workflows no-secrets ## Full local gate; no Docker required
 	@echo "verify OK"
 
 verify-fast: lint lint-ts types types-ts test-unit test-ts ## Lint, types and unit tests only
@@ -72,8 +73,15 @@ cov: ## Unit tests with the coverage gate (>=85% overall, >=90% core)
 mutate: ## Mutation testing on the core (target >=70%)
 	$(UV) run mutmut run --paths-to-mutate tools/oracle-py/src
 
-golden: ## Regenerate the generated golden sets from the seed catalog
-	@echo "golden: seed-derived generation lands with CORE-02/CORE-03"
+golden: node_modules ## Regenerate golden/extraction/generated.json from the seed catalog
+	$(PNPM) -C tools/golden-gen exec tsx src/cli.ts
+
+## The committed corpus must be what the generator produces now. Same arrangement as the
+## KICS queries, the bootstrap template and the oracle's frozen outputs: the artifact is
+## committed so it can be read and reviewed, and a check proves nobody edited it by hand
+## and that it did not drift when the generator or the seed changed.
+golden-check: node_modules ## generated.json is current with its generator and the seed
+	$(PNPM) -C tools/golden-gen exec tsx src/cli.ts --check
 
 ## ------------------------------------------------------------------ quality
 

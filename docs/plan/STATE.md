@@ -1,8 +1,8 @@
 # Autopilot state
 
-Milestone: M0 | Last done: CORE-02 | Next: CORE-03 | Blocked: 31 tasks — M0A-05 on ADR-008, M0A-06 on M0A-05, M0B-\* + M1-02/03 on H1
+Milestone: M0 | Last done: CORE-03 | Next: CORE-04 | Blocked: 31 tasks — M0A-05 on ADR-008, M0A-06 on M0A-05, M0B-\* + M1-02/03 on H1
 
-Metrics: coverage 95% (Python core) | text precision/recall 1.00 on 8 hand-written cases | free-tier max 160% of dev's YouTube share (see ADR-008) | quarantined tests 0 | `make verify` ~50s
+Metrics: coverage 95% (Python core) | extraction P=0.988 R=0.982 F1=0.985 on 319 generated clean cases, 1.00 on the 8 hand-written | free-tier max 160% of dev's YouTube share (see ADR-008) | quarantined tests 0 | `make verify` ~50s
 
 Notes:
 
@@ -58,6 +58,21 @@ Notes:
   noticed was Dependabot, by dying; dependency updates had silently stopped. There is a
   CI job now that deletes both lockfiles and resolves from nothing, which is the only
   way those policies are ever consulted.
+- **The golden text set is generated** (CORE-03): 433 cases, 2,538 expected songs, built
+  from the seed so the expected answers never come from parser output. Two tiers — `clean`
+  carries the PED gate (currently P=0.988 R=0.982 F1=0.985), `noisy` is prose and
+  undecidable orders and is held only to grounding, because the deterministic pass is not
+  the component that reads prose.
+- **Three extractor gaps are recorded as noisy cases, for CORE-04 to fix.** A `feat.`
+  credit on the LEFT flips the orientation, so "Calvin Harris feat. Dua Lipa - One Kiss"
+  returns the title "Calvin Harris" — `has_version_annotation` treats a featured credit as
+  a title-side cue, which is true for "(Live)" and false here, and this is one of the
+  commonest shapes there is. `fold()` transliterates emoji through anyascii, so a trailing
+  🔥 joins the title. A leading 🎵 is not stripped as a list marker.
+- Building that corpus was mostly a lesson in **the generator being wrong, not the
+  extractor**. Four made-up requirements — ` -- ` as a separator, ` | ` mixed with list
+  markers, randomized headerless CSV column order, bare "1 " as a marker — took clean F1
+  from 0.606 to 0.985 once removed. Every one of them first read as an extractor failure.
 - **The seed catalog is in** (CORE-02): 2,242 real recordings from MusicBrainz, 83.1%
   with an ISRC, tagged live/remaster/feat/non-Latin. The harvest is manual and polite
   (1 req/s, UA naming the repo); `make seed` is the gate, and it reads the committed

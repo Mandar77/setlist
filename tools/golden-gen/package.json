@@ -1,0 +1,15 @@
+{
+  "name": "@setlist/golden-gen",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Generates golden/extraction/generated.json from the seed catalog, truth-first.",
+  "scripts": {
+    "typecheck": "tsc --build",
+    "test": "vitest run",
+    "generate": "tsx src/cli.ts"
+  },
+  "devDependencies": {
+    "tsx": "4.23.15"
+  }
+}

@@ -43,6 +43,15 @@ def cases() -> list[tuple[str, str, str]]:
     found: list[tuple[str, str, str]] = []
     for path in sorted(INPUT_DIR.glob("*.json")):
         document = json.loads(path.read_text(encoding="utf-8"))
+        # Hand-written corpora only. A document carrying a top-level ``seed`` was built
+        # by tools/golden-gen, and the generated corpus is the wrong thing to freeze: it
+        # is four hundred cases that change wholesale whenever the generator or the
+        # MusicBrainz seed changes, so pinning the oracle's output over it would mean
+        # rewriting four hundred files for every edit and reviewing none of them. The
+        # freeze exists to make the oracle a fixed point against a corpus a person can
+        # actually read.
+        if "seed" in document:
+            continue
         for case in document.get("cases", []):
             found.append((case["id"], case.get("kind", "printed"), case["text"]))
     found.sort()

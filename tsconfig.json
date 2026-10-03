@@ -6,7 +6,7 @@
     "workspace grows.",
     "",
     "Add each new TypeScript package to `references` as it lands. A package missing",
-    "from this list still lints, but is NOT type-checked by `make verify` — which is",
+    "from this list still lints, but is NOT type-checked by `make verify` \u2014 which is",
     "the quiet way to end up with an unchecked package, so the CI job asserts that",
     "every workspace member with a tsconfig.json appears here."
   ],
@@ -23,6 +23,9 @@
     },
     {
       "path": "tools/free-tier-estimate"
+    },
+    {
+      "path": "tools/golden-gen"
     },
     {
       "path": "tools/seed-catalog"
