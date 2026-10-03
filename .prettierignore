@@ -2,6 +2,10 @@ node_modules/
 dist/
 cdk.out/
 coverage/
+# Stryker sandboxes: a mutated copy of the package, not source.
+.stryker-tmp/
+.stryker-units-tmp/
+**/reports/mutation/
 .venv/
 .cache/
 pnpm-lock.yaml

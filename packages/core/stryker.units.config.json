@@ -1,0 +1,39 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": [
+    "The diagnostic run: mutants against the hand-written suites only, no differentials.",
+    "",
+    "The gate is stryker.config.json, over the whole suite. This one answers a different",
+    "and more useful question: if the frozen oracle vanished tomorrow — which is exactly",
+    "what CORE-07 does — would the tests people actually read still pin the behaviour?",
+    "",
+    "The first run said no. 39.88%, with 96 of 127 mutants surviving in sha256.ts, because",
+    "the only test touching it asserted `document.digest === sha256Hex(normalize(raw))` —",
+    "both sides call the mutated function, so a corrupted round constant changed both and",
+    "the assertion still held. test/sha256.test.ts now carries the published FIPS 180-4",
+    "vectors instead, and a one-bit change to a round constant fails eight tests.",
+    "",
+    "`break` is null on purpose. This number is a to-do list, not a gate; gating on it",
+    "would create pressure to delete the hard mutants rather than write the test."
+  ],
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "vitest": {
+    "configFile": "vitest.stryker-units.config.ts"
+  },
+  "mutate": ["src/**/*.ts", "!src/index.ts"],
+  "coverageAnalysis": "perTest",
+  "reporters": ["progress", "clear-text"],
+  "clearTextReporter": {
+    "maxTestsToLog": 0
+  },
+  "thresholds": {
+    "high": 85,
+    "low": 70,
+    "break": null
+  },
+  "tempDirName": ".stryker-units-tmp",
+  "cleanTempDir": true,
+  "timeoutMS": 60000
+}

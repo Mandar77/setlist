@@ -1,0 +1,46 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": [
+    "Mutation testing for packages/core (ADR-001, CORE-04: at least 70%).",
+    "",
+    "Coverage says a line ran. Mutation says that if the line had been wrong, a test would",
+    "have noticed — which is the property a port actually needs, because every line here",
+    "ran during the differential and that proved nothing on its own.",
+    "",
+    "It runs over the whole suite except test/pipeline-10k.test.ts, which Stryker cannot",
+    "execute: instrumented, ten thousand pipeline runs blow past any sane per-test timeout",
+    "and the dry run fails outright. Raising the timeout would be worse — a mutant that",
+    "merely made the core slower would score as killed-by-timeout, and the number would",
+    "start measuring performance. vitest.stryker.config.ts carries that one exclusion.",
+    "",
+    "The differentials ARE included. An earlier version left them out on the theory that a",
+    "byte-for-byte oracle comparison kills every mutant and so measures the oracle rather",
+    "than the tests — true, and still not a reason to leave real tests out of the package's",
+    "own gate. That question is asked separately, without a threshold, by",
+    "stryker.units.config.json — see `make mutate-ts-units`.",
+    "",
+    "Not in `make verify`: a full run is tens of minutes against a five-minute budget for",
+    "the whole gate. It runs nightly, and `break` makes it fail on its own rather than",
+    "through a wrapper that could forget to check."
+  ],
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "vitest": {
+    "configFile": "vitest.stryker.config.ts"
+  },
+  "mutate": ["src/**/*.ts", "!src/index.ts"],
+  "coverageAnalysis": "perTest",
+  "reporters": ["progress", "clear-text"],
+  "clearTextReporter": {
+    "maxTestsToLog": 0
+  },
+  "thresholds": {
+    "high": 85,
+    "low": 70,
+    "break": 70
+  },
+  "tempDirName": ".stryker-tmp",
+  "cleanTempDir": true,
+  "timeoutMS": 120000
+}

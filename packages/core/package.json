@@ -16,6 +16,9 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@stryker-mutator/core": "10.0.0",
+    "@stryker-mutator/vitest-runner": "10.0.0",
+    "@vitest/coverage-v8": "5.0.1",
     "tsx": "4.23.15"
   }
 }

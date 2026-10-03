@@ -165,7 +165,16 @@ describe('spans index normalized text, which is not the same length as the raw i
   // The first porting note, and the one with no symptom until it has a bad one: an
   // offset computed against raw bytes lands mid-word once NFKC or zero-width stripping
   // has changed a length, and the item is then "grounded" in text it does not come from.
-  const RAW = '1. Daft​Punk － Da Funk\n2. Justice － Genesis\n'
+  // Built from code points on purpose. A literal zero-width space in a source file is
+  // invisible to every reviewer and survives a copy-paste into a diff as nothing at all,
+  // which is the same class of damage CLAUDE.md bans heredocs for.
+  const ZWSP = String.fromCodePoint(0x200b)
+  const FULLWIDTH_HYPHEN = String.fromCodePoint(0xff0d)
+  const RAW = [
+    `1. Daft${ZWSP}Punk ${FULLWIDTH_HYPHEN} Da Funk`,
+    `2. Justice ${FULLWIDTH_HYPHEN} Genesis`,
+    ``,
+  ].join(String.fromCodePoint(10))
 
   it('changes length during normalization', () => {
     const document = documentFromRaw(RAW)

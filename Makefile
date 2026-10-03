@@ -32,8 +32,8 @@ M ?=
 
 .DEFAULT_GOAL := help
 .PHONY: help setup verify verify-fast test test-unit test-accuracy lint fmt types cov \
-        lint-ts fmt-ts types-ts test-ts toolchain \
-        mutate ledger links eol oracle seed golden golden-check diff-check diff-write \
+        lint-ts fmt-ts types-ts test-ts cov-ts toolchain \
+        mutate mutate-ts mutate-ts-units ledger links eol oracle seed golden golden-check diff-check diff-write \
         pipeline-diff-check pipeline-diff-write allowlist \
         suppressions suppressions-write guard workflows \
         no-secrets secrets-history \
@@ -51,7 +51,7 @@ setup: ## Install the pinned toolchains and all workspace packages
 
 ## ------------------------------------------------------------------ the gate
 
-verify: lint lint-ts lint-cfn types types-ts test-unit test-ts test-accuracy toolchain \
+verify: lint lint-ts lint-cfn types types-ts test-unit test-ts cov-ts test-accuracy toolchain \
         oracle seed golden-check diff-check allowlist ledger links eol suppressions guard workflows no-secrets ## Full local gate; no Docker required
 	@echo "verify OK"
 
@@ -113,6 +113,34 @@ types-ts: node_modules ## tsc --build across every referenced project
 
 test-ts: node_modules ## Vitest across the workspace
 	$(PNPM) exec vitest run --passWithNoTests
+
+## The core carries a higher floor than the rest of the repo (≥90%, CLAUDE.md) because
+## it ships to three runtimes and has no integration test behind it. Unlike the Python
+## coverage run this is in `make verify`: instrumenting seven files costs about seven
+## seconds, and a coverage gate that only exists in CI is a gate nobody meets locally.
+## The thresholds live in packages/core/vitest.config.ts, so `vitest run --coverage`
+## fails on its own rather than only inside this recipe.
+cov-ts: node_modules ## packages/core coverage gate (>=90%)
+	$(PNPM) -C packages/core exec vitest run --coverage
+
+## Coverage says a line ran; mutation says a test would have noticed if it were wrong.
+## That distinction is the whole point here — every line of the core ran during the
+## differential, which proved nothing about whether the unit tests pin anything.
+##
+## Deliberately NOT in `make verify`: a full run is minutes against a five-minute budget
+## for the entire gate. The `break` threshold in stryker.config.json makes it fail on its
+## own, so CI can run it on its own schedule without a wrapper that could forget to check.
+mutate-ts: node_modules ## Mutation testing on packages/core (>=70%)
+	$(PNPM) -C packages/core exec stryker run
+
+## The same mutants against the hand-written suites only, with the differentials left
+## out. Not a gate — a to-do list. The gate above runs over the whole suite, where a
+## byte-for-byte oracle comparison kills almost everything; this asks the question
+## CORE-07 makes urgent, which is whether the tests a person reads would still pin the
+## behaviour once the oracle is gone. Its first run found a sha256 test that compared
+## the function against itself.
+mutate-ts-units: node_modules ## Diagnostic: mutants vs the hand-written suites only
+	$(PNPM) -C packages/core exec stryker run stryker.units.config.json
 
 toolchain: node_modules ## Prove the TS/ESLint gates actually reject bad code
 	node tools/toolchain-smoke/check.js

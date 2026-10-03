@@ -18,10 +18,11 @@
  */
 
 import { readFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
+
+import { repoRoot } from './support/repo-root.js'
 
 import {
   dedupeKey,
@@ -38,7 +39,6 @@ import {
 } from '../src/normalize.js'
 import { sha256Hex } from '../src/sha256.js'
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const FIXTURE = resolve(repoRoot, 'golden', 'diff', 'normalize.jsonl')
 
 interface OracleCase {

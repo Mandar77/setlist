@@ -18,6 +18,13 @@ build/
 # Node / CDK / web
 node_modules/
 cdk.out/
+# Vitest v8 coverage output. The gate is the threshold in vitest.config.ts, not the
+# report, so the report is a build artifact like any other.
+coverage/
+# Stryker scratch space and its mutation report.
+.stryker-tmp/
+.stryker-units-tmp/
+reports/mutation/
 .cdk.staging/
 *.tsbuildinfo
 web/dist/

@@ -37,6 +37,12 @@ export default tseslint.config(
       '**/dist/**',
       '**/cdk.out/**',
       '**/coverage/**',
+      // Stryker's sandbox: a whole copy of the package, rewritten with @ts-nocheck and
+      // one mutation applied. Present whenever a mutation run is in flight or was
+      // interrupted, and linting it reports a thousand problems about code nobody wrote.
+      '**/.stryker-tmp/**',
+      '**/.stryker-units-tmp/**',
+      '**/reports/mutation/**',
       '**/.venv/**',
       '**/*.d.ts',
       // Deliberately ill-typed; they exist to prove the typecheck gate is not vacuous.

@@ -56,8 +56,16 @@ jobs:
       - run: uv sync --all-packages --frozen
       # Coverage says the line ran. Mutation says the test would have noticed if it
       # were wrong, which is the thing this repo actually relies on.
-      - name: Mutate
+      - name: Mutate the frozen Python oracle
         run: make mutate
+
+      # The TypeScript core, which is the one that ships (ADR-001). Its own run excludes
+      # the differential suites: those compare byte-for-byte against the oracle and would
+      # kill nearly every mutant, reporting a score that measures the oracle rather than
+      # the tests. `if: always()` so one language's result does not hide the other's.
+      - name: Mutate packages/core
+        if: always()
+        run: make mutate-ts
 
   drift:
     name: Infrastructure drift
