@@ -7,5 +7,12 @@
  * loading Node's ambient types.
  */
 
+export * from './confidence.js'
+export * from './dedupe.js'
 export * from './enums.js'
+export * from './grounding.js'
+export * from './models.js'
 export * from './normalize.js'
+export * from './pipeline.js'
+export * from './sha256.js'
+export * from './parsers/index.js'

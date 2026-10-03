@@ -22,6 +22,7 @@ Usage:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -130,6 +131,12 @@ def answers(value: str) -> dict[str, Any]:
     primary, feat = normalize.split_artist_credits(value)
     return {
         "normalize_document": normalize.normalize_document(value),
+        # The digest `SourceDocument.from_raw` computes: sha256 of the NORMALIZED text.
+        # The port implements SHA-256 itself (no node:crypto on Hermes, and WebCrypto is
+        # async), so this is the only thing standing between that and a silent mismatch.
+        "sha256_of_normalized": hashlib.sha256(
+            normalize.normalize_document(value).encode("utf-8")
+        ).hexdigest(),
         "fold": normalize.fold(value),
         "tokens": list(normalize.tokens(value)),
         "strip_qualifiers": {

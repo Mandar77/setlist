@@ -71,10 +71,21 @@ const INVISIBLE = new Set(
   ].map(cp => String.fromCodePoint(cp)),
 )
 
-/** Python's `\s`, written out. See the porting note above for why it is not `\s`. */
+/**
+ * Python's `\s`, written out. See the porting note above for why it is not `\s`.
+ *
+ * Exported as `PY_S` because the parser modules build their own regexes from the same
+ * Python sources and need the same class. A second definition there would be a second
+ * chance to get U+FEFF wrong.
+ */
 const WS =
   '\\t\\n\\v\\f\\r\\u001c-\\u001f \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000'
 const S = `[${WS}]`
+
+/** Python's whitespace class, for the parser modules: the class, its negation, its body. */
+export const PY_WS = WS
+export const PY_S = S
+export const PY_NOT_S = `[^${WS}]`
 
 /** A word boundary that behaves the way Python's `\b` does on Unicode text. */
 const B = '(?<![\\p{L}\\p{N}_])'
@@ -166,6 +177,18 @@ function stripChars(value: string, chars: string): string {
 /** Python's `str.strip()`. */
 function strip(value: string): string {
   return value.replace(STRIP_RE, '')
+}
+
+/**
+ * Python's `str.strip()`, exported for the models.
+ *
+ * Not `String.prototype.trim()`, which uses JavaScript's whitespace set: it would strip
+ * a trailing U+FEFF that Python keeps, and keep a U+0085 that Python strips. The models
+ * apply this to every string field to reproduce pydantic's `str_strip_whitespace`, so
+ * the difference would land on every title in the corpus.
+ */
+export function pyStrip(value: string): string {
+  return strip(value)
 }
 
 /** Python's `str.rstrip()`. */

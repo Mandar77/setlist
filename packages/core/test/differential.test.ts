@@ -36,6 +36,7 @@ import {
   stripQualifiers,
   tokens,
 } from '../src/normalize.js'
+import { sha256Hex } from '../src/sha256.js'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const FIXTURE = resolve(repoRoot, 'golden', 'diff', 'normalize.jsonl')
@@ -43,6 +44,7 @@ const FIXTURE = resolve(repoRoot, 'golden', 'diff', 'normalize.jsonl')
 interface OracleCase {
   readonly input: string
   readonly normalize_document: string
+  readonly sha256_of_normalized: string
   readonly fold: string
   readonly tokens: string[]
   readonly strip_qualifiers: {
@@ -128,6 +130,17 @@ describe('the corpus itself', () => {
 describe('packages/core matches tools/oracle-py', () => {
   it('normalizeDocument', () => {
     diff('normalizeDocument', normalizeDocument, c => c.normalize_document)
+  })
+
+  it('sha256, which the core implements itself', () => {
+    // No node:crypto on Hermes and WebCrypto's digest is async, which would make the
+    // whole extraction pipeline async. So SHA-256 is implemented in `src/sha256.ts`, and
+    // this is the only thing between that and a silent mismatch on every cache key.
+    diff(
+      'sha256Hex',
+      input => sha256Hex(normalizeDocument(input)),
+      c => c.sha256_of_normalized,
+    )
   })
 
   it('fold', () => {
