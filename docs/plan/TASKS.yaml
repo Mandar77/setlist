@@ -155,7 +155,7 @@ tasks:
   milestone: HYG
   title: Dependabot proposes no majors and one grouped PR per ecosystem (ADR-011)
   deps: []
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -168,7 +168,12 @@ tasks:
   # preference: `cooldown.default-days` was configured, reported back by the API, and
   # acted on nothing, because the per-semver-type keys default to 0 and override it.
   verify: node tools/check_workflows.js
-  evidence: []
+  evidence:
+    - "all three ecosystems now carry `ignore: [{dependency-name: '*', update-types: [version-update:semver-major]}]`, and github-actions gained the patch-and-minor group it never had - it was producing one PR per action, which is how a week's dependency review becomes eleven tabs and gets skipped"
+    - "check_workflows.js asserts four properties per ecosystem: majors ignored, minor+patch grouped, weekly, and all four cooldown keys at 7. Reports `dependabot: 3 ecosystems ignore majors, group minor+patch, weekly, 7-day cooldown`"
+    - "checked in the failing direction four ways, each restored after: majors un-ignored in npm, cooldown.semver-major-days back to 0, schedule changed to daily, and the github-actions group removed. All four fail with the specific ecosystem and property named"
+    - "the second of those is the original silent bug reproduced deliberately - `semver-major-days: 0` is what Dependabot's job definition carries unless set, and it overrides `default-days: 7` sitting right above it. That config was set, reported back by the API, and acting on nothing. It now fails"
+    - "the ten open major PRs were closed with a comment pointing at ADR-011 and naming TS-6 as the worked example of a major becoming a task. No PR was merged (ADR-005); zero Dependabot PRs remain open"
 
 - id: HYG-04
   milestone: HYG

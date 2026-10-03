@@ -403,6 +403,79 @@ for (const file of files) {
   }
 }
 
+// Dependabot's own configuration, which is not a workflow but fails the same way.
+//
+// ADR-011 settled four properties of this file, and every one of them is the kind that
+// stops working silently. The precedent is `cooldown.default-days`, which was set here,
+// reported back by the API, and acted on nothing — because the per-semver-type keys
+// default to 0 and override it. A supply-chain setting that is configured, believed and
+// inert is the exact shape this repository keeps finding.
+//
+// So: majors ignored in every ecosystem, minor and patch grouped in every ecosystem,
+// weekly, and a seven-day cooldown written out per type rather than left to default.
+{
+  const file = 'dependabot.yml'
+  const path = join(repoRoot, '.github', file)
+  const config = parse(readFileSync(path, 'utf8'))
+  const ecosystems = config?.updates ?? []
+
+  if (ecosystems.length === 0) {
+    fail(file, 'no `updates:` entries — dependency updates are configured off entirely')
+  }
+
+  for (const entry of ecosystems) {
+    const name = entry['package-ecosystem'] ?? '<unnamed>'
+
+    const ignoresMajors = (entry.ignore ?? []).some(
+      rule =>
+        rule['dependency-name'] === '*' &&
+        (rule['update-types'] ?? []).includes('version-update:semver-major'),
+    )
+    if (!ignoresMajors) {
+      fail(
+        file,
+        `${name} does not ignore semver-major. ADR-011: a major is a planned task, not a ` +
+          'bot PR — and a PR that cannot become a major cannot be reclassified into one',
+      )
+    }
+
+    const grouped = Object.values(entry.groups ?? {}).some(group => {
+      const types = group?.['update-types'] ?? []
+      return types.includes('minor') && types.includes('patch')
+    })
+    if (!grouped) {
+      fail(file, `${name} does not group minor and patch into one PR`)
+    }
+
+    if (entry.schedule?.interval !== 'weekly') {
+      fail(file, `${name} is not on a weekly schedule (found ${entry.schedule?.interval})`)
+    }
+
+    // Each key checked by name. `default-days` alone is the bug, not the fix.
+    const cooldown = entry.cooldown ?? {}
+    for (const key of [
+      'default-days',
+      'semver-major-days',
+      'semver-minor-days',
+      'semver-patch-days',
+    ]) {
+      if (cooldown[key] !== 7) {
+        fail(
+          file,
+          `${name} cooldown.${key} is ${cooldown[key] ?? 'unset'}, not 7 — it must match ` +
+            'minimumReleaseAge in pnpm-workspace.yaml and exclude-newer in pyproject.toml',
+        )
+      }
+    }
+  }
+
+  if (ecosystems.length > 0) {
+    ok(
+      `dependabot: ${ecosystems.length} ecosystems ignore majors, group minor+patch, weekly, 7-day cooldown`,
+    )
+  }
+}
+
 // The control. Every check above reports a problem by its absence, so a bug that made
 // the loop read nothing would print a clean run. This asserts the suite actually looked
 // at something.

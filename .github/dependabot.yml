@@ -23,6 +23,19 @@
 # refuses to resolve, every later Dependabot run died at `pnpm install` before it could
 # propose anything. A cooldown that is configured, reported back, and acts on nothing
 # is the same shape as `blockExoticSubDependencies`, which was the last one of these.
+#
+# Majors are ignored outright (ADR-011). Not because they do not matter — because they
+# matter too much to arrive as one of ten bot PRs nobody has time to read. A major is a
+# behaviour change with migration work attached, so it belongs in the ledger with
+# `done_when` items; `TS-6` is the worked example. The cost is named rather than hidden:
+# nothing will now open a PR when a major appears, so majors are noticed when a task
+# needs one or at a milestone gate, not continuously.
+#
+# What forced the decision: on 2026-10-03 a TypeScript major merged itself into develop
+# and broke `types-ts` with 22 errors. The PR had been opened as the patch 5.7.2 -> 5.7.3
+# with auto-merge correctly armed, sat for two days while Dependabot could not resolve,
+# and was then rewritten in place into 6.0.3. Ignoring majors removes the whole class:
+# a PR that cannot become a major cannot be reclassified into one.
 version: 2
 
 updates:
@@ -39,10 +52,13 @@ updates:
     target-branch: develop
     open-pull-requests-limit: 5
     labels: [dependencies]
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
     groups:
-      # One PR for the patch noise, individual PRs for anything that can actually
-      # break. A weekly flood of single-patch PRs is how dependency review stops
-      # happening.
+      # One PR for everything that is left. With majors ignored above, "minor and patch"
+      # is the whole surface, so this is one PR per ecosystem per week — which is the
+      # amount of dependency review that actually gets done.
       patch-and-minor:
         update-types: [minor, patch]
     commit-message:
@@ -61,6 +77,9 @@ updates:
     target-branch: develop
     open-pull-requests-limit: 5
     labels: [dependencies]
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
     groups:
       patch-and-minor:
         update-types: [minor, patch]
@@ -80,5 +99,14 @@ updates:
     target-branch: develop
     open-pull-requests-limit: 5
     labels: [dependencies, actions]
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+    groups:
+      # This ecosystem had no group, so it produced one PR per action — which is how a
+      # week's dependency review turns into eleven tabs and gets skipped. Grouped now,
+      # for the same reason as the other two.
+      patch-and-minor:
+        update-types: [minor, patch]
     commit-message:
       prefix: 'chore(actions)'
