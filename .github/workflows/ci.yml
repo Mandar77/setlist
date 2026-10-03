@@ -197,6 +197,13 @@ jobs:
     # dependency automation had quietly stopped being able to propose anything at all.
     #
     # This job is that resolve, run deliberately instead of discovered in a bot's logs.
+    #
+    # The resolve alone was not enough, and the same thing happened again on 2026-10-01:
+    # the lockfile took rolldown 1.2.12 one day after publication against a seven-day
+    # floor, Dependabot died on every run for two days, and this job stayed green the
+    # whole time — because a fresh resolve keeps picking the mature 1.2.11, so the
+    # answer it gives is about a lockfile it just built, not the one in the repository.
+    # Hence the maturity check below, which reads the committed artifact.
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
@@ -204,10 +211,40 @@ jobs:
         with:
           node-version: 22
 
+      # Everything below the fresh resolve asks "could a compliant lockfile exist?".
+      # These three steps ask the question that actually bit: "is the committed one
+      # compliant?" They run FIRST because the step after this deletes the evidence.
+      - name: Install from the committed lockfile
+        # Also gives the checker the `yaml` parser, which is a dependency of infra.
+        run: pnpm install --frozen-lockfile
+
+      - name: Every locked version clears minimumReleaseAge
+        run: node tools/check_lockfile_maturity.js
+
+      - name: ...and that check can fail
+        # A gate nobody has watched fail is a gate nobody has tested. Both directions are
+        # time-stable: a floor of a hundred years rejects every real package however old
+        # it gets, and a package that does not exist never starts existing.
+        run: |
+          if node tools/check_lockfile_maturity.js --floor-minutes 52560000; then
+            echo "::error::maturity check passed against a 100-year floor; it is not comparing ages"
+            exit 1
+          fi
+          if node tools/check_lockfile_maturity.js \
+               --lockfile tests/fixtures/lockfile-maturity/unknown-version.yaml; then
+            echo "::error::maturity check passed over a version it could not age; unknown must not mean mature"
+            exit 1
+          fi
+          echo "both must-fail directions failed, as they must"
+
       - name: Resolve pnpm from nothing
         # The lockfile is deleted first on purpose: with it present pnpm reuses settled
         # resolutions and the policies are never consulted, which is the whole bug.
         # Nothing is committed from here — the checkout is thrown away with the runner.
+        #
+        # This proves a compliant resolution EXISTS. It cannot prove the committed
+        # lockfile is that resolution, because it begins by throwing it away — which is
+        # why the maturity check above runs before this point and not after.
         run: |
           rm pnpm-lock.yaml
           pnpm install --lockfile-only

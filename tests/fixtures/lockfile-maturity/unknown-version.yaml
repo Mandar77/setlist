@@ -1,0 +1,32 @@
+# A lockfile that tools/check_lockfile_maturity.js must REJECT, and the reason it exists.
+#
+# The dangerous failure for that check is not a wrong answer, it is a skipped one. If a
+# version's publish time cannot be established — the registry 404s, the name was
+# unpublished, a response shape changes — the tempting thing to do is move on, and the
+# check then reports success over a lockfile it never actually read. Every control in
+# this repository that has been found doing nothing was found doing exactly that.
+#
+# So "unknown age" is a failure, and this fixture is what proves it: `setlist-nonexistent
+# -package-do-not-publish` resolves to nothing, and the version pinned below has never
+# existed. A run against this file must exit non-zero and say `cannot establish age`.
+#
+# It is deliberately time-stable. The obvious fixture — a real package pinned to a
+# genuinely recent version — stops failing the moment that version ages past the floor,
+# and a must-fail test that quietly becomes a must-pass test is worse than no test. A
+# package that does not exist does not age.
+#
+# The other half of the gate, that a real young version is caught, is checked in ci.yml
+# by running the real lockfile against an absurd floor.
+
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+packages:
+  'setlist-nonexistent-package-do-not-publish@9.9.9':
+    resolution:
+      {
+        integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,
+      }

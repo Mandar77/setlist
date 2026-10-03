@@ -34,7 +34,7 @@ M ?=
 .PHONY: help setup verify verify-fast test test-unit test-accuracy lint fmt types cov \
         lint-ts fmt-ts types-ts test-ts cov-ts toolchain \
         mutate mutate-ts mutate-ts-units ledger links eol oracle seed golden golden-check diff-check diff-write \
-        pipeline-diff-check pipeline-diff-write allowlist \
+        pipeline-diff-check pipeline-diff-write allowlist lockfile-maturity \
         suppressions suppressions-write guard workflows \
         no-secrets secrets-history \
         synth synth-matrix nag kics lint-cfn cdk-out-zero estimate preflight gate \
@@ -187,6 +187,14 @@ pipeline-diff-write: ## Regenerate golden/diff/pipeline.jsonl from the oracle
 ## UNLISTED difference; nothing catches a listed one unless something reads the list.
 allowlist: node_modules ## The diff allowlist is in scope and in schema
 	node tools/check_diff_allowlist.js
+
+## Deliberately NOT in `verify`: this one talks to the npm registry, and `verify` is a
+## no-network gate. It runs in the `resolvable` job in ci.yml, next to the fresh resolve
+## it complements — that job proves a compliant lockfile *could* be produced, this proves
+## the committed one *is* compliant. Those came apart for two days and Dependabot died in
+## the gap. See the header of tools/check_lockfile_maturity.js.
+lockfile-maturity: node_modules ## Every locked version is older than minimumReleaseAge
+	node tools/check_lockfile_maturity.js
 
 ## The committed seed, checked offline. The harvest itself is a thing a person runs
 ## (`pnpm -C tools/seed-catalog harvest`) and is deliberately not in any gate: a build
