@@ -1,0 +1,16 @@
+[project]
+name = "setlist-etl"
+version = "0.1.0"
+description = "Daily aggregation from EVT# partitions to AGG# items, as a scheduled Lambda."
+requires-python = ">=3.13,<3.14"
+# No boto3 here. The job is a pure function over two ports (PED D8); the adapter that
+# knows about DynamoDB lives in the Lambda bundle, where boto3 is already provided by the
+# runtime. Depending on it from the package would make the unit tests need AWS to import.
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/setlist_etl"]

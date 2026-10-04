@@ -237,6 +237,7 @@ add_ruleset protect-develop '{
         {"context": "Ledger, suppressions, secrets, shell"},
         {"context": "Zero-cost guardrails (cdk-nag + KICS)"},
         {"context": "Engine conformance (Node + Chromium)"},
+        {"context": "ETL against DynamoDB Local"},
         {"context": "Dependabot auto-merge policy"}
       ]
     }}

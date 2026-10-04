@@ -63,7 +63,7 @@ verify-fast: lint lint-ts types types-ts test-unit test-ts ## Lint, types and un
 test: test-unit ## Run the default test suite
 
 test-unit: ## Unit tests: no AWS, no provider calls, no network
-	$(UV) run pytest -m "not integration and not e2e" -q
+	$(UV) run pytest -m "not integration and not e2e and not local_aws" -q
 
 test-accuracy: ## Golden-set extraction gate (release-blocking)
 	$(UV) run pytest -m accuracy -q

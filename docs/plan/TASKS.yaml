@@ -1490,7 +1490,7 @@ tasks:
   milestone: M6
   title: packages/etl as a scheduled Lambda
   deps: [M3-01]
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -1498,7 +1498,18 @@ tasks:
     - Glue Catalog definitions only; no Glue job or crawler resources under profile=zero, asserted by a test
     - ETL tests pass against DynamoDB Local
   verify: uv run pytest packages/etl
-  evidence: []
+  evidence:
+    - "run(spec, source, sink) is a pure function over two Protocols, so the IDENTICAL aggregation is what a unit test, the DynamoDB Local test and the Lambda all exercise. A job that reached for its own clients could only ever be tested where those clients were configured"
+    - "boto3 is NOT a dependency of packages/etl: the Lambda runtime provides it, and a unit test should not need AWS installed to import a pure function. It is a dev dependency for the adapter tests only, pinned at 1.43.103 which is 8 days old and clears the cooldown"
+    - "Glue CATALOG only, and the distinction is the point: Database and Table are free metadata, while Job/Crawler/Trigger are compute and no Glue option reaches $0 - the cheapest Python shell job bills 1/16 DPU-hour at a one-minute minimum, so a daily job doing thirty seconds of work bills a minute a day forever (PED D8)"
+    - "asserted from BOTH sides. The nag pack already bans the compute types on synthesized templates; this adds a package-side test, because the nag rule can only see what CDK emits and a Glue job defined here but not yet synthesized would pass the infrastructure gate while already being the wrong thing to have written. A further test greps every source file, since a type string present at all is one somebody was part-way through adding"
+    - "the banned set is asserted NON-EMPTY, because an empty BANNED_TYPES would make every one of those assertions pass while checking nothing"
+    - "errors rather than filters: a record from the wrong day or the wrong environment raises instead of being skipped, because filtering it would produce a number wrong in a way nothing downstream could detect. A bool payload raises too - bool subclasses int in Python, so a careless sum would silently add 1 per True"
+    - "the AGG# key is deterministic so a re-run OVERWRITES rather than appends. A scheduled job can be run twice by an operator and the cheapest defence against a doubled aggregate is a key that collides on purpose"
+    - "22 unit tests plus 4 against DynamoDB Local covering what the in-memory adapters cannot model: pagination (Table.query returns at most 1 MB, so a large day would otherwise be silently truncated - correct about the first megabyte and wrong overall), the key schema, and batch-writer overwrite"
+    - "NEW MARKER `local_aws`, not `integration`: the existing marker means `requires deployed AWS resources (dev account)` and ADR-005 forbids local AWS credentials, while this needs neither - a container on localhost with placeholder credentials. Excluded from `make verify` (no Docker, five-minute budget) and run by its own CI job, which check_workflows.js immediately caught as missing from the required-check list"
+    - "the test table is PROVISIONED, never PAY_PER_REQUEST - the never-use list bans on-demand and a fixture using it would normalise the thing the gate exists to stop"
+  
 
 - id: M6-02
   milestone: M6

@@ -12,6 +12,11 @@ dependencies = []
 dev = [
     # Workspace members, installed editable so tests import the working tree.
     "setlist-core",
+    "setlist-etl",
+    # The DynamoDB Local adapter tests only. Not a dependency of packages/etl itself:
+    # the Lambda runtime provides boto3, and a unit test should not need AWS installed
+    # to import a pure function.
+    "boto3==1.43.103",
     "pytest>=8.3",
     "pytest-cov>=6.0",
     "pytest-randomly>=3.16",
@@ -46,6 +51,7 @@ members = ["packages/etl", "services/ocr", "tools/oracle-py"]
 
 [tool.uv.sources]
 setlist-core = { workspace = true }
+setlist-etl = { workspace = true }
 
 [tool.uv]
 # A dependency cooldown, matching `minimumReleaseAge` on the pnpm side and the
@@ -190,6 +196,7 @@ markers = [
     "integration: requires deployed AWS resources (dev account)",
     "contract: validates provider API schemas against recorded fixtures",
     "accuracy: golden-set extraction/matching regression gates",
+    "local_aws: requires DynamoDB Local in Docker; no AWS account and no credentials",
     "e2e: full stack through the UI",
     "slow: takes more than a second",
 ]
