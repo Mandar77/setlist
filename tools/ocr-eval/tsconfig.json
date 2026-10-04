@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "docs": [
+    "References core and golden-images, which is the whole architecture of this tool in",
+    "two lines: golden-images defines what the right answer is, packages/core is half of",
+    "what is being graded.",
+    "",
+    "Song-level F1 runs the extractor over the OCR text, so this measures the ENGINE AND",
+    "THE GRAMMAR together. That is deliberate and it is why the harness is TypeScript",
+    "(ADR-014): an engine whose errors fall on characters the grammar ignores is the",
+    "better engine for this product, and only a metric that runs both can say so."
+  ],
+
+  "extends": "../../tsconfig.base.json",
+  "references": [{ "path": "../../packages/core" }, { "path": "../golden-images" }],
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

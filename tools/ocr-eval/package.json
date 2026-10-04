@@ -1,0 +1,23 @@
+{
+  "name": "@setlist/ocr-eval",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Grades each OCR engine against the M2-01 golden corpus: CER and WER against the drawn lines, song-level F1 through packages/core.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --build",
+    "test": "vitest run",
+    "evaluate": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@setlist/core": "workspace:*",
+    "@setlist/golden-images": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.4",
+    "tsx": "4.23.15"
+  }
+}

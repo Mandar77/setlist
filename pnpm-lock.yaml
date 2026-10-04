@@ -294,6 +294,22 @@ importers:
         specifier: 4.23.15
         version: 4.23.15
 
+  tools/ocr-eval:
+    dependencies:
+      '@setlist/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@setlist/golden-images':
+        specifier: workspace:*
+        version: link:../golden-images
+    devDependencies:
+      '@types/node':
+        specifier: 22.20.4
+        version: 22.20.4
+      tsx:
+        specifier: 4.23.15
+        version: 4.23.15
+
   tools/provider-simulator:
     devDependencies:
       '@types/node':

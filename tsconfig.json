@@ -52,6 +52,9 @@
       "path": "tools/golden-images"
     },
     {
+      "path": "tools/ocr-eval"
+    },
+    {
       "path": "tools/seed-catalog"
     },
     {

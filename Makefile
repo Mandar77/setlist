@@ -35,7 +35,7 @@ M ?=
         lint-ts fmt-ts types-ts test-ts cov-ts toolchain \
         mutate mutate-ts mutate-ts-units ledger links eol oracle seed golden golden-check diff-check diff-write \
         pipeline-diff-check pipeline-diff-write allowlist lockfile-maturity ledger-status verify-pins \
-        suppressions suppressions-write guard workflows \
+        suppressions suppressions-write guard workflows ocr-metrics ocr-metrics-write ocr-eval \
         no-secrets secrets-history \
         synth synth-matrix nag kics lint-cfn cdk-out-zero estimate preflight gate \
         unkill clean
@@ -52,7 +52,7 @@ setup: ## Install the pinned toolchains and all workspace packages
 ## ------------------------------------------------------------------ the gate
 
 verify: lint lint-ts lint-cfn types types-ts test-unit test-ts cov-ts test-accuracy toolchain \
-        oracle seed golden-check diff-check allowlist ledger links eol suppressions guard workflows no-secrets ## Full local gate; no Docker required
+        oracle ocr-metrics seed golden-check diff-check allowlist ledger links eol suppressions guard workflows no-secrets ## Full local gate; no Docker required
 	@echo "verify OK"
 
 verify-fast: lint lint-ts types types-ts test-unit test-ts ## Lint, types and unit tests only
@@ -226,6 +226,24 @@ verify-pins: node_modules ## Resolve every pinned action SHA against the GitHub 
 ## service. What CI owes is a check on the file that is actually in git.
 seed: node_modules ## The seed catalog meets CORE-02's floors
 	$(PNPM) -C tools/seed-catalog exec tsx src/verify-cli.ts
+
+## CER and WER against jiwer (ADR-014). In `verify` rather than only in CI because it is
+## a sub-second check on 18 fixtures, and because the number it guards — the one the M2
+## exit gate is written in — fails silently when it is wrong. It found three real
+## divergences the first time it ran.
+ocr-metrics: ## The TypeScript CER/WER still agree with jiwer, case for case
+	$(UV) run python -m ocr_metrics_oracle
+
+ocr-metrics-write: ## Regenerate the jiwer expected values after changing the fixtures
+	$(UV) run python -m ocr_metrics_oracle --write
+
+## Needs a generated corpus (`make golden`) and at least one engine's readings, so it is
+## not part of `verify`: the engines run on a macOS runner and an Android emulator.
+ocr-eval: node_modules ## Grade every engine that reported and write docs/reports/ocr-eval.md
+	$(PNPM) -C tools/ocr-eval exec tsx src/cli.ts \
+		--manifest ../../golden/ocr-generated/manifest.json \
+		--readings ../../golden/ocr-generated/readings \
+		--out ../../docs/reports/ocr-eval.md
 
 suppressions: ## Fail on expired suppressions, or a generated ignore file that drifted from them
 	$(UV) run python tools/check_suppressions.py

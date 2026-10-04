@@ -13,6 +13,9 @@ dev = [
     # Workspace members, installed editable so tests import the working tree.
     "setlist-core",
     "setlist-etl",
+    # ADR-014: jiwer is the CER/WER reference, diffed against the TypeScript
+    # harness. Scoped to that differential and deleted with it.
+    "setlist-ocr-metrics-oracle",
     # The DynamoDB Local adapter tests only. Not a dependency of packages/etl itself:
     # the Lambda runtime provides boto3, and a unit test should not need AWS installed
     # to import a pure function.
@@ -47,11 +50,12 @@ dev = [
 #
 # A member listed here that does not exist yet is simply not resolved, so entries can
 # land before their directories do.
-members = ["packages/etl", "services/ocr", "tools/oracle-py"]
+members = ["packages/etl", "services/ocr", "tools/oracle-py", "tools/ocr-eval/oracle-py"]
 
 [tool.uv.sources]
 setlist-core = { workspace = true }
 setlist-etl = { workspace = true }
+setlist-ocr-metrics-oracle = { workspace = true }
 
 [tool.uv]
 # A dependency cooldown, matching `minimumReleaseAge` on the pnpm side and the

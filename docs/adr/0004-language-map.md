@@ -28,13 +28,14 @@ forces it.**
 These share the core's normalizer and the zod contracts, and use one toolchain with
 CDK, the Expo app and the PWA.
 
-### Python 3.13 (arm64, zip) — three exceptions only
+### Python 3.13 (arm64, zip) — four exceptions only
 
 | Where | Why |
 | --- | --- |
 | `services/ocr` | The ONNX OCR tooling (RapidOCR) is Python-first. It returns raw lines and contains **no grammar**, so it cannot drift from the core. |
 | `packages/etl` | Must stay Glue-compatible for the enterprise profile (PED D8). |
 | `tools/oracle-py` | Temporary; deleted at CORE-07. |
+| `tools/ocr-eval/oracle-py` | **Amended 2026-10-04 by [ADR-014](0014-ocr-metrics-oracle.md).** `jiwer` is the PED-named reference for CER and WER (PED §670), and those two metrics are the kind that fail silently — a hand-rolled Levenshtein ratio returns a plausible number rather than an error. Scoped to the jiwer differential and nothing else: the harness itself is TypeScript, because song-level F1 runs the extractor and the extractor is `packages/core`. Deleted with the differential. |
 
 ### Tooling
 

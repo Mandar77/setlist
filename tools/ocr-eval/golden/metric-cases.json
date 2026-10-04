@@ -1,0 +1,43 @@
+{
+  "$comment": "Shared verbatim by the TypeScript metric test and the jiwer oracle (ADR-014). Every case is an edge where a reimplementation drifts, not a demonstration that 'abc' equals 'abc'. Edit here and run `make ocr-metrics-write`.",
+  "cases": [
+    {
+      "name": "identical",
+      "reference": "Bohemian Rhapsody - Queen",
+      "hypothesis": "Bohemian Rhapsody - Queen"
+    },
+    { "name": "one-substitution", "reference": "kitten", "hypothesis": "sitten" },
+    { "name": "classic-kitten-sitting", "reference": "kitten", "hypothesis": "sitting" },
+    { "name": "insertion-only", "reference": "abcd", "hypothesis": "abcdwxyz" },
+    { "name": "deletion-only", "reference": "abcdwxyz", "hypothesis": "abcd" },
+    { "name": "over-one-hundred-percent", "reference": "ab", "hypothesis": "abxxxxxxxx" },
+    { "name": "empty-hypothesis", "reference": "some text here", "hypothesis": "" },
+    { "name": "empty-reference", "reference": "", "hypothesis": "invented text" },
+    { "name": "both-empty", "reference": "", "hypothesis": "" },
+    {
+      "name": "double-spaces-in-hypothesis",
+      "reference": "one two three",
+      "hypothesis": "one  two   three"
+    },
+    { "name": "leading-and-trailing-space", "reference": "trimmed", "hypothesis": "   trimmed   " },
+    {
+      "name": "newline-joined-lines",
+      "reference": "line one\nline two",
+      "hypothesis": "line one\nline two"
+    },
+    { "name": "merged-lines", "reference": "line one\nline two", "hypothesis": "line oneline two" },
+    { "name": "non-bmp-character", "reference": "music 🎵 here", "hypothesis": "music  here" },
+    { "name": "cjk", "reference": "日本語のテキスト", "hypothesis": "日本語のテキス" },
+    {
+      "name": "realistic-ocr-noise",
+      "reference": "Under Pressure - Queen & David Bowie",
+      "hypothesis": "Und3r Pressur3 — Queen & Davld Bowie"
+    },
+    { "name": "case-differs", "reference": "Alpha Beta", "hypothesis": "alpha beta" },
+    {
+      "name": "punctuation-differs",
+      "reference": "Don't Stop Me Now",
+      "hypothesis": "Dont Stop Me Now"
+    }
+  ]
+}
