@@ -14,11 +14,28 @@
 
 import type { ExpoConfig } from 'expo/config'
 
-import { apiUrlFrom, configFor, variantFrom } from './src/variant'
+import variants from './variants.json'
 
+/**
+ * Reads `variants.json` directly rather than importing `src/variant.ts`.
+ *
+ * Not a preference. Expo transpiles this file and then lets Node `require` whatever it
+ * imports, and Node cannot resolve a `.ts` file — importing the typed module killed
+ * `expo prebuild` with "Cannot find module './src/variant'". JSON is the format both
+ * loaders read, so the table is shared and only the lookup is repeated here.
+ *
+ * `test/app-config.test.ts` asserts this function agrees with `configFor` for all three
+ * variants, which is what keeps the repetition from becoming a divergence.
+ */
 export default (): ExpoConfig => {
-  const variant = variantFrom(process.env['APP_VARIANT'])
-  const config = configFor(variant)
+  const variant = process.env['APP_VARIANT']
+  if (variant !== 'dev' && variant !== 'stage' && variant !== 'prod') {
+    throw new Error(
+      `APP_VARIANT must be one of dev, stage, prod; got ${variant === undefined ? 'nothing' : JSON.stringify(variant)}. ` +
+        'Builds set it explicitly — there is no default, because both plausible defaults ship the wrong app.',
+    )
+  }
+  const config = variants[variant]
 
   return {
     name: config.name,
@@ -46,7 +63,10 @@ export default (): ExpoConfig => {
     extra: {
       variant,
       updateChannel: config.updateChannel,
-      apiUrl: apiUrlFrom(process.env),
+      // Absent until a deploy injects it. There is no CloudFront distribution yet and
+      // the project has no custom domain by design, so a per-variant default here would
+      // be an identifier nobody can resolve. M1-07 runs offline and never reads it.
+      apiUrl: process.env['SETLIST_API_URL']?.trim() || null,
     },
   }
 }

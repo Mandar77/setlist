@@ -1,0 +1,24 @@
+{
+  "$comment": "The variant table from PED §292. Data rather than TypeScript because two different loaders have to read it: Vitest and Metro resolve TypeScript, but `expo prebuild` transpiles app.config.ts and then hands its relative imports to Node's require, which cannot resolve a .ts file. JSON is the one format both reach. src/variant.ts wraps this with types and validation; app.config.ts reads it directly, and variant.test.ts asserts the two agree.",
+  "dev": {
+    "variant": "dev",
+    "androidPackage": "com.setlist.app.dev",
+    "scheme": "setlist-dev",
+    "name": "Setlist (dev)",
+    "updateChannel": "dev"
+  },
+  "stage": {
+    "variant": "stage",
+    "androidPackage": "com.setlist.app.stage",
+    "scheme": "setlist-stage",
+    "name": "Setlist (stage)",
+    "updateChannel": "stage"
+  },
+  "prod": {
+    "variant": "prod",
+    "androidPackage": "com.setlist.app",
+    "scheme": "setlist-prod",
+    "name": "Setlist",
+    "updateChannel": "production"
+  }
+}

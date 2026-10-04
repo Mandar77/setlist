@@ -79,10 +79,16 @@ trustPolicy: no-downgrade
 # compatible for everything Babel calls.
 #
 # Delete this once @babel/core depends on semver 7.
+# `uuid` 7.0.3 comes in under the Expo CLI and carries GHSA-w5hq-g745-h8pq (7.5, a
+# missing buffer bounds check in v3/v5/v6 when a `buf` is supplied), fixed in 11.1.1.
+# Same shape as the three above: forward to the fixed version rather than an entry in
+# security/suppressions.yaml, because a fix exists and a suppression should be reserved
+# for the findings where one does not.
 overrides:
   undici-types: '6.23.0'
   qs: '6.16.0'
   semver: '7.8.5'
+  uuid: '11.1.1'
 
 # Sub-dependencies resolved from a git URL, a tarball or a local path rather than the
 # registry. Legitimate uses exist; none of them are here, and each is a way to pull in

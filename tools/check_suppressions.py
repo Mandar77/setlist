@@ -17,6 +17,10 @@ then binds twice over: this script fails on an expired entry, and Trivy's own
 ``expired_at`` stops honouring the rule on the same day, so a forgotten suppression
 surfaces as the finding coming back rather than as nothing at all.
 
+``osv-scanner.toml`` is generated the same way from the ``tool: osv`` entries, and for
+the same reason — osv-scanner reads its own config and would otherwise be a second
+scanner that could be quieted by hand. Its ``ignoreUntil`` carries the expiry across.
+
 Usage:
     python tools/check_suppressions.py [path/to/suppressions.yaml]   # validate + staleness
     python tools/check_suppressions.py --write                       # regenerate
@@ -40,6 +44,7 @@ Entry = dict[str, Any]
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PATH = REPO_ROOT / "security" / "suppressions.yaml"
 TRIVYIGNORE_PATH = REPO_ROOT / ".trivyignore.yaml"
+OSV_CONFIG_PATH = REPO_ROOT / "osv-scanner.toml"
 
 REQUIRED_FIELDS = ("id", "tool", "scope", "reason", "owner", "opened", "expires")
 DEFAULT_MAX_AGE_DAYS = 90
@@ -175,6 +180,54 @@ def render_trivyignore(document: Document) -> str:
     return f"{GENERATED_HEADER}\n{dumped}"
 
 
+OSV_GENERATED_HEADER = """\
+# GENERATED FILE - do not edit.
+#
+# Written from security/suppressions.yaml by tools/check_suppressions.py. Edit the
+# suppression there and run `make suppressions-write`; `make verify` fails if this file
+# and that one disagree, so an OSV finding cannot be silenced without an owner, a reason
+# and an expiry.
+#
+# `ignoreUntil` is the same date as the suppression's `expires`. osv-scanner stops
+# honouring the entry on that day, so a forgotten suppression shows up as the finding
+# coming back rather than as nothing happening.
+"""
+
+
+def render_osv_config(document: Document) -> str:
+    """Render the `osv-scanner.toml` that the `tool: osv` entries describe.
+
+    Written as text rather than through a TOML writer because the shape is three scalars
+    per entry and the standard library has no TOML serializer — adding a dependency to
+    emit nine lines would be the larger risk.
+
+    `ignoreUntil` is spelled as a full RFC 3339 instant: osv-scanner parses it into a
+    `time.Time`, and a bare date leaves the interpretation to the TOML library rather
+    than to this file.
+    """
+    entries: list[Entry] = [
+        entry
+        for entry in (document.get("suppressions") or [])
+        if isinstance(entry, dict) and entry.get("tool") == "osv"
+    ]
+
+    lines: list[str] = [OSV_GENERATED_HEADER]
+    for entry in sorted(entries, key=lambda e: (str(e.get("id")), str(e.get("scope")))):
+        # A pointer, not a copy, for the same reason as the Trivy statement above: the
+        # argument lives in suppressions.yaml where it was reviewed.
+        reason = (
+            f"accepted by @{entry['owner']} until {entry['expires']}"
+            " - see security/suppressions.yaml"
+        )
+        lines.append("[[IgnoredVulns]]")
+        lines.append(f'id = "{entry["id"]}"')
+        lines.append(f"ignoreUntil = {entry['expires']}T00:00:00Z")
+        lines.append(f'reason = "{reason}"')
+        lines.append("")
+
+    return "\n".join(lines)
+
+
 def main(argv: list[str]) -> int:
     """Entry point: validate the suppressions, then write or verify the generated file."""
     args = [a for a in argv[1:] if not a.startswith("--")]
@@ -188,28 +241,37 @@ def main(argv: list[str]) -> int:
             print(f"  - {problem}")
         return 1
 
-    expected = render_trivyignore(load(path))
+    document = load(path)
+    generated = (
+        (TRIVYIGNORE_PATH, render_trivyignore(document)),
+        (OSV_CONFIG_PATH, render_osv_config(document)),
+    )
+
     if write:
-        # newline="\n" because this file is checked in and `make verify` rejects CRLF;
-        # Python's default translation would write it on Windows.
-        TRIVYIGNORE_PATH.write_text(expected, encoding="utf-8", newline="\n")
-        print(f"suppressions OK ({path}); wrote {TRIVYIGNORE_PATH.name}")
+        for target, expected in generated:
+            # newline="\n" because these files are checked in and `make verify` rejects
+            # CRLF; Python's default translation would write it on Windows.
+            target.write_text(expected, encoding="utf-8", newline="\n")
+        names = ", ".join(target.name for target, _ in generated)
+        print(f"suppressions OK ({path}); wrote {names}")
         return 0
 
-    actual = TRIVYIGNORE_PATH.read_text(encoding="utf-8") if TRIVYIGNORE_PATH.exists() else None
-    if actual is None:
-        print(f"{TRIVYIGNORE_PATH.name} is missing - run `make suppressions-write`")
-        return 1
-    if actual != expected:
-        print(
-            f"{TRIVYIGNORE_PATH.name} does not match {path.name}. Either it was edited by "
-            "hand, which is how a finding gets silenced with no owner and no expiry, or "
-            "the suppression changed and the file was not regenerated. Run "
-            "`make suppressions-write`."
-        )
-        return 1
+    for target, expected in generated:
+        actual = target.read_text(encoding="utf-8") if target.exists() else None
+        if actual is None:
+            print(f"{target.name} is missing - run `make suppressions-write`")
+            return 1
+        if actual != expected:
+            print(
+                f"{target.name} does not match {path.name}. Either it was edited by "
+                "hand, which is how a finding gets silenced with no owner and no expiry, "
+                "or the suppression changed and the file was not regenerated. Run "
+                "`make suppressions-write`."
+            )
+            return 1
 
-    print(f"suppressions OK ({path}); {TRIVYIGNORE_PATH.name} is current")
+    names = ", ".join(target.name for target, _ in generated)
+    print(f"suppressions OK ({path}); {names} are current")
     return 0
 
 

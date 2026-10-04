@@ -227,10 +227,10 @@ verify-pins: node_modules ## Resolve every pinned action SHA against the GitHub 
 seed: node_modules ## The seed catalog meets CORE-02's floors
 	$(PNPM) -C tools/seed-catalog exec tsx src/verify-cli.ts
 
-suppressions: ## Fail on expired suppressions, or a .trivyignore.yaml that drifted from them
+suppressions: ## Fail on expired suppressions, or a generated ignore file that drifted from them
 	$(UV) run python tools/check_suppressions.py
 
-suppressions-write: ## Regenerate .trivyignore.yaml from security/suppressions.yaml
+suppressions-write: ## Regenerate .trivyignore.yaml and osv-scanner.toml from security/suppressions.yaml
 	$(UV) run python tools/check_suppressions.py --write
 
 guard: ## Prove the PreToolUse guard still blocks what ADR-005 says it must

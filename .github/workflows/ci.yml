@@ -181,10 +181,15 @@ jobs:
       # Pinned by version, not :latest. A security scanner that changes under you turns
       # an unrelated red build into a mystery, and the usual response to a mystery red
       # is to stop reading it.
+      # `--config` is explicit rather than relying on osv-scanner finding the file by
+      # walking the tree: a config it silently failed to load would turn every
+      # suppression off at once and look exactly like a clean scan that found new
+      # findings. The file is GENERATED from security/suppressions.yaml, so nothing can
+      # be ignored here without an owner, a reason and an expiry.
       - name: OSV scan
         run: |
           docker run --rm -v "$PWD:/src" ghcr.io/google/osv-scanner:v2.2.4 \
-            scan source --recursive /src
+            scan source --recursive --config /src/osv-scanner.toml /src
 
   conformance:
     name: Engine conformance (Node + Chromium)

@@ -7,6 +7,8 @@
  * table itself can be tested without starting Expo.
  */
 
+import variants from '../variants.json'
+
 export const VARIANTS = ['dev', 'stage', 'prod'] as const
 
 export type Variant = (typeof VARIANTS)[number]
@@ -24,35 +26,71 @@ export interface VariantConfig {
 }
 
 /**
- * PED §292, copied field for field.
+ * PED §292, read from `variants.json` rather than written out here.
+ *
+ * The table is data because two loaders need it and they do not agree on what they can
+ * load. Vitest and Metro resolve TypeScript; `expo prebuild` transpiles `app.config.ts`
+ * and then hands its relative imports to Node's `require`, which cannot resolve a `.ts`
+ * file at all — the first version of this file was imported by `app.config.ts` and
+ * prebuild died with "Cannot find module './src/variant'". JSON is the one format both
+ * reach, so the table lives there and this module supplies the types and the validation.
  *
  * Note prod's channel is `production` while its variant is `prod`. That asymmetry is in
- * the PED and is not a typo here, so a test asserts it — otherwise the obvious "fix"
- * would silently point production builds at a channel nothing publishes to.
+ * the PED and is not a typo, so a test asserts it — otherwise the obvious "fix" would
+ * silently point production builds at a channel nothing publishes to.
  */
-const CONFIGS: Readonly<Record<Variant, VariantConfig>> = {
-  dev: {
-    variant: 'dev',
-    androidPackage: 'com.setlist.app.dev',
-    scheme: 'setlist-dev',
-    name: 'Setlist (dev)',
-    updateChannel: 'dev',
-  },
-  stage: {
-    variant: 'stage',
-    androidPackage: 'com.setlist.app.stage',
-    scheme: 'setlist-stage',
-    name: 'Setlist (stage)',
-    updateChannel: 'stage',
-  },
-  prod: {
-    variant: 'prod',
-    androidPackage: 'com.setlist.app',
-    scheme: 'setlist-prod',
-    name: 'Setlist',
-    updateChannel: 'production',
-  },
+/**
+ * Read the table, checking it rather than casting it.
+ *
+ * TypeScript types a JSON import structurally, so `variant: "dev"` arrives as `string`
+ * and the obvious `as Record<Variant, VariantConfig>` would make the compiler agree with
+ * whatever the file happens to contain. Since this is now a data file that a human can
+ * edit without the compiler watching, validating it is the cheaper half of the trade —
+ * and the check runs at import time, so a malformed table fails the build rather than
+ * producing an APK with an empty package id.
+ */
+export function readTable(source: unknown): Readonly<Record<Variant, VariantConfig>> {
+  if (typeof source !== 'object' || source === null) {
+    throw new TypeError('variants.json must be an object')
+  }
+  const rows = source as Record<string, unknown>
+  const table = {} as Record<Variant, VariantConfig>
+
+  for (const variant of VARIANTS) {
+    const entry = rows[variant]
+    if (typeof entry !== 'object' || entry === null) {
+      throw new TypeError(`variants.json has no entry for ${variant}`)
+    }
+    const row = entry as Record<string, unknown>
+
+    const field = (name: string): string => {
+      const value = row[name]
+      if (typeof value !== 'string' || value.trim() === '') {
+        throw new TypeError(`variants.json: ${variant}.${name} must be a non-empty string`)
+      }
+      return value
+    }
+
+    // The entry names itself, so a copy-pasted row that was never re-labelled is caught
+    // here instead of shipping two variants with one package id.
+    if (row['variant'] !== variant) {
+      throw new TypeError(
+        `variants.json: the ${variant} entry declares variant ${JSON.stringify(row['variant'])}`,
+      )
+    }
+
+    table[variant] = {
+      variant,
+      androidPackage: field('androidPackage'),
+      scheme: field('scheme'),
+      name: field('name'),
+      updateChannel: field('updateChannel'),
+    }
+  }
+  return Object.freeze(table)
 }
+
+const CONFIGS: Readonly<Record<Variant, VariantConfig>> = readTable(variants)
 
 /**
  * Read `APP_VARIANT`, refusing anything that is not one of the three.
