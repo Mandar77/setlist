@@ -24,6 +24,7 @@ import { z } from 'zod'
 
 import { ExtractionMethod, Qualifier, RejectReason } from './enums.js'
 import { dedupeKey, normalizeDocument, pyStrip } from './normalize.js'
+import type { OrientationVerdict } from './orientation.js'
 import { sha256Hex } from './sha256.js'
 
 /** A title longer than this is prose that a parser mis-split, not a song title. */
@@ -215,6 +216,16 @@ export interface ParsedItem {
   readonly parser: string
   /** Spans of the other occurrences collapsed into this item by deduplication. */
   readonly duplicates: readonly Span[]
+  /**
+   * The swapped reading, when ADR-002 could not settle the orientation above 0.8.
+   *
+   * It shares this item's span, which is the property that makes it usable: swapping
+   * which side is called the title moves no offset, so the alternate is grounded in
+   * exactly the same text and ADR-007 holds for both readings. Matching checks it
+   * against free catalogs before any YouTube quota is spent (ADR-002 step 5), and
+   * autonomous creation never proceeds while it is still set.
+   */
+  readonly alternate?: { readonly title: string; readonly artist: string | null }
 }
 
 export function makeParsedItem(fields: {
@@ -334,6 +345,17 @@ export interface ExtractionResult {
    * in the residual pass (PRD §7.9.3) — nothing else is.
    */
   readonly residual: readonly Span[]
+  /**
+   * How the document's line orientation was decided (ADR-002), or null when there was
+   * nothing to decide it from.
+   *
+   * Null is the oracle's case and the common one for a bare paste with no `sourceKind`:
+   * no explicit cue, no document convention, no source-kind prior. The field exists so
+   * matching can see the confidence and the basis — step 5 of ADR-002 checks the
+   * alternate reading against free catalogs before spending any YouTube quota, and it
+   * needs to know whether the orientation was evidence or a guess.
+   */
+  readonly orientation: OrientationVerdict | null
   readonly rejected: readonly RejectedItem[]
   readonly stats: ExtractionStats
 }

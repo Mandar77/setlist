@@ -10,8 +10,10 @@
 
 import { deterministicConfidence } from './confidence.js'
 import { dedupe } from './dedupe.js'
-import { ExtractionMethod } from './enums.js'
+import { ExtractionMethod, type SourceKind } from './enums.js'
 import { ground } from './grounding.js'
+import { applyOrientation } from './orientation-pass.js'
+import type { OrientationVerdict } from './orientation.js'
 import {
   documentFromRaw,
   lineSpan,
@@ -73,10 +75,30 @@ function utf8Length(text: string): number {
   return bytes
 }
 
+/**
+ * Attach the swapped reading to every pair item, when the orientation was a guess.
+ *
+ * Only below ADR-002's 0.8 threshold, and only where there is a second side to swap: a
+ * bare title has no alternate, and an item whose orientation came from an explicit cue
+ * does not need one. The span is reused rather than recomputed, which is the whole
+ * reason this is safe — see the field's own comment.
+ */
+function withAlternates(
+  items: readonly ParsedItem[],
+  verdict: OrientationVerdict | null,
+): ParsedItem[] {
+  if (verdict === null || !verdict.emitAlternate) return [...items]
+  return items.map(item =>
+    item.artist === null
+      ? item
+      : Object.freeze({ ...item, alternate: { title: item.artist, artist: item.title } }),
+  )
+}
+
 /** Run the deterministic extraction pass over a document. */
 export function extractDeterministic(
   source: string | SourceDocument,
-  options: { maxInputBytes?: number } = {},
+  options: { maxInputBytes?: number; sourceKind?: SourceKind | null } = {},
 ): ExtractionResult {
   const maxInputBytes = options.maxInputBytes ?? DEFAULT_MAX_INPUT_BYTES
 
@@ -90,15 +112,25 @@ export function extractDeterministic(
   }
 
   const lines = splitLines(document.text)
-  const { matches, consumed } = collectMatches(lines)
+  const { matches: parsed, consumed } = collectMatches(lines)
+
+  // ADR-002. Returns `parsed` untouched when the ladder has nothing to go on, which is
+  // every input the frozen oracle can express — see orientation-pass.ts.
+  const { matches, verdict: orientation } = applyOrientation(
+    lines,
+    parsed,
+    options.sourceKind ?? null,
+  )
+
   const { items, rejected } = groundAll(document, matches)
-  const deduped = dedupe(items)
+  const deduped = withAlternates(dedupe(items), orientation)
 
   const residual = residualSpans(lines, matches, consumed)
   return Object.freeze({
     document,
     items: Object.freeze(deduped),
     residual,
+    orientation,
     rejected: Object.freeze(rejected),
     stats: Object.freeze({
       linesTotal: lines.length,
@@ -174,7 +206,7 @@ function firstContentLine(lines: Line[]): number {
 /** Score and ground each match, splitting survivors from rejections. */
 function groundAll(
   document: SourceDocument,
-  matches: LineMatch[],
+  matches: readonly LineMatch[],
 ): { items: ParsedItem[]; rejected: RejectedItem[] } {
   const items: ParsedItem[] = []
   const rejected: RejectedItem[] = []
@@ -216,7 +248,7 @@ function groundAll(
  */
 function residualSpans(
   lines: Line[],
-  matches: LineMatch[],
+  matches: readonly LineMatch[],
   consumed: Set<number>,
 ): readonly Span[] {
   const starts = lines.map(line => line.offset)

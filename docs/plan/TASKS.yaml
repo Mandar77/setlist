@@ -788,7 +788,7 @@ tasks:
   milestone: CORE
   title: Orientation resolution, parser side (ADR-002)
   deps: [CORE-04]
-  status: doing
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -807,7 +807,12 @@ tasks:
     - "rung 2 carries the weight, as the ADR predicted: repetitionSignal counts distinct FOLDED values per side, and the side with fewer distinct values is the artist, because a real tracklist repeats its artist and not its titles. Folded so `OASIS ` and `Oasis` are one artist - the same key the deduper uses"
     - "each rung is tested for what it REFUSES as well as what it decides: contradicting cues fall through rather than picking one, a single line has no convention, and neither-side-repeats returns null instead of guessing. A ladder whose lower rungs fire when a higher one should have looks identical to a working one on the easy cases"
     - "the alternate threshold is asserted as a PROPERTY - prior < 0.8 <= convention < explicit - so moving any one of the three numbers without the others breaks a test rather than silently changing which documents get a second reading"
-    - "REMAINING: thread sourceKind through extractDeterministic and SourceDocument; feed dash-line observations into the ladder; emit the swapped reading as `alternate` with a span that still passes ADR-007 grounding; measure parser-only orientation accuracy on the generated bare-dash set against the 90% floor"
+    - "sourceKind threaded through extractDeterministic; orientation-pass.ts builds the observations from the parser's own output and rewrites the dash matches that disagree with the document-level verdict. The verdict rides on ExtractionResult so matching can see the basis and confidence, which ADR-002 step 5 needs"
+    - "only DASH matches are rewritten. A `by` line, a quoted title and a CSV header state their own orientation - they are rung-1 cues, they drive the verdict, and rewriting them from a document-level statistic would be overruling the document with an average of itself"
+    - "ACCURACY 95.3% (142/149) on the 25 bare-dash cases, against the 90% floor. Guarded two ways: a control asserts the corpus is non-empty, because 0/0 would read as 100%, and a second test asserts the ladder ACTUALLY decided these - without it the number would pass even if the pass were a no-op, since the artist-first parser default happens to be right for this corpus"
+    - "the alternate reading is attached below 0.8 and shares the item's span, which is what makes it usable: swapping which side is the title moves no offset, so both readings are grounded in the same text and ADR-007 holds for each. Proven - spans identical before and after, zero rejected"
+    - "FOUND BY THE TESTS: the first version let rungs 1 and 2 fire without a sourceKind, which is what ADR-002 literally describes, and four pipeline tests broke instantly. The oracle has no source kind, so `the ladder may fire on evidence alone` means `the port answers differently from the oracle on inputs the oracle can express`. The whole pass is now gated on sourceKind - stricter than the ADR, and the only version that keeps ADR-001's differential measuring the port"
+    - "differential intact: 736 core tests, `make verify` green over the 8 golden cases and 4,900 normalize records, 10,000 pipeline digests current, golden/diff-allowlist.yaml still empty"
 
 - id: CORE-06
   milestone: CORE

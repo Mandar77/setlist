@@ -242,6 +242,25 @@ function splitOnce(text: string): [string, string] | null {
   return [text.slice(0, match.index), text.slice(match.index + match[0].length)]
 }
 
+/**
+ * The two sides of a dash line, in the order they appear in the text.
+ *
+ * `parseDash` returns a title and an artist, which is the *interpreted* result — by then
+ * `direction()` has already decided which side was which. ADR-002's rung 2 needs the
+ * uninterpreted left and right, because the statistic it computes is positional: the
+ * column that repeats is the artist, whichever column that turns out to be.
+ *
+ * Returns null for anything that is not a dash pair, so callers can map over every match
+ * without filtering first.
+ */
+export function dashSides(line: Line): [string, string] | null {
+  const parts = splitOnce(line.text)
+  if (parts === null) return null
+  const left = strip(parts[0])
+  const right = strip(parts[1])
+  return left && right ? [left, right] : null
+}
+
 /** Parse `Artist - Title` and its dash/pipe/bullet separator variants. */
 export function parseDash(line: Line): LineMatch | null {
   const parts = splitOnce(line.text)

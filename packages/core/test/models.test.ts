@@ -310,6 +310,7 @@ describe('results', () => {
     document,
     items: [item('Da Funk', 0.9, 0, 7), item('Genesis', 0.55, 8, 15)],
     residual: [makeSpan(16, 29)],
+    orientation: null,
     rejected: [],
     stats: EMPTY_STATS,
   }
