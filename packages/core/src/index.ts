@@ -8,6 +8,8 @@
  */
 
 export * from './confidence.js'
+// CORE-06. Exported so M1-04's Hermes self-test screen can import the identical suite.
+export * from './conformance.js'
 export * from './dedupe.js'
 export * from './enums.js'
 export * from './grounding.js'

@@ -818,7 +818,7 @@ tasks:
   milestone: CORE
   title: Engine conformance on Node and Chromium
   deps: [CORE-04]
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -826,7 +826,16 @@ tasks:
     - NFKC and regex Unicode property escape behaviour asserted explicitly on both
     - the conformance suite is a reusable export, so M1-04 can run it on Hermes
   verify: pnpm -C packages/core test:conformance
-  evidence: []
+  evidence:
+    - "src/conformance.ts is the suite and it is PURE - cases in, report out, no filesystem. That is what makes the ADR-001 claim checkable: a suite that read golden/ with node:fs could only ever run in one of the three engines it is supposed to compare"
+    - "Node runner reads golden/oracle and calls it; the Chromium runner bundles the SAME module with esbuild and evaluates it in a Playwright page, so both engines run identical code rather than two implementations that agree. 18 tests, all 8 frozen oracle outputs reproduced in both"
+    - "exported from packages/core so M1-04's Hermes self-test screen imports the same function - the reusable-export done_when, and the engine where ADR-001 actually expects divergence"
+    - "NFKC and regex property escapes are asserted DIRECTLY rather than left to surface as a mangled title: composition, compatibility folding, ligature expansion, canonical reordering, plus the Lu, L, N and Cc property escapes against Greek, Cyrillic, CJK and Arabic-Indic, and lookbehind. A stubbed Hermes normalize that returned its input would pass every other test in this repo"
+    - "the empty-case-list control: runConformance returns ok=false for zero cases, because a runner that failed to load its data reporting a clean sweep of nothing is the single most repeated bug here. Asserted explicitly, alongside a corrupted-expectation case that must report a mismatch rather than throw"
+    - "FOUND WHILE WRITING IT: the formatter rewrote the Unicode escapes into the characters they stand for, so `e + combining acute` became a precomposed e-acute and the NFKC composition check compared a string to ITSELF. Every operand is built with String.fromCodePoint now, and a test asserts the two operands differ before asserting that normalize maps one to the other"
+    - "and the same pass turned a U+001F escape into a literal control character in the source. Scanned clean afterwards; the only non-ASCII left in the file is em-dashes in prose"
+    - "excluded from `make verify` and from both Stryker configs - it downloads and launches a browser, and verify has a five-minute budget and no Docker. Its own CI job installs chromium and runs it, and check_workflows.js caught the new job missing from the required-check list the moment it was added"
+    - "it needed its own vitest config: naming the browser file on the command line ran 7 tests instead of 18, because vitest.config.ts EXCLUDES it and an exclude beats a filename argument. That looked exactly like a pass"
 
 - id: CORE-07
   milestone: CORE

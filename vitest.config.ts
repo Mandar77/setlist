@@ -48,6 +48,11 @@ export default defineConfig({
       // checkers, not by vitest.
       'tools/toolchain-smoke/fixtures/**',
       'tests/fixtures/**',
+      // The Chromium conformance runner downloads and launches a browser, which `make
+      // verify` must not need — it has a five-minute budget and runs without Docker or
+      // a browser. CORE-06 runs it through `pnpm -C packages/core test:conformance`,
+      // after `playwright install chromium`, in its own CI job.
+      'packages/core/test/conformance.browser.test.ts',
     ],
   },
 })

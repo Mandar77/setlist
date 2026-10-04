@@ -180,6 +180,30 @@ jobs:
           docker run --rm -v "$PWD:/src" ghcr.io/google/osv-scanner:v2.2.4 \
             scan source --recursive /src
 
+  conformance:
+    name: Engine conformance (Node + Chromium)
+    runs-on: ubuntu-latest
+    # Its own job because it needs a browser, and `make verify` must not: that gate has a
+    # five-minute budget and runs without Docker. ADR-001 requires parity on all three
+    # engines the core runs on; this covers two of them, and M1-04 adds Hermes using the
+    # same exported suite.
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Chromium only. The core ships to Android and the web, and a WebKit download buys
+      # nothing CORE-06 asks for.
+      - name: Install Chromium
+        run: pnpm -C packages/core exec playwright install --with-deps chromium
+
+      - name: Node and Chromium agree on the full golden set
+        run: pnpm -C packages/core test:conformance
+
   resolvable:
     name: Lockfiles resolve under the supply-chain policies
     runs-on: ubuntu-latest

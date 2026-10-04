@@ -23,7 +23,12 @@ export default mergeConfig(
   base,
   defineConfig({
     test: {
-      exclude: ['**/node_modules/**', '**/dist/**', 'test/pipeline-10k.test.ts'],
+      exclude: [
+        '**/node_modules/**',
+        '**/dist/**',
+        'test/pipeline-10k.test.ts',
+        'test/conformance.browser.test.ts',
+      ],
       coverage: { enabled: false },
     },
   }),

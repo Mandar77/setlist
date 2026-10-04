@@ -236,6 +236,7 @@ add_ruleset protect-develop '{
         {"context": "Trivy"},
         {"context": "Ledger, suppressions, secrets, shell"},
         {"context": "Zero-cost guardrails (cdk-nag + KICS)"},
+        {"context": "Engine conformance (Node + Chromium)"},
         {"context": "Dependabot auto-merge policy"}
       ]
     }}

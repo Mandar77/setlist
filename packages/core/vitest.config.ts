@@ -16,7 +16,11 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   test: {
     include: ['test/**/*.test.ts'],
-    exclude: ['**/node_modules/**', '**/dist/**'],
+    // The Chromium conformance runner is excluded from the default run: it downloads and
+    // launches a browser, and `make verify` must stay fast and dependency-light. It runs
+    // under `pnpm -C packages/core test:conformance`, which CI calls after
+    // `playwright install chromium`.
+    exclude: ['**/node_modules/**', '**/dist/**', 'test/conformance.browser.test.ts'],
 
     // The differential suites parse a 3 MB fixture and run the pipeline ten thousand
     // times. Comfortably under this, but not under the 5s default.

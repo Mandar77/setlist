@@ -21,6 +21,7 @@ export default mergeConfig(
   defineConfig({
     test: {
       exclude: [
+        'test/conformance.browser.test.ts',
         '**/node_modules/**',
         '**/dist/**',
         'test/differential.test.ts',
