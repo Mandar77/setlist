@@ -210,6 +210,50 @@ jobs:
       - name: Node and Chromium agree on the full golden set
         run: pnpm -C packages/core test:conformance
 
+  ocr-golden:
+    name: OCR golden images (M2-01)
+    runs-on: ubuntu-latest
+    # "Images are generated in CI, never committed" is the done_when, and this job is the
+    # half that makes it true rather than merely allowed. The repository tracks only the
+    # summary in golden/ocr/corpus.json; the 620 images exist because this runs.
+    #
+    # Its own job for the same reason as conformance above: it needs Chromium, and
+    # `make verify` must not. `make golden-check` is the part that lives in the fast gate,
+    # and it is pure — it rebuilds the plan and compares the committed summary.
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm -C packages/core exec playwright install --with-deps chromium
+
+      # The renderer's own suite: a real JPEG at the planned size, byte-identical on a
+      # rerun, and the overflow guard refusing a document whose text does not fit.
+      - name: Renderer behaviour
+        run: pnpm -C tools/golden-images test:render
+
+      - name: Render the corpus
+        run: pnpm -C tools/golden-images exec tsx src/cli.ts
+
+      # Rendering writes the summary too. If what it wrote differs from what is committed,
+      # the corpus changed without being regenerated — the same staleness check `make
+      # golden-check` runs, asserted here against a run that actually drew the images.
+      - name: The committed summary matches what rendering produced
+        run: git diff --exit-code -- golden/ocr/corpus.json
+
+      - name: Nothing generated became tracked
+        run: |
+          if [ -n "$(git status --porcelain -- golden/ocr-generated)" ]; then
+            echo "golden/ocr-generated is not ignored — images would be committable"
+            git status --porcelain -- golden/ocr-generated
+            exit 1
+          fi
+
   dynamodb-local:
     name: ETL against DynamoDB Local
     runs-on: ubuntu-latest

@@ -74,15 +74,26 @@ cov: ## Unit tests with the coverage gate (>=85% overall, >=90% core)
 mutate: ## Mutation testing on the core (target >=70%)
 	$(UV) run mutmut run --paths-to-mutate tools/oracle-py/src
 
-golden: node_modules ## Regenerate golden/extraction/generated.json from the seed catalog
+## Both golden sets, from the one seed catalog.
+##
+## The text corpus (CORE-03) is committed whole. The OCR corpus (M2-01) is not: its
+## images are rebuilt here into golden/ocr-generated/, which is git-ignored, and only a
+## summary carrying the counts, the font licences and a digest of the full manifest is
+## tracked. Rendering needs Chromium — `pnpm -C packages/core exec playwright install
+## chromium` — which is why it lives here and not in `verify`.
+golden: node_modules ## Regenerate both golden sets from the seed catalog
 	$(PNPM) -C tools/golden-gen exec tsx src/cli.ts
+	$(PNPM) -C tools/golden-images exec tsx src/cli.ts
 
 ## The committed corpus must be what the generator produces now. Same arrangement as the
 ## KICS queries, the bootstrap template and the oracle's frozen outputs: the artifact is
 ## committed so it can be read and reviewed, and a check proves nobody edited it by hand
 ## and that it did not drift when the generator or the seed changed.
-golden-check: node_modules ## generated.json is current with its generator and the seed
+## Both checks are pure: they rebuild from the seed and compare bytes, with no browser
+## and no rendering, so they fit inside `verify`'s five-minute budget.
+golden-check: node_modules ## Both golden sets are current with their generators and the seed
 	$(PNPM) -C tools/golden-gen exec tsx src/cli.ts --check
+	$(PNPM) -C tools/golden-images exec tsx src/cli.ts --check
 
 ## ------------------------------------------------------------------ quality
 

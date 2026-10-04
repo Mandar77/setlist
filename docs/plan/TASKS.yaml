@@ -1079,7 +1079,7 @@ tasks:
   milestone: M2
   title: OCR golden generator
   deps: [CORE-02]
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -1088,7 +1088,22 @@ tasks:
     - augmentations - rotation up to 7 degrees, perspective, blur, glare, JPEG noise, ruled paper, crossed-out lines
     - deterministic for a fixed seed; images are generated in CI, never committed
   verify: make golden
-  evidence: []
+  evidence:
+    - "620 images - 220 handwriting, 220 print, 180 screenshot - rendered in 45s. Ground truth comes from golden-gen's truthFor and isUsable, IMPORTED rather than reimplemented: both corpora must agree about what the right answer is, and `truth.ts` exists because two copies of a subtle rule drift"
+    - "TWO truths, because a struck-out line has two right answers. OCR should read it - the ink is on the page - and the extractor should not return it - the writer crossed it out. `line.text` is what CER and WER are graded on, `songTruth` is what song-level F1 is graded on, and a corpus with one truth field would have to be wrong about one of them"
+    - "the first version CLIPPED. Lines were drawn with overflow:hidden and a long credit ran off the right edge - `Killer Cars - Radiohead` came out as `...- Radio` while the manifest still claimed the whole string. Every one of those images was ground truth for text that was not on the page, and CER would have been measured against characters no engine could read. A corpus that lies in that direction is worse than none, because the number it produces looks fine"
+    - "fixed in three parts, the third being the one that matters: text wraps instead of clipping, the font size is derived from the line count with room for every line to wrap once, and the renderer MEASURES the laid-out page and refuses to write an image whose text did not fit. The arithmetic is a prediction; the measurement is the gate"
+    - "that arithmetic was wrong by 4.6px and plan.test.ts found it - fontSizeFor divided by the unrounded 1.65 ratio while the renderer rounded to whole pixels, so at nine lines 72.6 became 73 and the page overflowed. The size is now searched down against the number the renderer will actually use, so the two cannot drift"
+    - "14 @fontsource packages, every licence OFL-1.1 or Apache-2.0 READ from each package's own metadata.json rather than transcribed - `licences recorded` is then a fact about what is installed instead of a list that goes stale the first time a font is swapped. fonts.test.ts exercises the refusal with a GPL fixture, not only the acceptance"
+    - "three of the fourteen upstream attributions carry the designer's email and check_no_secrets.py caught them. Redacted at load time so no downstream artifact can carry one; an allowlist entry would have been the same finding with the gate switched off. The licence needs the copyright holder's NAME, which survives"
+    - "coverage is decided before rendering, from each font's published unicode.json, because CSS cannot switch font fallback off. A Japanese title handed to Rock Salt does not draw tofu - Chromium silently substitutes a system font, which both falsifies the manifest and puts glyphs from an unvetted font into a corpus this public repository publishes"
+    - "the cost of that is RECORDED rather than hidden: 1,719 of 1,977 usable seed rows are drawable, 258 are not, almost all CJK and Hangul. @fontsource/noto-sans-jp is 78 MB unpacked and its siblings 50 and 73 MB, which is not a devDependency for a corpus rebuilt on every CI run. The number is in corpus.json and moves when the font set does"
+    - "the committed artifact is a 4 KB summary plus a SHA-256 of the 2.5 MB manifest, not the manifest. Rebuilding and comparing one hash asserts that all 620 images, every line of text and every augmentation parameter came out identical; an eye passing over a 2.5 MB diff asserts that somebody scrolled"
+    - "determinism is stated at two levels because only one of them is portable. The plan is pure data from one seed and is identical on Windows and Linux CI, which is what lets golden-check run in the five-minute gate without a browser. The pixels are deterministic per platform and browser build - FreeType is not byte-identical across operating systems - so images are rebuilt rather than compared across machines, and the browser suite asserts a rerun is byte-identical"
+    - "screenshots carry no rotation, tilt, glare or ruled paper. A framebuffer copy cannot have them, and grading OCR on a distortion the capture pipeline can never receive makes the number mean less rather than more"
+    - "glare was capped after it ERASED text: at 0.86 alpha it washed the top third of a printed sheet to about 14% contrast. Ground truth for erased text grades every engine as equally wrong and says nothing about which is better, so an augmentation is useful while it degrades and useless once it erases"
+    - "Chromium via the Playwright already pinned for CORE-06, so this is a new USE rather than a new dependency. The alternatives were a native image library - a platform binary and a postinstall script, both of which this repo blocks - or writing a rasterizer, which would make the OCR accuracy gate measure the rasterizer's quirks with nothing to say which"
+    - "three gates fired during the work and each was a real miss: check_workflows.js required the new CI job be a required status check (ADR-011), toolchain-smoke caught tools/golden-images missing from the root tsconfig references, and not-committed.test.ts asks git what it tracks - with the complement, so a `git ls-files` returning nothing at all would fail rather than pass"
 
 - id: M2-02
   milestone: M2

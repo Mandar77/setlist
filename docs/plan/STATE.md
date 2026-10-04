@@ -1,11 +1,27 @@
 # Autopilot state
 
-Milestone: M0 | Last done: M0A-05 | Next: VERIFY-PINS and HYG-07, then the critical path | Blocked: 31 tasks — M0B-\* + M1-02/03 on H1
+Milestone: M2 | Last done: M2-01 | Next: **nothing is selectable** — every remaining task waits on the human session H1, on [ADR-008](../adr/0008-free-tier-gate-vs-ped-volumes.md), or on [issue #17](https://github.com/Mandar77/setlist/issues/17) | Blocked: 35 tasks, nearly all on H1
 
-Metrics: coverage 95% (Python core), 96.0% stmts / 90.7% branches (`packages/core`) | Stryker 55.4%, now an [ADR-010](../adr/0010-mutation-floor-ratchet.md) ratchet with the 70% target carried to CORE-04b, which blocks CORE-07 | extraction P=0.988 R=0.982 F1=0.985 on 319 generated clean cases, 1.00 on the 8 hand-written | free-tier max 160% of dev's YouTube share (see ADR-008) | quarantined tests 0 | `make verify` ~60s
+Metrics: coverage 95% (Python core), 96.0% stmts / 90.7% branches (`packages/core`) | Stryker 55.4%, now an [ADR-010](../adr/0010-mutation-floor-ratchet.md) ratchet with the 70% target carried to CORE-04b, which blocks CORE-07 | extraction P=0.988 R=0.982 F1=0.985 on 319 generated clean cases, 1.00 on the 8 hand-written | OCR golden set 620 images across 3 classes, 14 OFL/Apache faces, 1,719 of 1,977 seed rows drawable | free-tier max 160% of dev's YouTube share (see ADR-008) | quarantined tests 0 | `make verify` ~60s
 
 Notes:
 
+- **The ledger has no selectable work left.** 31 done, 35 blocked, 12 waiting on a
+  dependency that is itself blocked. Everything still open needs one of three things that
+  the loop cannot supply: the human's AWS/GitHub/Expo session (H1), the ADR-008 decision,
+  or issue #17. Three tasks are marked blocked on evidence rather than guesswork —
+  M0A-06, M1-01 and M6-02, whose work is *finished* but whose `verify` is `make estimate`
+  or `make preflight`, and those exit 1 on ADR-008's seven rows.
+- **The OCR golden set is generated** (M2-01): 620 images — 220 handwriting, 220 print,
+  180 screenshot — drawn in Chromium from 14 OFL/Apache faces, with ground truth taken
+  from the same seed and the same `truthFor` the text corpus uses. Two things are worth
+  carrying forward. **A struck-out line has two right answers**: OCR must read it, the
+  extractor must not return it, so the manifest carries `line.text` for CER/WER and
+  `songTruth` for song-level F1. And **the first version clipped** — a long credit ran off
+  the right edge while the manifest still claimed the whole string, which is ground truth
+  for characters no engine could read. The renderer now measures the laid-out page and
+  refuses to write an image whose text did not fit; the arithmetic that was supposed to
+  prevent it was itself wrong by 4.6px, and a test found that.
 - **M0a is complete except M0A-05 and M0A-06.** PREP-01/02/03 and M0A-01/02/03/04/07/08/09/10
   are done: toolchain, CDK app, the cdk-nag pack, the KICS pack, the account bootstrap
   template, seven workflows, the Session 1 scripts and two canary fixtures.

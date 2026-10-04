@@ -40,6 +40,9 @@
       "path": "tools/golden-gen"
     },
     {
+      "path": "tools/golden-images"
+    },
+    {
       "path": "tools/seed-catalog"
     },
     {

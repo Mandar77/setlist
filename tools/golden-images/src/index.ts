@@ -1,0 +1,63 @@
+export {
+  ALLOWED_LICENCES,
+  coverageReport,
+  covers,
+  fontFrom,
+  loadFont,
+  parseUnicodeRange,
+  redactEmails,
+  subsetFile,
+  subsetsFor,
+  type CoverageReport,
+  type Font,
+  type FontCategory,
+  type FontsourceMetadata,
+  type FontSubset,
+} from './fonts.js'
+
+export {
+  CLASS_COUNTS,
+  IMAGE_CLASSES,
+  LINE_HEIGHT_RATIO,
+  MAX_CREDIT_CHARS,
+  MAX_ROTATION_DEG,
+  OCR_CORPUS_SEED,
+  SHEET_HEIGHT_FRACTION,
+  SHEET_WIDTH_FRACTION,
+  WRAP_BUDGET_ROWS,
+  fontSizeFor,
+  lineHeightFor,
+  maxLinesFor,
+  paddingFor,
+  planCorpus,
+  plannedFontPackages,
+  sheetFractionFor,
+  songTruth,
+  usableHeight,
+  type Augmentation,
+  type ImageClass,
+  type ImageSpec,
+  type PlannedLine,
+} from './plan.js'
+
+export {
+  buildManifest,
+  buildSummary,
+  countsByClass,
+  serialize,
+  serializeSummary,
+  sha256,
+  type AugmentationTally,
+  type Summary,
+  type FontRecord,
+  type Manifest,
+} from './manifest.js'
+
+export {
+  documentFor,
+  fileNameFor,
+  openRenderer,
+  renderOne,
+  type RenderedImage,
+  type Renderer,
+} from './render.js'

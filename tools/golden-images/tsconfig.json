@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "docs": [
+    "References golden-gen: the OCR corpus reuses its truth rules and its PRNG rather",
+    "than keeping a second copy of either. Nothing else is shared.",
+    "",
+    "`lib` includes DOM, which packages/core deliberately refuses. The reason differs:",
+    "the core must not touch a browser global because it ships to Hermes, while this is",
+    "a Node tool whose `page.evaluate` callbacks are compiled here and executed inside",
+    "Chromium. Without DOM they would be untyped, which is how an overflow check that",
+    "silently measures nothing gets written."
+  ],
+
+  "extends": "../../tsconfig.base.json",
+  "references": [{ "path": "../golden-gen" }],
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

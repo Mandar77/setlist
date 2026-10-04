@@ -53,6 +53,9 @@ export default defineConfig({
       // a browser. CORE-06 runs it through `pnpm -C packages/core test:conformance`,
       // after `playwright install chromium`, in its own CI job.
       'packages/core/test/conformance.browser.test.ts',
+      // Same reason, for the OCR golden generator: it launches Chromium to draw the
+      // corpus. `pnpm -C tools/golden-images test:render` runs it in its own CI job.
+      'tools/golden-images/test/render.browser.test.ts',
     ],
   },
 })

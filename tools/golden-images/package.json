@@ -1,0 +1,38 @@
+{
+  "name": "@setlist/golden-images",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Generates the OCR golden image set from the seed catalog: a committed manifest of ground truth, and images rendered from it in CI.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --build",
+    "test": "vitest run",
+    "test:render": "vitest run --config vitest.render.config.ts",
+    "generate": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@setlist/golden-gen": "workspace:*"
+  },
+  "devDependencies": {
+    "@fontsource/architects-daughter": "5.3.0",
+    "@fontsource/caveat": "5.3.0",
+    "@fontsource/homemade-apple": "5.3.0",
+    "@fontsource/indie-flower": "5.3.0",
+    "@fontsource/inter": "5.3.0",
+    "@fontsource/lora": "5.3.0",
+    "@fontsource/noto-sans": "5.3.0",
+    "@fontsource/open-sans": "5.3.0",
+    "@fontsource/patrick-hand": "5.3.0",
+    "@fontsource/reenie-beanie": "5.3.0",
+    "@fontsource/roboto": "5.3.0",
+    "@fontsource/roboto-mono": "5.3.0",
+    "@fontsource/rock-salt": "5.3.0",
+    "@fontsource/shadows-into-light": "5.3.0",
+    "@types/node": "22.20.4",
+    "playwright": "1.63.0",
+    "tsx": "4.23.15"
+  }
+}
