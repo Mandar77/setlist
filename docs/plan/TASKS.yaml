@@ -1045,8 +1045,13 @@ tasks:
   milestone: M1
   title: Offline paste-text to parsed-song-list screen, on Hermes
   deps: [M1-01, CORE-05]
-  status: todo
-  blocked_on: null
+  # The WORK is finished and proven on the CI emulator (see evidence). This is `blocked`
+  # rather than `done` only because M1-01 is, and M1-01 is blocked on an Expo access
+  # token a human has to create (issue #18). Marking this done would mean marking M1-01
+  # done, and M1-01's third done_when - `eas build --local` - genuinely is not met.
+  # Same shape as M6-02 before ADR-008 landed: complete, waiting on something outside it.
+  status: blocked
+  blocked_on: H1
   not_before: null
   # The first thing in this project a person can actually use, and it needs no AWS, no
   # sign-in and no OCR. It is also the first time the core runs on the engine it will
@@ -1061,7 +1066,18 @@ tasks:
     - Maestro drives it on the CI emulator with a fixed input and asserts the parsed output
     - a paste that parses to nothing says so, rather than showing an empty screen
   verify: pnpm -C mobile test
-  evidence: []
+  evidence:
+    - "the Maestro flow passes on the CI emulator (run 37179612448): paste 'Queen - Bohemian Rhapsody', assert the title, the artist, the SOURCE LINE and the confidence; add a second line and assert '2 songs'; add a '(Live)' qualifier and assert it is peeled out as a hint; erase and paste prose, and assert 'No songs found' with '0 songs'"
+    - "every rule lives in parse.ts as a pure function and is tested there - App.tsx is layout and two pieces of state. 36 unit tests cover what an emulator run should not have to"
+    - "GROUNDING IS STRUCTURAL, not a filter: the view reads `result.items` and never `result.rejected`, so no code path could render an ungrounded claim. A UI-level `if (item.grounded)` would work until somebody added a second render path"
+    - "the source line is sliced from the NORMALIZED text the span indexes, not from the raw paste. Correct on ASCII either way, which is why the test uses U+FB01 - NFKC expands the ligature, so every span after it sits one position further along, and slicing raw would survive every casual test and mangle exactly that line. The test also asserts normalization really did change the length, so it cannot pass vacuously"
+    - "no network of any kind, structurally: this file imports parse.ts and React Native and nothing on either path reaches a network. There is no fetch, no client, and the API URL the app carries for later screens is never read here - which is what lets the app ship useful before any backend exists"
+    - "Hermes is proven by the artifact rather than asserted: the release bundle is 2.8MB of .hbc, Hermes bytecode, built from the same packages/core the Lambdas import"
+    - "the empty-parse case is a RESULT the screen states, not an absence the user has to interpret - an empty list is indistinguishable from a broken screen"
+    - "an over-limit paste is explained rather than thrown: extractDeterministic throws InputTooLargeError by contract, and letting that reach an error boundary is worse than stating the limit"
+    - "four CI rounds, each a different real defect, none findable locally: `set -euo pipefail` under dash; android-emulator-runner executing each script line in its own sh -c, so a for loop died on 'end of file unexpected'; a debug APK that installs and launches and shows NOTHING because it expects a Metro server; and Metro unable to resolve './confidence.js' because packages/core is NodeNext TypeScript where that means './confidence.ts'"
+    - "CI now runs `expo export` before Gradle, so a bundler failure surfaces in a minute instead of after a four-minute build as ':app:createBundleReleaseJsAndAssets FAILED' with the real error forty lines above it"
+
 
 # ------------------------------------------------------------- deferred upgrades
 - id: TS-6
