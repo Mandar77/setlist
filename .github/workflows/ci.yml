@@ -357,6 +357,19 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
+          # `hide_error_dialogs` first, and it is not papering over a crash in this app.
+          #
+          # The run that failed before this line existed produced a screenshot showing the
+          # app rendered CORRECTLY — heading, paste box, "0 songs", the notice — with a
+          # "Pixel Launcher isn't responding" dialog on top of it. Maestro reads the window
+          # hierarchy, the ANR dialog owns the focused window, and so `paste-input` is
+          # genuinely not visible. The failure was real; the cause was the emulator's own
+          # launcher, which ANRs on a freshly booted image while three APKs install.
+          #
+          # This suppresses system crash and ANR dialogs on the emulator only. It cannot
+          # hide a failure of ours: an app that crashed would still have no `paste-input`
+          # to find, and every assertion below would still fail.
+          #
           # One command per line, and no shell constructs that span lines.
           #
           # android-emulator-runner executes this script a LINE AT A TIME, each in its own
@@ -365,6 +378,7 @@ jobs:
           # has already exited by line two. The action checks each line's exit code, which
           # is what actually stops the run on a failure.
           script: |
+            adb shell settings put global hide_error_dialogs 1
             adb install -r "$RUNNER_TEMP/apks/dev.apk"
             adb install -r "$RUNNER_TEMP/apks/stage.apk"
             adb install -r "$RUNNER_TEMP/apks/prod.apk"
