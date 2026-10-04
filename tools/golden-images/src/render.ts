@@ -40,15 +40,6 @@ import {
   type PlannedLine,
 } from './plan.js'
 
-/** Text into HTML. Song titles contain ampersands and angle brackets often enough. */
-function escapeHtml(text: string): string {
-  return text
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-}
-
 /** The `@font-face` rules for exactly the subsets this document needs. */
 function fontFaces(font: Font, spec: ImageSpec): string {
   return spec.subsets
@@ -124,16 +115,20 @@ function glareCss(augmentation: Augmentation): string {
   ].join('\n')
 }
 
-function lineHtml(line: PlannedLine, index: number): string {
-  const classes = ['line']
-  if (line.struck) classes.push('struck')
-  if (line.truth === null) classes.push('heading')
-  // The index is on the element so a failing eval can be pointed at a line rather than
-  // at an image.
-  return `<div class="${classes.join(' ')}" data-line="${index}">${escapeHtml(line.text)}</div>`
-}
-
-/** The whole document for one spec. */
+/**
+ * The empty page: styles, an empty sheet, and the glare overlay.
+ *
+ * Deliberately holds no song text. The first version interpolated each line into this
+ * string through a hand-written HTML escaper, and Semgrep blocked it — correctly, on the
+ * general rule that a hand-built escape list can be circumvented. Rather than argue the
+ * case or suppress the finding, the text moved out of the markup entirely: {@link
+ * fillSheet} sets it through `textContent`, which is not parsed as HTML at all.
+ *
+ * That is the better answer anyway. Song titles are untrusted data — they come from a
+ * catalogue, and in the product they come from a photograph of someone's handwriting —
+ * and a title containing `</style>` should be a title containing `</style>`, not an
+ * escaping bug waiting for the one character the list forgot.
+ */
 export function documentFor(spec: ImageSpec, font: Font): string {
   const lineHeight = lineHeightFor(spec.fontSizePx)
   const padding = paddingFor(spec.imageClass)
@@ -174,11 +169,37 @@ export function documentFor(spec: ImageSpec, font: Font): string {
     glareCss(spec.augmentation),
     '}',
     '</style>',
-    '<div class="scene"><div class="sheet">',
-    spec.lines.map(lineHtml).join(''),
-    '</div></div>',
+    '<div class="scene"><div class="sheet"></div></div>',
     '<div class="glare"></div>',
   ].join('\n')
+}
+
+/** The class list for one line, computed here so the page callback stays trivial. */
+function classesFor(line: PlannedLine): string {
+  if (line.struck) return 'line struck'
+  return line.truth === null ? 'line heading' : 'line'
+}
+
+/** Put the text on the page as text, never as markup. */
+export async function fillSheet(page: Page, spec: ImageSpec): Promise<void> {
+  const lines = spec.lines.map((line, index) => ({
+    text: line.text,
+    classes: classesFor(line),
+    index,
+  }))
+  await page.evaluate(payload => {
+    const sheet = document.querySelector('.sheet')
+    if (sheet === null) throw new Error('no .sheet in the document')
+    for (const line of payload) {
+      const element = document.createElement('div')
+      element.className = line.classes
+      // The index rides along so a failing overflow check can name a line rather than
+      // only an image.
+      element.dataset['line'] = String(line.index)
+      element.textContent = line.text
+      sheet.append(element)
+    }
+  }, lines)
 }
 
 export interface RenderedImage {
@@ -197,6 +218,7 @@ export interface RenderedImage {
 export async function renderOne(page: Page, spec: ImageSpec, font: Font): Promise<RenderedImage> {
   await page.setViewportSize({ width: spec.widthPx, height: spec.heightPx })
   await page.setContent(documentFor(spec, font), { waitUntil: 'load' })
+  await fillSheet(page, spec)
   await page.evaluate(() => document.fonts.ready)
 
   // Did every character actually land on the page?

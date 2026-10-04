@@ -11,6 +11,8 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
+import { chromium } from 'playwright'
+
 import { loadSeed } from '@setlist/golden-gen'
 
 import { dirname, resolve } from 'node:path'
@@ -18,6 +20,7 @@ import { fileURLToPath } from 'node:url'
 
 import {
   documentFor,
+  fillSheet,
   loadFont,
   openRenderer,
   planCorpus,
@@ -156,17 +159,44 @@ describe('the document', () => {
     }
   })
 
-  it('escapes text rather than letting a title open a tag', () => {
-    const spec = samples[0]!
-    const html = documentFor(
-      {
-        ...spec,
-        lines: [{ text: '1. <script>x</script> & co', struck: false, truth: null }],
-      },
-      fontFor(spec),
-    )
-    expect(html).toContain('&lt;script&gt;')
-    expect(html).toContain('&amp; co')
-    expect(html).not.toContain('<script>x')
+  it('carries no song text at all, because the text is set as text', () => {
+    // The shell is markup; the lines are not. Semgrep blocked the hand-written HTML
+    // escaper that used to put them here, and the fix was to stop building markup out of
+    // untrusted strings rather than to build it more carefully.
+    for (const spec of samples) {
+      const html = documentFor(spec, fontFor(spec))
+      for (const line of spec.lines) {
+        expect(html, spec.id).not.toContain(line.text)
+      }
+      expect(html).toContain('<div class="scene"><div class="sheet"></div></div>')
+    }
   })
+
+  it('draws a title containing markup as that title, verbatim', async () => {
+    // What `textContent` buys: a title is never parsed. The page gets its own browser so
+    // the production renderer keeps no test-only seam.
+    const spec = samples[0]!
+    const awkward = '1. <script>alert(1)</script> & "Sons" — ½ <b>x</b>'
+    const browser = await chromium.launch()
+    try {
+      const page = await browser.newPage()
+      await page.setViewportSize({ width: spec.widthPx, height: spec.heightPx })
+      const probe: ImageSpec = {
+        ...spec,
+        lines: [{ text: awkward, struck: false, truth: null }],
+      }
+      await page.setContent(documentFor(probe, fontFor(spec)), { waitUntil: 'load' })
+      await fillSheet(page, probe)
+
+      const drawn = await page.evaluate(() =>
+        [...document.querySelectorAll('.line')].map(element => element.textContent),
+      )
+      expect(drawn).toEqual([awkward])
+      // And nothing was executed or injected on the way in.
+      expect(await page.evaluate(() => document.querySelectorAll('script').length)).toBe(0)
+      expect(await page.evaluate(() => document.querySelectorAll('.sheet b').length)).toBe(0)
+    } finally {
+      await browser.close()
+    }
+  }, 120_000)
 })

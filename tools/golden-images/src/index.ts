@@ -56,6 +56,7 @@ export {
 export {
   documentFor,
   fileNameFor,
+  fillSheet,
   openRenderer,
   renderOne,
   type RenderedImage,
