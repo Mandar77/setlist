@@ -164,6 +164,20 @@ export default tseslint.config(
     },
   },
 
+  {
+    // Metro's and Babel's config files are loaded by Node as CommonJS, before any
+    // bundler exists to interpret an `import`. They are build configuration rather than
+    // application code — nothing on the device ever evaluates them — and rewriting them
+    // as ESM to satisfy a lint rule would mean Metro stops reading them at all.
+    //
+    // Scoped to these two filenames rather than to `mobile/**` so an application file
+    // that reaches for `require` is still an error.
+    files: ['mobile/metro.config.js', 'mobile/babel.config.js'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+
   // Must stay last: turns off every rule that would fight Prettier.
   prettier,
 )

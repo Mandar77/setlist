@@ -40,6 +40,9 @@
       "path": "tools/golden-gen"
     },
     {
+      "path": "mobile"
+    },
+    {
       "path": "tools/golden-images"
     },
     {

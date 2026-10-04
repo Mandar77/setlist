@@ -66,9 +66,23 @@ trustPolicy: no-downgrade
 # nobody reads.
 #
 # Delete this once typed-rest-client ships a dependency on 6.16.0 or later.
+# `semver` arrives four levels down from the Expo app — expo -> @expo/metro-config ->
+# @babel/core -> semver ^6.3.1 — and no 6.x release carries a provenance attestation,
+# while every 7.5.1 and later does. pnpm reads 6.3.1 as a trust downgrade and refuses to
+# resolve it, which is correct: judged on publish dates alone, a package whose earlier
+# siblings were attested and whose current version is not has the shape of a takeover.
+#
+# 6.3.1 is in fact the last 6.x and dates from 2023, so this is the familiar false
+# positive rather than an incident — but the gate cannot tell those apart, and the way
+# through is the same as for undici-types and qs above: move FORWARD to a version that
+# satisfies the policy, so the guardrail still applies to this package. semver 7 is API
+# compatible for everything Babel calls.
+#
+# Delete this once @babel/core depends on semver 7.
 overrides:
   undici-types: '6.23.0'
   qs: '6.16.0'
+  semver: '7.8.5'
 
 # Sub-dependencies resolved from a git URL, a tarball or a local path rather than the
 # registry. Legitimate uses exist; none of them are here, and each is a way to pull in

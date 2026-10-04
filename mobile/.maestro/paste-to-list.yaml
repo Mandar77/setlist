@@ -1,0 +1,73 @@
+# M1-07 on the emulator: pasted text in, a grounded song list out.
+#
+# This is the flow the task's last done_when names — "Maestro drives it on the CI emulator
+# with a fixed input and asserts the parsed output". Fixed input, because an assertion
+# about a random list is an assertion nobody can read when it fails.
+#
+# What it is really proving is that the screen is wired to `packages/core` running on
+# Hermes. The parsing rules themselves are covered by unit tests, which are a far better
+# place for them; what unit tests cannot show is that the identical grammar produces the
+# identical answer on a phone's engine, with no server involved.
+#
+# The device has no network in this job and nothing here grants it any.
+
+appId: com.setlist.app.dev
+---
+- launchApp:
+    clearState: true
+
+# Nothing typed yet: the screen says what to do rather than showing a blank list.
+- assertVisible:
+    id: 'notice'
+
+- tapOn:
+    id: 'paste-input'
+- inputText: 'Queen - Bohemian Rhapsody'
+
+# The parse itself. Title and artist are read off the line, and the source line is shown
+# beside them — the ADR-007 grounding, visible rather than asserted in a comment.
+- assertVisible:
+    id: 'item-0-title'
+    text: 'Bohemian Rhapsody'
+- assertVisible:
+    id: 'item-0-artist'
+    text: 'Queen'
+- assertVisible:
+    id: 'item-0-source'
+    text: 'Queen - Bohemian Rhapsody'
+- assertVisible:
+    id: 'item-0-confidence'
+- assertVisible:
+    id: 'item-count'
+    text: '1 song'
+
+# A second line makes it a list rather than a single parse.
+- pressKey: Enter
+- inputText: 'Radiohead - Karma Police'
+- assertVisible:
+    id: 'item-1-title'
+    text: 'Karma Police'
+- assertVisible:
+    id: 'item-count'
+    text: '2 songs'
+
+# A qualifier the core is contracted to peel off into a hint, shown on the item.
+- pressKey: Enter
+- inputText: 'Daft Punk - One More Time (Live)'
+- assertVisible:
+    id: 'item-2-title'
+    text: 'One More Time'
+- assertVisible: 'live'
+
+# And the case that distinguishes a working screen from a broken one: text that parses to
+# nothing has to say so. An empty list and a crash look identical to a user.
+- tapOn:
+    id: 'paste-input'
+- eraseText: 120
+- inputText: 'hey are you coming tonight bring the thing'
+- assertVisible:
+    id: 'notice'
+    text: 'No songs found.*'
+- assertVisible:
+    id: 'item-count'
+    text: '0 songs'

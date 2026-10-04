@@ -254,6 +254,109 @@ jobs:
             exit 1
           fi
 
+  mobile-emulator:
+    name: Mobile on the emulator (M1-01, M1-07)
+    runs-on: ubuntu-latest
+    # The only job that proves the product works rather than that its parts do.
+    #
+    # Everything under mobile/ except the screen itself is a pure function and is gated by
+    # `make verify`. What a unit test cannot show is that the identical grammar produces
+    # the identical answer on Hermes, on a device, with no server — which is M1-07's whole
+    # claim — or that three variants really do install side by side rather than replacing
+    # each other, which is FR-M-015.
+    #
+    # Builds are `expo prebuild` + Gradle, NOT `eas build --local`. The difference is
+    # deliberate and incomplete: EAS needs an Expo access token that only a human can
+    # create (docs/hitl/SESSION-1.md §7, issue #18), and holding the rest of M1 hostage to
+    # that is worse than building debug APKs the open toolchain can produce today. M1-01
+    # stays blocked on H1 until the EAS half exists.
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      # Three variants, three prebuilds, three APKs. `--clean` because the Android
+      # project is generated from the config and the application id is the thing that
+      # differs — reusing a previous variant's native project would build the same app
+      # three times and the side-by-side test would pass for the wrong reason.
+      - name: Build a debug APK for each variant
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/apks"
+          for variant in dev stage prod; do
+            echo "::group::$variant"
+            APP_VARIANT="$variant" pnpm -C mobile exec expo prebuild \
+              --platform android --clean --no-install
+            (cd mobile/android && APP_VARIANT="$variant" ./gradlew --no-daemon assembleDebug)
+            cp mobile/android/app/build/outputs/apk/debug/app-debug.apk \
+              "$RUNNER_TEMP/apks/$variant.apk"
+            echo "::endgroup::"
+          done
+          ls -l "$RUNNER_TEMP/apks"
+
+      # Same arrangement as the 2MS binary in scripts/hitl/scan-secrets.sh: a pinned
+      # release, its SHA-256 checked before anything executes, and a hard failure if the
+      # digest does not match. `curl | bash` from the vendor's install endpoint would
+      # execute whatever that endpoint serves today.
+      - name: Install Maestro, verifying its checksum
+        env:
+          MAESTRO_TAG: cli-2.10.0
+          MAESTRO_SHA256: 29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991
+        run: |
+          set -euo pipefail
+          url="https://github.com/mobile-dev-inc/Maestro/releases/download/${MAESTRO_TAG}/maestro.zip"
+          curl -fsSL "$url" -o "$RUNNER_TEMP/maestro.zip"
+          echo "${MAESTRO_SHA256}  $RUNNER_TEMP/maestro.zip" | sha256sum --check --strict
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP/maestro-dist"
+          echo "$RUNNER_TEMP/maestro-dist/maestro/bin" >> "$GITHUB_PATH"
+
+      # The emulator needs hardware acceleration to be usable; without this it falls back
+      # to software rendering and the flows time out rather than fail.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Install all three and drive them
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            for variant in dev stage prod; do
+              adb install -r "$RUNNER_TEMP/apks/$variant.apk"
+            done
+            adb shell pm list packages | grep -E 'com\.setlist\.app' | sort
+
+            # FR-M-015 first: if the three ids collided, only one would be installed and
+            # the paste flow below would still pass.
+            maestro test mobile/.maestro/variants-side-by-side.yaml
+            maestro test mobile/.maestro/paste-to-list.yaml
+
+      - name: Keep the Maestro output when a flow fails
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: maestro-debug
+          path: ~/.maestro/tests
+          if-no-files-found: ignore
+
   dynamodb-local:
     name: ETL against DynamoDB Local
     runs-on: ubuntu-latest

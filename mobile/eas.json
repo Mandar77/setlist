@@ -1,0 +1,22 @@
+{
+  "build": {
+    "dev": {
+      "distribution": "internal",
+      "channel": "dev",
+      "env": { "APP_VARIANT": "dev" },
+      "android": { "buildType": "apk" }
+    },
+    "stage": {
+      "distribution": "internal",
+      "channel": "stage",
+      "env": { "APP_VARIANT": "stage" },
+      "android": { "buildType": "apk" }
+    },
+    "prod": {
+      "distribution": "internal",
+      "channel": "production",
+      "env": { "APP_VARIANT": "prod" },
+      "android": { "buildType": "apk" }
+    }
+  }
+}

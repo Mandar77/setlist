@@ -36,6 +36,10 @@ export default defineConfig({
       'packages/*/test/**/*.test.ts',
       'services/*/test/**/*.test.ts',
       'tools/*/test/**/*.test.ts',
+      // The Expo app's logic is pure functions over the core's result, so it is gated
+      // here like anything else. Nothing under mobile/test needs a device; the emulator
+      // proves the screen is wired to them, and that runs in its own CI job.
+      'mobile/test/**/*.test.ts',
       'web/**/*.test.ts',
     ],
     exclude: [

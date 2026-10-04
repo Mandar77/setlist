@@ -1,0 +1,23 @@
+{
+  "name": "@setlist/mobile",
+  "version": "0.0.0",
+  "private": true,
+  "main": "index.ts",
+  "description": "The Expo app: three variants, and a paste-to-parsed-list screen that runs the core on Hermes with no network.",
+  "scripts": {
+    "typecheck": "tsc --build",
+    "test": "vitest run",
+    "start": "expo start",
+    "prebuild": "expo prebuild --platform android --clean"
+  },
+  "dependencies": {
+    "@setlist/core": "workspace:*",
+    "expo": "57.0.25",
+    "react": "19.2.3",
+    "react-native": "0.86.3"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.18",
+    "typescript": "5.7.2"
+  }
+}

@@ -68,6 +68,13 @@ golden/ocr-generated/
 # 13 MB, reproducible from the pinned tag, and platform-specific.
 .cache/
 
+# Expo's generated native projects. `expo prebuild` writes these from app.config.ts, so
+# they are build output: committing them would mean the config and the native project
+# could disagree, and the native project would win silently.
+mobile/android/
+mobile/ios/
+mobile/.expo/
+
 # Local scratch
 .scratch/
 tmp/

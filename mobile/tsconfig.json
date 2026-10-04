@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "docs": [
+    "References packages/core: the app runs the identical grammar the Lambdas do, which",
+    "is ADR-001's whole claim. Nothing else is shared.",
+    "",
+    "`module`/`moduleResolution` are Bundler here rather than the base's NodeNext. Metro",
+    "is the bundler, not Node, and react-native's own type entry points resolve under",
+    "Bundler. This is the one package in the repo that is not loaded by Node at runtime."
+  ],
+
+  "extends": "../tsconfig.base.json",
+  "references": [{ "path": "../packages/core" }],
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "app.config.ts"]
+}

@@ -238,6 +238,7 @@ add_ruleset protect-develop '{
         {"context": "Zero-cost guardrails (cdk-nag + KICS)"},
         {"context": "Engine conformance (Node + Chromium)"},
         {"context": "OCR golden images (M2-01)"},
+        {"context": "Mobile on the emulator (M1-01, M1-07)"},
         {"context": "ETL against DynamoDB Local"},
         {"context": "Dependabot auto-merge policy"}
       ]
