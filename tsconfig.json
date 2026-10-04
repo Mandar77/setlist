@@ -43,6 +43,12 @@
       "path": "mobile"
     },
     {
+      "path": "services/kill-switch"
+    },
+    {
+      "path": "services/usage-sentinel"
+    },
+    {
       "path": "tools/golden-images"
     },
     {

@@ -11,13 +11,17 @@
  */
 
 import { CfnOutput, Stack, type StackProps, Tags } from 'aws-cdk-lib'
-import { AttributeType, Billing, TableV2 } from 'aws-cdk-lib/aws-dynamodb'
+import { Alarm, ComparisonOperator } from 'aws-cdk-lib/aws-cloudwatch'
+import { AttributeType, Billing, Operation, TableV2 } from 'aws-cdk-lib/aws-dynamodb'
 import { Capacity } from 'aws-cdk-lib/aws-dynamodb'
-import { StringParameter } from 'aws-cdk-lib/aws-ssm'
+import { ParameterTier, StringParameter } from 'aws-cdk-lib/aws-ssm'
 import type { Construct } from 'constructs'
 import type { EnvName } from '../config/budget.js'
 import { type EnvConfig, envConfig } from '../config/environments.js'
 import type { Profile } from '../config/profile.js'
+import { Delivery } from '../constructs/delivery.js'
+import { Identity } from '../constructs/identity.js'
+import { ProviderCommands } from '../constructs/messaging.js'
 import { ProfileAwareFactory } from '../factory/profile-aware-factory.js'
 
 export interface PlatformStackProps extends StackProps {
@@ -28,6 +32,8 @@ export interface PlatformStackProps extends StackProps {
 export class PlatformStack extends Stack {
   readonly factory: ProfileAwareFactory
   readonly config: EnvConfig
+  /** Every alarm this environment could afford, in priority order. */
+  readonly alarms: readonly Alarm[]
 
   constructor(scope: Construct, id: string, props: PlatformStackProps) {
     super(scope, id, props)
@@ -80,19 +86,91 @@ export class PlatformStack extends Stack {
       pointInTimeRecovery: false,
     })
 
-    // Config and flags live in SSM standard parameters. Secrets Manager is banned:
-    // $0.40 per secret per month is not $0.
-    new StringParameter(this, 'TableNameParam', {
-      parameterName: `/setlist/${envName}/config/table-name`,
-      stringValue: table.tableName,
-      description: 'Single-table name, read by every service.',
+    // ---------------------------------------------------------------- M0A-06
+    //
+    // Commands addressed to one provider adapter, filtered on message attributes.
+    const providerCommands = new ProviderCommands(this, 'ProviderCommands', { env: envName })
+
+    const identity = new Identity(this, 'Identity', {
+      env: envName,
+      removalPolicy: this.config.removalPolicy,
     })
 
-    new StringParameter(this, 'ProfileParam', {
-      parameterName: `/setlist/${envName}/config/profile`,
-      stringValue: profile,
-      description: 'Which profile this environment was synthesized under.',
+    const delivery = new Delivery(this, 'Delivery', {
+      env: envName,
+      logRetention: this.config.logRetention,
+      removalPolicy: this.config.removalPolicy,
     })
+
+    // Every value a service needs to find the others. SSM standard parameters are free;
+    // Secrets Manager is $0.40 per secret per month and is on the never-use list, so
+    // actual secrets go to SecureString parameters written by CI, never by synth.
+    //
+    // The three prefixes are a contract: `config` is wiring, `flags` is behaviour that
+    // may change without a deploy, `secrets` is what CI puts there. Nothing here writes
+    // under `secrets` — a secret in a synthesized template is a secret in a public
+    // repository's CI logs.
+    const params: Record<string, string> = {
+      'config/table-name': table.tableName,
+      'config/profile': profile,
+      'config/domain-topic-arn': domain.topic?.topicArn ?? domain.bus?.eventBusArn ?? 'none',
+      'config/provider-commands-topic-arn': providerCommands.topic.topicArn,
+      'config/dead-letter-queue-url': domain.deadLetterQueue.queueUrl,
+      'config/user-pool-id': identity.userPool.userPoolId,
+      'config/user-pool-client-id': identity.appClient.userPoolClientId,
+      'config/distribution-domain': delivery.distribution.distributionDomainName,
+      'flags/kill-switch-engaged': 'false',
+      'flags/llm-residual-pass': 'false',
+    }
+    for (const [name, value] of Object.entries(params)) {
+      new StringParameter(this, `Param${name.replace(/[^a-zA-Z0-9]/g, '')}`, {
+        parameterName: `/setlist/${envName}/${name}`,
+        stringValue: value,
+        // Standard tier only. Advanced parameters are $0.05 each per month.
+        tier: ParameterTier.STANDARD,
+      })
+    }
+
+    // Alarms are capped account-wide at 10 free, split prod 5 / stage 2 / dev 0. The
+    // budget is enforced by construction rather than by remembering: the list below is
+    // in priority order and `slice` takes only what this environment can afford, so a
+    // new alarm added at the bottom is silently unaffordable in dev rather than a
+    // surprise $0.10 line item. SZC-ALARM-BUDGET catches it from the template side too.
+    this.alarms = [
+      () =>
+        domain.deadLetterQueue
+          .metricApproximateNumberOfMessagesVisible()
+          .createAlarm(this, 'DlqNotEmpty', {
+            alarmName: `setlist-${envName}-dlq-not-empty`,
+            threshold: 1,
+            evaluationPeriods: 1,
+            comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+            alarmDescription: 'An async invoke failed every retry and landed in the DLQ.',
+          }),
+      () =>
+        delivery.origin.metricErrors().createAlarm(this, 'BffErrors', {
+          alarmName: `setlist-${envName}-bff-errors`,
+          threshold: 5,
+          evaluationPeriods: 1,
+          comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+          alarmDescription: 'The BFF origin is failing.',
+        }),
+      () =>
+        // Built directly rather than through `metric.createAlarm`: the per-operation
+        // throttle metric is a math expression (`IMetric`), which has no `createAlarm`.
+        new Alarm(this, 'TableThrottled', {
+          alarmName: `setlist-${envName}-table-throttled`,
+          metric: table.metricThrottledRequestsForOperations({
+            operations: [Operation.PUT_ITEM, Operation.QUERY],
+          }),
+          threshold: 1,
+          evaluationPeriods: 1,
+          comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+          alarmDescription: 'Provisioned capacity is short; the autoscaler has not caught up.',
+        }),
+    ]
+      .slice(0, this.config.maxAlarms)
+      .map(make => make())
 
     new CfnOutput(this, 'EventTransport', {
       value: domain.kind,
@@ -103,5 +181,8 @@ export class PlatformStack extends Stack {
       description: 'Resolved synchronous API transport for this profile.',
     })
     new CfnOutput(this, 'TableName', { value: table.tableName })
+    new CfnOutput(this, 'DistributionDomain', {
+      value: delivery.distribution.distributionDomainName,
+    })
   }
 }

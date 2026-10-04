@@ -152,6 +152,18 @@ importers:
         specifier: 22.20.4
         version: 22.20.4
 
+  services/kill-switch:
+    devDependencies:
+      '@types/node':
+        specifier: 22.20.4
+        version: 22.20.4
+
+  services/usage-sentinel:
+    devDependencies:
+      '@types/node':
+        specifier: 22.20.4
+        version: 22.20.4
+
   tests/fixtures/ddb-ondemand:
     dependencies:
       aws-cdk-lib:

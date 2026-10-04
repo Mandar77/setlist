@@ -1,0 +1,17 @@
+{
+  "name": "@setlist/usage-sentinel",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Watch each free-tier share from free vended metrics and trip the kill switch before the bill.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --build",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.4"
+  }
+}

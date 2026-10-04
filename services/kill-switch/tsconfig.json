@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "docs": [
+    "No references. The kill switch deliberately shares nothing: it has to work when the",
+    "rest of the system is the problem, so it depends on narrow interfaces it declares",
+    "itself rather than on anything that could be broken at the moment it is needed."
+  ],
+
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

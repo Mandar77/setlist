@@ -342,18 +342,18 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
+          # One command per line, and no shell constructs that span lines.
+          #
+          # android-emulator-runner executes this script a LINE AT A TIME, each in its own
+          # `sh -c`. A `for ... do ... done` loop therefore dies on its first line with
+          # "end of file unexpected", and a `set -eu` on line one applies to a shell that
+          # has already exited by line two. The action checks each line's exit code, which
+          # is what actually stops the run on a failure.
           script: |
-            # `set -eu`, not `-euo pipefail`: this block runs under /usr/bin/sh, which is
-            # dash on the runner, and dash has no pipefail. The other steps in this job
-            # are `run:` blocks and get bash, which is why they differ.
-            set -eu
-            for variant in dev stage prod; do
-              adb install -r "$RUNNER_TEMP/apks/$variant.apk"
-            done
-            adb shell pm list packages | grep -E 'com\.setlist\.app' | sort
-
-            # FR-M-015 first: if the three ids collided, only one would be installed and
-            # the paste flow below would still pass.
+            adb install -r "$RUNNER_TEMP/apks/dev.apk"
+            adb install -r "$RUNNER_TEMP/apks/stage.apk"
+            adb install -r "$RUNNER_TEMP/apks/prod.apk"
+            adb shell pm list packages com.setlist.app
             maestro test mobile/.maestro/variants-side-by-side.yaml
             maestro test mobile/.maestro/paste-to-list.yaml
 
