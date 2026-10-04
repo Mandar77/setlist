@@ -446,14 +446,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
-      # After the install above, which this job already needed for the workflow
-      # property check. An earlier version added a SECOND pnpm/setup-node pair here
-      # and the job failed on a post-step cache save: two setup-node steps in one job
-      # means two cache saves, and the loser reports a path that no longer exists.
-      # nothing), so this job needs an install it did not previously need. Everything
-      # above it is Python or shell, which is why it had none.
-      # "Path(s) specified in the action for caching do(es) not exist" and took the job
-        with:
+      # The pin check goes AFTER the install above, which this job already needed. An
+      # earlier version added a second pnpm/setup-node pair of its own, and the job
+      # failed on a post-step cache save: two setup-node steps in one job means two
+      # cache saves, and the loser reports a path that no longer exists.
 
       # A resolved sha→tag answer is immutable, so this cache never goes stale. It only
       # grows when a pin changes, which is when the check has real work to do anyway.
