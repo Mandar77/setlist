@@ -43,7 +43,9 @@ export default (): ExpoConfig => {
     scheme: config.scheme,
     version: '0.1.0',
     orientation: 'portrait',
-    userInterfaceStyle: 'automatic',
+    // No `userInterfaceStyle`: it needs expo-system-ui, which is not installed, and
+    // prebuild warns that the field does nothing without it. The screen reads the system
+    // scheme through React Native's own `useColorScheme` instead.
     // No `jsEngine` field: SDK 57 removed it because Hermes is the only engine left.
     // M1-07 and M1-04 both make claims specifically about Hermes, so it is worth saying
     // where that guarantee comes from — the SDK, not a flag this file could get wrong.

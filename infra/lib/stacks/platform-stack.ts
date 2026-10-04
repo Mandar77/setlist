@@ -16,10 +16,11 @@ import { AttributeType, Billing, Operation, TableV2 } from 'aws-cdk-lib/aws-dyna
 import { Capacity } from 'aws-cdk-lib/aws-dynamodb'
 import { ParameterTier, StringParameter } from 'aws-cdk-lib/aws-ssm'
 import type { Construct } from 'constructs'
-import type { EnvName } from '../config/budget.js'
+import { loadBudget, shareFor, type EnvName } from '../config/budget.js'
 import { type EnvConfig, envConfig } from '../config/environments.js'
 import type { Profile } from '../config/profile.js'
 import { Delivery } from '../constructs/delivery.js'
+import { Guardrails } from '../constructs/guardrails.js'
 import { Identity } from '../constructs/identity.js'
 import { ProviderCommands } from '../constructs/messaging.js'
 import { ProfileAwareFactory } from '../factory/profile-aware-factory.js'
@@ -39,6 +40,7 @@ export class PlatformStack extends Stack {
     super(scope, id, props)
 
     const { profile, envName } = props
+    const budget = loadBudget()
     this.config = envConfig(envName)
     this.factory = new ProfileAwareFactory({ profile, env: envName })
 
@@ -102,6 +104,22 @@ export class PlatformStack extends Stack {
       removalPolicy: this.config.removalPolicy,
     })
 
+    // The two functions whose job is to stop the account costing money.
+    const guardrails = new Guardrails(this, 'Guardrails', {
+      env: envName,
+      logRetention: this.config.logRetention,
+      removalPolicy: this.config.removalPolicy,
+      table,
+      tripPct: budget.tripPct,
+      // Resolved here so the function carries four integers instead of a bundled copy
+      // of budget.yaml and a YAML parser to read it with.
+      shares: Object.fromEntries(
+        ['lambda_requests', 'sns_publishes', 'sqs_requests', 'cloudfront_requests']
+          .filter(limit => budget.limits[limit] !== undefined)
+          .map(limit => [limit, shareFor(limit, envName, budget)]),
+      ),
+    })
+
     // Every value a service needs to find the others. SSM standard parameters are free;
     // Secrets Manager is $0.40 per secret per month and is on the never-use list, so
     // actual secrets go to SecureString parameters written by CI, never by synth.
@@ -118,9 +136,14 @@ export class PlatformStack extends Stack {
       'config/dead-letter-queue-url': domain.deadLetterQueue.queueUrl,
       'config/user-pool-id': identity.userPool.userPoolId,
       'config/user-pool-client-id': identity.appClient.userPoolClientId,
-      'config/distribution-domain': delivery.distribution.distributionDomainName,
+      // The distribution itself is enrolled by hand (never-use list: the flat-rate Free
+      // plan cannot be expressed in CloudFormation), so what is published here is what
+      // that manual step has to attach to.
+      'config/bff-function-url': delivery.functionUrl.url,
+      'config/bff-origin-access-control-id': delivery.originAccessControl.originAccessControlId,
       'flags/kill-switch-engaged': 'false',
       'flags/llm-residual-pass': 'false',
+      'config/kill-switch-function': guardrails.killSwitch.functionName,
     }
     for (const [name, value] of Object.entries(params)) {
       new StringParameter(this, `Param${name.replace(/[^a-zA-Z0-9]/g, '')}`, {
@@ -181,8 +204,5 @@ export class PlatformStack extends Stack {
       description: 'Resolved synchronous API transport for this profile.',
     })
     new CfnOutput(this, 'TableName', { value: table.tableName })
-    new CfnOutput(this, 'DistributionDomain', {
-      value: delivery.distribution.distributionDomainName,
-    })
   }
 }

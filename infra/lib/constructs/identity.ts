@@ -12,7 +12,7 @@
  * changing that default would move this project onto a billed plan without a diff.
  */
 
-import { RemovalPolicy } from 'aws-cdk-lib'
+import { type RemovalPolicy } from 'aws-cdk-lib'
 import {
   AccountRecovery,
   FeaturePlan,

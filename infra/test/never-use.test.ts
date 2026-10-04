@@ -202,11 +202,21 @@ describe('the enterprise profile is genuinely different', () => {
     const zero = synth('zero', 'prod')
     const enterprise = synth('enterprise', 'prod')
 
-    zero.resourceCountIs('AWS::SNS::Topic', 1)
+    // Asserted by naming the DOMAIN bus rather than by counting topics. M0A-06 adds a
+    // second SNS topic for provider commands, which is an SNS topic under both profiles
+    // — publishes are free either way and PED S10.5's message-attribute filtering is an
+    // SNS decision. Counting would have made this test fail for a change it has no
+    // opinion about, and the usual response to that is to edit the number.
+    const domainTopics = (template: Template): string[] =>
+      Object.values(template.findResources('AWS::SNS::Topic')).map(resource =>
+        String((resource as { Properties?: { TopicName?: string } }).Properties?.TopicName ?? ''),
+      )
+
+    expect(domainTopics(zero)).toContain('setlist-prod-domain')
     zero.resourceCountIs('AWS::Events::EventBus', 0)
 
     enterprise.resourceCountIs('AWS::Events::EventBus', 1)
-    enterprise.resourceCountIs('AWS::SNS::Topic', 0)
+    expect(domainTopics(enterprise)).not.toContain('setlist-prod-domain')
   })
 
   it('still synthesizes for every profile and environment', () => {

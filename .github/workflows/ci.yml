@@ -294,7 +294,15 @@ jobs:
       # project is generated from the config and the application id is the thing that
       # differs — reusing a previous variant's native project would build the same app
       # three times and the side-by-side test would pass for the wrong reason.
-      - name: Build a debug APK for each variant
+      #
+      # `assembleRelease`, not `assembleDebug`. A debug APK expects a Metro server to
+      # serve its JavaScript, so on an emulator with no server it installs, launches, and
+      # shows nothing — which is exactly how the first run failed: all three packages
+      # present, and every assertion about the screen false. A release build embeds the
+      # bundle. It needs no secret either: Expo's generated `release` block is signed with
+      # the debug keystore, which is fine for a build that only ever reaches an emulator
+      # and is never distributed.
+      - name: Build a release APK for each variant
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/apks"
@@ -302,8 +310,8 @@ jobs:
             echo "::group::$variant"
             APP_VARIANT="$variant" pnpm -C mobile exec expo prebuild \
               --platform android --clean --no-install
-            (cd mobile/android && APP_VARIANT="$variant" ./gradlew --no-daemon assembleDebug)
-            cp mobile/android/app/build/outputs/apk/debug/app-debug.apk \
+            (cd mobile/android && APP_VARIANT="$variant" ./gradlew --no-daemon assembleRelease)
+            cp mobile/android/app/build/outputs/apk/release/app-release.apk \
               "$RUNNER_TEMP/apks/$variant.apk"
             echo "::endgroup::"
           done

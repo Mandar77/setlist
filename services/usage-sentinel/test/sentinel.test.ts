@@ -11,7 +11,13 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { readShares, sharePct, type MetricQuery, type MetricSource, type Share } from '../src/index.js'
+import {
+  readShares,
+  sharePct,
+  type MetricQuery,
+  type MetricSource,
+  type Share,
+} from '../src/index.js'
 
 const QUERY: MetricQuery = {
   namespace: 'AWS/Lambda',
@@ -53,9 +59,9 @@ describe('share arithmetic', () => {
 describe('tripping', () => {
   it('does not trip below the threshold', () => {
     // The control. Without it a sentinel that tripped on everything would look identical.
-    return expect(
-      readShares(sourceOf(840), [share()], 85).then(r => r.shouldTrip),
-    ).resolves.toBe(false)
+    return expect(readShares(sourceOf(840), [share()], 85).then(r => r.shouldTrip)).resolves.toBe(
+      false,
+    )
   })
 
   it('trips at the threshold exactly', async () => {
@@ -132,9 +138,7 @@ describe('the banned APIs', () => {
       // around it.
       for (const source of sources) {
         // The doc comment names them on purpose, so only look at what is not a comment.
-        const code = source.text
-          .replace(/\/\*[\s\S]*?\*\//g, '')
-          .replace(/\/\/.*$/gm, '')
+        const code = source.text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
         expect(code, `${source.name} mentions ${banned}`).not.toContain(banned)
       }
     },
