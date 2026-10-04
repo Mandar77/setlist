@@ -5,35 +5,43 @@
 # `test/variant.test.ts` does — but it cannot prove the build actually used them, which is
 # where the mistake would be.
 #
-# Each variant renders its own display name, so launching by package id and reading the
-# heading is what distinguishes "three apps installed" from "one app installed thrice".
+# Launching by package id and waiting for that app's own screen is what distinguishes
+# "three apps installed" from "one app installed thrice".
+#
+# `extendedWaitUntil` on a testID rather than `assertVisible` on the heading text. A bare
+# assertion races the first frame of a cold launch — this flow passed one run and failed
+# the next on exactly that, which is worse than failing consistently, because a gate that
+# is right most of the time teaches people to re-run it.
 
 appId: com.setlist.app.dev
 ---
 - launchApp:
     appId: 'com.setlist.app.dev'
     clearState: true
-- assertVisible: 'Setlist'
-- assertVisible:
-    id: 'paste-input'
+- extendedWaitUntil:
+    visible:
+      id: 'paste-input'
+    timeout: 30000
 - stopApp:
     appId: 'com.setlist.app.dev'
 
 - launchApp:
     appId: 'com.setlist.app.stage'
     clearState: true
-- assertVisible: 'Setlist'
-- assertVisible:
-    id: 'paste-input'
+- extendedWaitUntil:
+    visible:
+      id: 'paste-input'
+    timeout: 30000
 - stopApp:
     appId: 'com.setlist.app.stage'
 
 - launchApp:
     appId: 'com.setlist.app'
     clearState: true
-- assertVisible: 'Setlist'
-- assertVisible:
-    id: 'paste-input'
+- extendedWaitUntil:
+    visible:
+      id: 'paste-input'
+    timeout: 30000
 - stopApp:
     appId: 'com.setlist.app'
 
@@ -41,5 +49,7 @@ appId: com.setlist.app.dev
 # replaced by whichever installed last — which is exactly what a shared id would cause.
 - launchApp:
     appId: 'com.setlist.app.dev'
-- assertVisible:
-    id: 'paste-input'
+- extendedWaitUntil:
+    visible:
+      id: 'paste-input'
+    timeout: 30000

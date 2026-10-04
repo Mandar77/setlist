@@ -17,8 +17,12 @@ appId: com.setlist.app.dev
     clearState: true
 
 # Nothing typed yet: the screen says what to do rather than showing a blank list.
-- assertVisible:
-    id: 'notice'
+# Waited for rather than asserted outright, because a cold launch of a release build can
+# take a few seconds to draw its first frame.
+- extendedWaitUntil:
+    visible:
+      id: 'notice'
+    timeout: 30000
 
 - tapOn:
     id: 'paste-input'
