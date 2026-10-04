@@ -185,7 +185,10 @@ disallow_untyped_decorators = false
 # ---------------------------------------------------------------- pytest
 [tool.pytest.ini_options]
 minversion = "8.0"
-testpaths = ["tests", "tools/oracle-py/tests"]
+# Every Python test directory. A package missing from this list still passes its own
+# `pytest <path>` run and is NOT collected by `make verify`, which is the quiet way to
+# end up with an unchecked package -- packages/etl was exactly that for one commit.
+testpaths = ["tests", "packages/etl/tests", "services/ocr/tests", "tools/oracle-py/tests"]
 addopts = [
     "--strict-markers",
     "--strict-config",
