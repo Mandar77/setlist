@@ -14,10 +14,15 @@ Notes:
   Autoscaling creates CloudWatch alarms at runtime, outside the template, where neither the
   alarm budget nor the never-use test can see them — and `never-use.test.ts`'s capacity-cap
   test was already asserting nothing, looping over a resource type `TableV2` never emits.
-- **develop is RED at `22b81c7`** ([run 37220493983](https://github.com/Mandar77/setlist/actions/runs/37220493983)),
-  on a Maestro flake, not the app: the job runs two `maestro test` invocations and the
-  second's device driver died before its first command. Same commit is green on the task
-  branch. HYG-10 fixes it — one driver session — and makes the job conditional and cached.
+- **The Maestro flake is fixed** (HYG-10, on `task/adr-012-013-decisions`): one driver
+  session for both flows, `2/2 Flows Passed` in [run 37223024851](https://github.com/Mandar77/setlist/actions/runs/37223024851).
+  The job is now skipped when nothing mobile changed, via a job-level `if` — a skipped job
+  reports success to a required check, an unrun workflow leaves it pending forever.
+- **`protect-develop` enforces 15 required checks; the script defines 18**
+  ([issue #20](https://github.com/Mandar77/setlist/issues/20)). The emulator and OCR golden
+  jobs gate nothing today — which is why develop sat red at `22b81c7` without blocking a
+  thing. `check_workflows.js` ties the script to `ci.yml` and nothing ties either to what
+  GitHub enforces. The human re-runs `github-setup.sh`.
 - **Issues #17 and #19 are closed**; #17 became HYG-08 (the Stryker verdict is untrustworthy,
   so HYG-07's survivor comparison cannot be made), #19 was closed as intended — dev uses the
   provider simulator and never makes a live YouTube call.

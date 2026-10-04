@@ -381,8 +381,12 @@ tasks:
   milestone: HYG
   title: The emulator job - one driver session, and skip it when nothing mobile changed
   deps: [M1-01]
-  status: doing
-  blocked_on: null
+  # The CI work is done and proven both ways (see evidence). Blocked on the last done_when
+  # only: the live ruleset enforces 15 checks against the script's 18, and re-running
+  # github-setup.sh is the human's to do. Until then the emulator job gates nothing, which
+  # makes "a skipped job reports success" true but moot.
+  status: blocked
+  blocked_on: "issue #20 - protect-develop enforces 15 required checks; the script defines 18"
   not_before: null
   # Two changes to one CI job, together because each costs a ~16 minute round trip and
   # they touch the same steps.
@@ -409,7 +413,12 @@ tasks:
     - "one Maestro invocation over mobile/.maestro instead of one per flow, so a single on-device driver session serves both and there is no second session to lose: [scripts/ci/maestro-flows.sh](../../scripts/ci/maestro-flows.sh)"
     - "the retry is narrow and annotated - it fires only on DeviceServerDiedException and never on a flow that ran and failed an assertion, because a blanket retry turns a regression into a flake"
     - "the changed-path decision is computed with git in its own job and matches positively: unknown event, absent base, all-zeroes base, or a commit this clone lacks all RUN the job"
-    - "LIVE RULESET DRIFT, found here and not yet fixed: GitHub enforces 15 required checks on develop while github-setup.sh defines 18. 'Mobile on the emulator' and 'OCR golden images' are among the missing, so neither currently blocks a fast-forward. The human re-runs github-setup.sh"
+    - "both flows now pass under ONE driver session, attempt 1, no retry: `2/2 Flows Passed in 1m 55s` in [run 37223024851](https://github.com/Mandar77/setlist/actions/runs/37223024851)"
+    - "SKIP direction proven: [run 37222851516](https://github.com/Mandar77/setlist/actions/runs/37222851516) is green with the emulator job skipped in 0s, because the required check reads a skipped job as success"
+    - "RUN direction proven by a bug this job found in itself: the first path list covered mobile/ and packages/core but not scripts/ci/maestro-flows.sh or ci.yml, so the Maestro fix skipped the only job that executes it and would have merged having never run once"
+    - "the retry has NOT been exercised - no DeviceServerDiedException occurred since the fix, which is the intended outcome and also means the retry path is untested in CI"
+    - "the AVD cache was a MISS on this run and was created, costing 19m8s against the previous 16m25s. Reuse is unproven until the next change under mobile/ or packages/core"
+    - "LIVE RULESET DRIFT, found here and NOT fixed: GitHub enforces 15 required checks on develop while github-setup.sh defines 18. 'Mobile on the emulator' and 'OCR golden images' are among the missing, so neither blocks a fast-forward today - which is why develop could sit red at 22b81c7 without stopping anything ([issue #20](https://github.com/Mandar77/setlist/issues/20))"
 
 # ---------------------------------------------------------------- M0a (no AWS)
 # Ordering note: M0A-05 and M0A-06 are unblocked and wanted, but they sit ABOVE the CORE
