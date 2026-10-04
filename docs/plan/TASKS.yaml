@@ -294,8 +294,8 @@ tasks:
   milestone: HYG
   title: Replace the hand-written SHA-256 with a vetted library (ADR-010)
   deps: []
-  status: todo
-  blocked_on: null
+  status: blocked
+  blocked_on: "issue #17 - Stryker reports orientation.ts mutants as survived that demonstrably fail tests"
   not_before: null
   # ADR-010's 2026-10-03 amendment. 60 lines of hand-implemented FIPS 180-4 is not an
   # asset. The original reason for writing it was sound - node:crypto breaks the ESLint
@@ -310,7 +310,13 @@ tasks:
     - "the ratchet is re-baselined IN THIS COMMIT, and only if surviving mutants does not rise: deleting ~127 well-covered mutants shrinks the denominator and would otherwise LOWER the score while improving the code"
     - both mutation numbers reported - full suite and stryker.units.config.json
   verify: make mutate-ts
-  evidence: []
+  evidence:
+    - "DONE: @noble/hashes 2.4.0 replaces the hand-written FIPS 180-4 compression. Audited, zero dependencies, and checked rather than assumed to be pure - no `node:` import and no DOM access anywhere in its shipped files, so the ESLint purity rule still passes"
+    - "the UTF-8 encoder stays hand-written, deliberately: it is not a cryptographic primitive, TextEncoder is a platform global rather than a language feature (Hermes), and that function DEFINES the lone-surrogate behaviour the oracle's digests depend on. Replacing it would be a behaviour change wearing a cleanup's clothes"
+    - "every digest byte-identical: 707 core tests pass including the FIPS known-answer vectors, `make verify` green over the 8 golden cases and 4,900 normalize records, and `make pipeline-diff-check` reports 10,000 oracle digests current"
+    - "BLOCKED on the last done_when item only. Re-baselining requires knowing whether surviving mutants rose, and the full run says 809 -> 869 - but 63 of those are orientation.ts mutants that Stryker reports as survived and that a hand-applied edit proves are killed (issue #17). Excluding that file the comparison is like-for-like with the pre-orientation baseline and survivors went 809 -> 806, which does NOT rise; including it, the condition fails"
+    - "so the number ADR-010's condition depends on is produced by an instrument just shown to be wrong, and nothing has been re-baselined on it. `make mutate-ts` stays at break 55.43 and fails at the measured 52.30, which makes the nightly mutation job red until #17 is resolved. That is the accurate state"
+    - "the drop itself is expected and is exactly what ADR-010's re-baseline rule anticipates: removing ~62 well-covered sha256 mutants shrinks the denominator, lowering the percentage while improving the codebase"
 
 # ---------------------------------------------------------------- M0a (no AWS)
 # Ordering note: M0A-05 and M0A-06 are unblocked and wanted, but they sit ABOVE the CORE
@@ -482,8 +488,8 @@ tasks:
   milestone: M0
   title: Platform and guardrail stacks, kill switch, usage sentinel
   deps: [M0A-03, M0A-04, M0A-05]
-  status: todo
-  blocked_on: null
+  status: blocked
+  blocked_on: ADR-008 - `make preflight` runs `make estimate`, which exits 1 on four rows ADR-008 has not resolved
   not_before: null
   done_when:
     - provisioned DynamoDB per env, WCU/RCU sum across all tables and GSIs at or under 17
@@ -497,6 +503,11 @@ tasks:
     - usage-sentinel Lambda computes shares from free vended metrics only - never GetMetricData, Logs Insights or Cost Explorer
     - preflight green for dev, stage and prod, EXCEPT the free-tier estimate rows ADR-008 governs
     - every stack, Lambda, test and nag/KICS check above is finished and green regardless of how ADR-008 lands
+    # Reclassified 2026-10-04: `verify` here is `make preflight ENV=prod`, and
+    # `preflight: verify nag kics estimate`. `make estimate` exits 1 on the four rows
+    # ADR-008's decided rule does not reach (the three cloudwatch_logs_gb rows and prod
+    # cloudfront_requests - none fed by a playlist volume). So this task cannot reach
+    # `done` no matter how much of it is built, which is what `blocked` means.
   # Build around ADR-008 (AUTOPILOT S2.3). Only the last line of `make preflight` - the
   # estimator's verdict on seven rows - depends on the decision. The stacks, the kill
   # switch, the sentinel, the retention settings and the alarm budget do not, and none
@@ -918,14 +929,19 @@ tasks:
   milestone: M1
   title: Expo app with three variants
   deps: [CORE-04]
-  status: todo
-  blocked_on: null
+  status: blocked
+  blocked_on: H1
   not_before: null
   done_when:
     - app.config.ts reads APP_VARIANT to set package, scheme, API URL and update channel
     - runtimeVersion uses fingerprint
     - CI builds three APKs on Linux with eas build --local
     - all three install side by side on the CI emulator, proven by Maestro
+  # Reclassified 2026-10-04. Deps were satisfied so this read `todo`, but the third
+  # done_when item cannot be met without an Expo access token, and docs/hitl/SESSION-1.md
+  # S7 is where that token is created and stored. The app scaffold could be written
+  # without it; the task as specified cannot be finished without it, and a task that is
+  # selectable but uncompletable is how the loop wastes a session.
   verify: pnpm -C mobile test
   evidence: []
 

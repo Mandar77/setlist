@@ -3,6 +3,20 @@
 // Each rung is tested for what it decides AND for what it refuses to decide, because the
 // refusals are the interesting half: a ladder whose lower rungs fire when a higher one
 // should have is indistinguishable from a working one on the easy cases.
+//
+// ## Why the assertions use literals and not the module's own constants
+//
+// The first version of this file compared results against `Orientation.TITLE_FIRST` and
+// `ORIENTATION_CONFIDENCE.EXPLICIT`. Twenty-six tests passed and mutation testing killed
+// 2 of 65 mutants, because a mutant that rewrites `TITLE_FIRST: 'title_first'` to
+// `TITLE_FIRST: ''` changes the produced value and the expected value together. The test
+// compares the module against itself and holds for any value at all.
+//
+// That is the same defect as the SHA-256 test that asserted
+// `digest === sha256Hex(normalize(raw))`, found by the same tool, written one session
+// after it was documented. The string values are the wire format — `enums.ts` says they
+// must stay byte-identical to the oracle's — so the literal IS the contract, and a test
+// that cannot see a changed literal is not testing the contract.
 
 import { describe, expect, it } from 'vitest'
 
@@ -22,6 +36,38 @@ const plain = (left: string, right: string) => ({ left, right, cue: null })
 /** A line that stated its own orientation. */
 const cued = (left: string, right: string, cue: Orientation) => ({ left, right, cue })
 
+describe('the wire values themselves', () => {
+  // Pinned as literals, because everything else in this file depends on them being what
+  // they say they are, and because they cross a process boundary to the oracle.
+  it('Orientation is exactly these two strings', () => {
+    expect(Orientation).toEqual({ TITLE_FIRST: 'title_first', ARTIST_FIRST: 'artist_first' })
+  })
+
+  it('OrientationBasis is exactly these three strings', () => {
+    expect(OrientationBasis).toEqual({
+      EXPLICIT: 'explicit',
+      CONVENTION: 'convention',
+      PRIOR: 'prior',
+    })
+  })
+
+  it('the ADR-002 confidences are 0.95, 0.85 and 0.60', () => {
+    expect(ORIENTATION_CONFIDENCE).toEqual({ EXPLICIT: 0.95, CONVENTION: 0.85, PRIOR: 0.6 })
+  })
+
+  it('the alternate threshold is 0.8', () => {
+    expect(ALTERNATE_THRESHOLD).toBe(0.8)
+  })
+
+  it('the threshold sits between the prior and the convention', () => {
+    // A property over the literals above: moving any one number without the others
+    // breaks this rather than silently changing which documents get a second reading.
+    expect(ORIENTATION_CONFIDENCE.PRIOR).toBeLessThan(ALTERNATE_THRESHOLD)
+    expect(ORIENTATION_CONFIDENCE.CONVENTION).toBeGreaterThanOrEqual(ALTERNATE_THRESHOLD)
+    expect(ORIENTATION_CONFIDENCE.EXPLICIT).toBeGreaterThan(ORIENTATION_CONFIDENCE.CONVENTION)
+  })
+})
+
 describe('rung 1: explicit cues', () => {
   it('wins outright, at 0.95', () => {
     const verdict = resolveOrientation(
@@ -29,9 +75,9 @@ describe('rung 1: explicit cues', () => {
       SourceKind.PASTE,
     )
     expect(verdict).toEqual({
-      orientation: Orientation.TITLE_FIRST,
-      confidence: ORIENTATION_CONFIDENCE.EXPLICIT,
-      basis: OrientationBasis.EXPLICIT,
+      orientation: 'title_first',
+      confidence: 0.95,
+      basis: 'explicit',
       emitAlternate: false,
     })
   })
@@ -43,8 +89,9 @@ describe('rung 1: explicit cues', () => {
       [cued('Oasis', 'Wonderwall', Orientation.ARTIST_FIRST)],
       SourceKind.SCAN_HANDWRITING,
     )
-    expect(verdict?.orientation).toBe(Orientation.ARTIST_FIRST)
-    expect(verdict?.basis).toBe(OrientationBasis.EXPLICIT)
+    expect(verdict?.orientation).toBe('artist_first')
+    expect(verdict?.basis).toBe('explicit')
+    expect(verdict?.confidence).toBe(0.95)
   })
 
   it('overrules a repetition signal pointing the other way', () => {
@@ -57,8 +104,8 @@ describe('rung 1: explicit cues', () => {
       ],
       null,
     )
-    expect(verdict?.basis).toBe(OrientationBasis.EXPLICIT)
-    expect(verdict?.orientation).toBe(Orientation.TITLE_FIRST)
+    expect(verdict?.basis).toBe('explicit')
+    expect(verdict?.orientation).toBe('title_first')
   })
 
   it('falls through when the cues contradict each other', () => {
@@ -68,7 +115,21 @@ describe('rung 1: explicit cues', () => {
       [cued('A', 'B', Orientation.TITLE_FIRST), cued('C', 'D', Orientation.ARTIST_FIRST)],
       SourceKind.PASTE,
     )
-    expect(verdict?.basis).not.toBe(OrientationBasis.EXPLICIT)
+    expect(verdict?.basis).toBe('prior')
+    expect(verdict?.confidence).toBe(0.6)
+  })
+
+  it('a majority of agreeing cues still counts as explicit', () => {
+    const verdict = resolveOrientation(
+      [
+        cued('A', 'B', Orientation.TITLE_FIRST),
+        cued('C', 'D', Orientation.TITLE_FIRST),
+        cued('E', 'F', Orientation.ARTIST_FIRST),
+      ],
+      null,
+    )
+    expect(verdict?.basis).toBe('explicit')
+    expect(verdict?.orientation).toBe('title_first')
   })
 })
 
@@ -80,9 +141,9 @@ describe('rung 2: document convention', () => {
       null,
     )
     expect(verdict).toEqual({
-      orientation: Orientation.ARTIST_FIRST,
-      confidence: ORIENTATION_CONFIDENCE.CONVENTION,
-      basis: OrientationBasis.CONVENTION,
+      orientation: 'artist_first',
+      confidence: 0.85,
+      basis: 'convention',
       emitAlternate: false,
     })
   })
@@ -92,8 +153,9 @@ describe('rung 2: document convention', () => {
       [plain('Wonderwall', 'Oasis'), plain('Live Forever', 'Oasis'), plain('Supersonic', 'Oasis')],
       null,
     )
-    expect(verdict?.orientation).toBe(Orientation.TITLE_FIRST)
-    expect(verdict?.basis).toBe(OrientationBasis.CONVENTION)
+    expect(verdict?.orientation).toBe('title_first')
+    expect(verdict?.basis).toBe('convention')
+    expect(verdict?.confidence).toBe(0.85)
   })
 
   it('beats the source-kind prior', () => {
@@ -103,8 +165,8 @@ describe('rung 2: document convention', () => {
       [plain('Wonderwall', 'Oasis'), plain('Live Forever', 'Oasis')],
       SourceKind.PASTE,
     )
-    expect(verdict?.orientation).toBe(Orientation.TITLE_FIRST)
-    expect(verdict?.basis).toBe(OrientationBasis.CONVENTION)
+    expect(verdict?.orientation).toBe('title_first')
+    expect(verdict?.basis).toBe('convention')
   })
 })
 
@@ -113,39 +175,66 @@ describe('repetitionSignal on its own', () => {
     expect(repetitionSignal([plain('Oasis', 'Wonderwall')])).toBeNull()
   })
 
+  it('is null for an empty list', () => {
+    expect(repetitionSignal([])).toBeNull()
+  })
+
   it('is null when neither side repeats, which is the common short list', () => {
     expect(repetitionSignal([plain('Oasis', 'Wonderwall'), plain('Blur', 'Song 2')])).toBeNull()
   })
 
   it('folds before comparing, so casing and spacing do not split an artist', () => {
     // "OASIS " and "Oasis" must count as one artist, or the repetition is invisible.
-    const signal = repetitionSignal([plain('OASIS ', 'Wonderwall'), plain('Oasis', 'Live Forever')])
-    expect(signal).toBe(Orientation.ARTIST_FIRST)
+    expect(repetitionSignal([plain('OASIS ', 'Wonderwall'), plain('Oasis', 'Live Forever')])).toBe(
+      'artist_first',
+    )
   })
 
   it('does not fire when both sides repeat equally', () => {
     expect(repetitionSignal([plain('A', 'B'), plain('A', 'B'), plain('C', 'D')])).toBeNull()
   })
+
+  it('says artist_first when the LEFT side has fewer distinct values', () => {
+    expect(repetitionSignal([plain('X', 'a'), plain('X', 'b'), plain('X', 'c')])).toBe(
+      'artist_first',
+    )
+  })
+
+  it('says title_first when the RIGHT side has fewer distinct values', () => {
+    expect(repetitionSignal([plain('a', 'X'), plain('b', 'X'), plain('c', 'X')])).toBe(
+      'title_first',
+    )
+  })
 })
 
 describe('rung 3: the source-kind prior', () => {
   it.each([
-    [SourceKind.SCAN_HANDWRITING, Orientation.TITLE_FIRST],
-    [SourceKind.SCAN_PRINT, Orientation.TITLE_FIRST],
-    [SourceKind.SCREENSHOT, Orientation.TITLE_FIRST],
-    [SourceKind.PASTE, Orientation.ARTIST_FIRST],
-    [SourceKind.FILE, Orientation.ARTIST_FIRST],
+    ['scan_handwriting', 'title_first'],
+    ['scan_print', 'title_first'],
+    ['screenshot', 'title_first'],
+    ['paste', 'artist_first'],
+    ['file', 'artist_first'],
   ])('%s defaults to %s at 0.60', (kind, expected) => {
-    const verdict = resolveOrientation([plain('X', 'Y')], kind)
+    const verdict = resolveOrientation([plain('X', 'Y')], kind as SourceKind)
     expect(verdict?.orientation).toBe(expected)
-    expect(verdict?.confidence).toBe(ORIENTATION_CONFIDENCE.PRIOR)
-    expect(verdict?.basis).toBe(OrientationBasis.PRIOR)
+    expect(verdict?.confidence).toBe(0.6)
+    expect(verdict?.basis).toBe('prior')
   })
 
   it('covers every SourceKind — a new one must not silently have no prior', () => {
     for (const kind of Object.values(SourceKind)) {
       expect(resolveOrientation([plain('X', 'Y')], kind)).not.toBeNull()
     }
+  })
+
+  it('SourceKind is exactly these five strings', () => {
+    expect(Object.values(SourceKind).sort()).toEqual([
+      'file',
+      'paste',
+      'scan_handwriting',
+      'scan_print',
+      'screenshot',
+    ])
   })
 })
 
@@ -161,14 +250,14 @@ describe('no signal at all', () => {
   })
 
   it('still answers from the prior when a source kind IS given', () => {
-    expect(resolveOrientation([], SourceKind.PASTE)).not.toBeNull()
+    expect(resolveOrientation([], SourceKind.PASTE)?.basis).toBe('prior')
   })
 })
 
 describe('rung 4: the alternate reading', () => {
   it('is emitted below 0.8, which is exactly the bare prior', () => {
     const verdict = resolveOrientation([plain('X', 'Y')], SourceKind.PASTE)
-    expect(verdict?.confidence).toBeLessThan(ALTERNATE_THRESHOLD)
+    expect(verdict?.confidence).toBe(0.6)
     expect(verdict?.emitAlternate).toBe(true)
   })
 
@@ -177,7 +266,7 @@ describe('rung 4: the alternate reading', () => {
       [plain('Oasis', 'Wonderwall'), plain('Oasis', 'Live Forever')],
       null,
     )
-    expect(verdict?.confidence).toBeGreaterThanOrEqual(ALTERNATE_THRESHOLD)
+    expect(verdict?.confidence).toBe(0.85)
     expect(verdict?.emitAlternate).toBe(false)
   })
 
@@ -185,25 +274,17 @@ describe('rung 4: the alternate reading', () => {
     const verdict = resolveOrientation([cued('Wonderwall', 'Oasis', Orientation.TITLE_FIRST)], null)
     expect(verdict?.emitAlternate).toBe(false)
   })
-
-  it('the threshold sits between the prior and the convention', () => {
-    // Stated as a property rather than left implicit in three separate numbers: moving
-    // any one of them without moving the others should break this.
-    expect(ORIENTATION_CONFIDENCE.PRIOR).toBeLessThan(ALTERNATE_THRESHOLD)
-    expect(ORIENTATION_CONFIDENCE.CONVENTION).toBeGreaterThanOrEqual(ALTERNATE_THRESHOLD)
-    expect(ORIENTATION_CONFIDENCE.EXPLICIT).toBeGreaterThan(ORIENTATION_CONFIDENCE.CONVENTION)
-  })
 })
 
 describe('swap', () => {
+  it('maps each value to the other', () => {
+    expect(swap(Orientation.TITLE_FIRST)).toBe('artist_first')
+    expect(swap(Orientation.ARTIST_FIRST)).toBe('title_first')
+  })
+
   it('is its own inverse', () => {
     for (const orientation of Object.values(Orientation)) {
       expect(swap(swap(orientation))).toBe(orientation)
     }
-  })
-
-  it('actually changes the value', () => {
-    expect(swap(Orientation.TITLE_FIRST)).toBe(Orientation.ARTIST_FIRST)
-    expect(swap(Orientation.ARTIST_FIRST)).toBe(Orientation.TITLE_FIRST)
   })
 })
