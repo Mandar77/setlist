@@ -31,6 +31,9 @@
       "path": "tools/free-tier-estimate"
     },
     {
+      "path": "tools/provider-simulator"
+    },
+    {
       "path": "tools/golden-gen"
     },
     {

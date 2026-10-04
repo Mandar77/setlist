@@ -1,0 +1,17 @@
+{
+  "name": "@setlist/provider-simulator",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "An offline YouTube Data API v3 stand-in: real unit costs, both quota buckets, and the failures that matter.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --build",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.4"
+  }
+}

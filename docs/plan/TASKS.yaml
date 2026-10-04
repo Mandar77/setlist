@@ -1284,7 +1284,7 @@ tasks:
   milestone: M3
   title: YouTube provider simulator
   deps: [M3-01]
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -1293,7 +1293,16 @@ tasks:
     - reproduces 429 with Retry-After and quotaExceeded
     - recorded fixtures for contract tests
   verify: pnpm -C tools/provider-simulator test
-  evidence: []
+  evidence:
+    - "unit costs are the provider's, not configurable: search.list 100, playlists.insert 50, playlistItems.insert 50 (PED D16). A test that passes against invented quota proves nothing - the per-env SHARES in budget.yaml are ours to set, the costs are not"
+    - "TWO buckets, which is the detail the whole thing exists for: 10,000 units/day project-wide, and a SEPARATE 100 CALLS/day for search.list. A single pooled quota passes every obvious test and is wrong in the one way that changes the design - it lets search.list run until the units are gone, when the call bucket stops it at 100. That constraint is why PED S7.10.1 resolves by ISRC before it searches"
+    - "proven both directions: with the unit budget raised to a million the call bucket still stops search at 100, and an exhausted search bucket does NOT block playlist inserts - the failure a pooled quota would produce"
+    - "a rejected call costs nothing, because the real API rejects the whole call rather than charging part of it; and quota is checked BEFORE a scripted failure, so an exhausted project reports quotaExceeded whatever else was about to go wrong"
+    - "the two 403-ish failures are told apart and asserted to differ: quotaExceeded is not retryable and IS deferrable (units are gone until the Pacific reset, and a retry loop against it turns a quota outage into a thundering herd), rateLimitExceeded is retryable with a Retry-After and is not deferrable. Treating them alike either wastes a day or hammers a rate limit"
+    - "failures are a SCRIPTED QUEUE rather than random, so a test says `the third insert is rate limited, then it succeeds` instead of seeding a PRNG and hoping. Ids are counter-derived, so a recorded fixture still matches tomorrow - a fresh uuid per call would make every fixture single-use"
+    - "recorded fixtures for contract tests, asserted to still match what the simulator produces. The 15-song fixture pins 800 units = 50 + 15*50, which is the number ADR-008 is an argument about"
+    - "FOUND BY ITS OWN TEST: the 15-song fixture's item ids were written as i+3 and are actually i+2, because the counter is shared and the playlist takes 1. Recorded from a real run now, which is the argument for recording fixtures rather than writing them"
+  
 
 - id: M3-06
   milestone: M3
