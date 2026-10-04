@@ -121,6 +121,9 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
     devDependencies:
+      '@setlist/provider-simulator':
+        specifier: workspace:*
+        version: link:../../tools/provider-simulator
       '@types/node':
         specifier: 22.20.4
         version: 22.20.4

@@ -15,6 +15,7 @@
     "@setlist/core": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "22.20.4"
+    "@types/node": "22.20.4",
+    "@setlist/provider-simulator": "workspace:*"
   }
 }

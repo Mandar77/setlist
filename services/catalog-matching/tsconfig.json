@@ -18,6 +18,6 @@
     "lib": ["ES2023"],
     "types": ["node"]
   },
-  "references": [{ "path": "../../packages/core" }],
+  "references": [{ "path": "../../packages/core" }, { "path": "../../tools/provider-simulator" }],
   "include": ["src/**/*.ts", "test/**/*.ts"]
 }

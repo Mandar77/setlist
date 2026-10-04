@@ -49,11 +49,37 @@ export interface MatchInput {
 
 export type MatchSource = 'cache' | 'isrc' | 'text' | 'alternate'
 
+/**
+ * What happened to the line's orientation (ADR-002 step 5).
+ *
+ *   * `not_applicable` - the parser was sure, so there was no alternate to weigh.
+ *   * `resolved` - one reading won by the margin. Either the original was confirmed or
+ *     the swap replaced it; both are decisions.
+ *   * `unresolved` - neither reading won clearly. The catalogs were asked and did not
+ *     answer, which is NOT the same as the original being right, so the item goes to
+ *     review and autonomous creation refuses it.
+ */
+export type OrientationOutcome = 'not_applicable' | 'resolved' | 'unresolved'
+
 export interface MatchResult {
   readonly scored: Scored | null
   readonly source: MatchSource | null
   /** Set when ADR-002's alternate reading won and the orientation was flipped. */
   readonly orientationFlipped: boolean
+  readonly orientationOutcome: OrientationOutcome
+}
+
+/**
+ * May this result be created autonomously, without a person looking at it?
+ *
+ * Two independent vetoes, and ADR-002 step 5 is explicit about the second: "Autonomous
+ * creation never proceeds on an unresolved orientation." An unresolved orientation can
+ * still produce a high-scoring match -- the catalogs simply could not say WHICH reading
+ * it was a high-scoring match for -- so the score alone would wave it through.
+ */
+export function mayCreateAutonomously(result: MatchResult): boolean {
+  if (result.orientationOutcome === 'unresolved') return false
+  return result.scored?.verdict === 'auto_accept'
 }
 
 export interface MatcherOptions {
@@ -99,7 +125,16 @@ export class Matcher {
     // 1. Cache.
     const key = input.isrc ? isrcKey(input.isrc) : textKey(input.title, input.artist)
     const cached = this.cache.get(key)
-    if (cached !== null) return { scored: cached, source: 'cache', orientationFlipped: false }
+    if (cached !== null) {
+      return {
+        scored: cached,
+        source: 'cache',
+        orientationFlipped: false,
+        // A cache hit is keyed on the query as the parser produced it, so whatever the
+        // orientation question was, it was answered when the row was written.
+        orientationOutcome: 'not_applicable',
+      }
+    }
 
     // 2. ISRC. An exact identifier needs no scoring, so it is accepted as-is.
     if (input.isrc !== null) {
@@ -113,7 +148,14 @@ export class Matcher {
           parts: { title: 1, artist: 1, duration: 1, qualifiers: 1 },
         }
         this.cache.set(key, scored)
-        return { scored, source: 'isrc', orientationFlipped: false }
+        // An ISRC identifies the recording outright, so orientation stops being a
+        // question rather than being resolved.
+        return {
+          scored,
+          source: 'isrc',
+          orientationFlipped: false,
+          orientationOutcome: 'not_applicable',
+        }
       }
     }
 
@@ -127,12 +169,43 @@ export class Matcher {
     // ADR-002 step 5: try the swapped reading too, against the same free catalogs.
     if (input.alternate !== undefined) {
       const swapped = await this.searchAlternate(input)
-      if (
-        swapped !== null &&
-        (primaryBest === null || swapped.score - primaryBest.score >= ORIENTATION_MARGIN)
-      ) {
+      const originalScore = primaryBest?.score ?? 0
+      const swappedScore = swapped?.score ?? 0
+
+      if (swapped !== null && swappedScore - originalScore >= ORIENTATION_MARGIN) {
         this.cache.set(key, swapped)
-        return { scored: swapped, source: 'alternate', orientationFlipped: true }
+        return {
+          scored: swapped,
+          source: 'alternate',
+          orientationFlipped: true,
+          orientationOutcome: 'resolved',
+        }
+      }
+
+      if (primaryBest !== null && originalScore - swappedScore >= ORIENTATION_MARGIN) {
+        // The original won by the margin, which is a decision and not a default.
+        this.cache.set(key, primaryBest)
+        return {
+          scored: primaryBest,
+          source: 'text',
+          orientationFlipped: false,
+          orientationOutcome: 'resolved',
+        }
+      }
+
+      // Neither won. The catalogs were asked and did not answer, so this goes to review
+      // rather than quietly keeping the parser's guess -- which is what ADR-002 means by
+      // "otherwise keep the prior and send the item to review". The verdict is forced
+      // down because a high score here says the TEXT matched something, not that the
+      // orientation was right.
+      const unresolved =
+        primaryBest === null ? null : { ...primaryBest, verdict: 'review' as const }
+      if (unresolved !== null) this.cache.set(key, unresolved)
+      return {
+        scored: unresolved,
+        source: unresolved === null ? null : 'text',
+        orientationFlipped: false,
+        orientationOutcome: 'unresolved',
       }
     }
 
@@ -141,6 +214,7 @@ export class Matcher {
       scored: primaryBest,
       source: primaryBest === null ? null : 'text',
       orientationFlipped: false,
+      orientationOutcome: 'not_applicable',
     }
   }
 

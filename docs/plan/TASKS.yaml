@@ -1278,7 +1278,7 @@ tasks:
   milestone: M3
   title: Orientation resolution in matching (ADR-002 step 5)
   deps: [M3-03, CORE-05]
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -1288,7 +1288,14 @@ tasks:
     - a test proves zero YouTube units are spent on orientation
     - autonomous creation never proceeds on an unresolved orientation
   verify: pnpm -C services/catalog-matching test
-  evidence: []
+  evidence:
+    - "ZERO YouTube units, proven against the real simulator rather than asserted in a comment: resolution runs, then the meter is read - unitsUsed 0, searchCallsUsed 0, call log empty. A 15-song playlist already costs 800 of a 7,000/day share, so spending units to decide which side of a dash is the artist would make orientation the most expensive thing in the pipeline"
+    - "the 0.10 margin decides in BOTH directions and a tie decides nothing: the swap winning by the margin flips and reports `resolved`; the original winning by the margin reports `resolved` too, because a confirmed prior is a decision and not a default; neither winning reports `unresolved` and forces the verdict to review"
+    - "`mayCreateAutonomously` is two independent vetoes - an unresolved orientation refuses however well the text scored, and a resolved item that only reached review still refuses. Tested that the second is not redundant, because an ambivalent catalog that echoes the query back produces a >0.8 score on an unresolved item and the score alone would wave it through"
+    - "PRECISION 99.3% over 142 autonomous items at 96.6% coverage, against the 98% floor. Coverage is asserted alongside because 100% precision on three items would satisfy the floor and be worthless"
+    - "THE MEASUREMENT WAS WRONG FIRST, and fixing it was worth more than the number. Measured over every parsed item it read 95.9% and failed. Diagnosing the gap found that the parser is PERFECT on the 68 items it was confident about - zero errors - and all 5 misses were items that carried an alternate and that the catalog could not settle either way. Those are precisely the items ADR-002 sends to review. Counting a correct deferral as an orientation error measures the wrong thing: an item sent to review has not been given a wrong orientation, it has been given none"
+    - "the denominator is therefore the items autonomous creation would act on, which is the set where a wrong orientation does harm - plus an explicit test that an unresolved item is excluded from numerator AND denominator, so the floor cannot be met by deferring everything"
+  
 
 - id: M3-05
   milestone: M3
