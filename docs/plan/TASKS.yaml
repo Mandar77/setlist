@@ -381,7 +381,7 @@ tasks:
   milestone: HYG
   title: The emulator job - one driver session, and skip it when nothing mobile changed
   deps: [M1-01]
-  status: todo
+  status: doing
   blocked_on: null
   not_before: null
   # Two changes to one CI job, together because each costs a ~16 minute round trip and
@@ -403,8 +403,13 @@ tasks:
     - "the AVD snapshot and the Gradle cache are reused between runs"
     - "check_workflows.js still passes, including the ADR-011 requirement that any new job be a required status check"
     - "proven both ways: a mobile-only change runs the job, a docs-only change skips it AND the required check still reports success"
+    - "the LIVE protect-develop ruleset matches the scripted one, and something checks that it still does - found during this task: check_workflows.js ties the ruleset in github-setup.sh to ci.yml, but nothing ties either to what GitHub actually enforces, and they had drifted to 15 live against 18 scripted. The whole 'a skipped job reports success' design assumes the check is required; while it is not, the emulator job gates nothing at all"
   verify: make verify
-  evidence: []
+  evidence:
+    - "one Maestro invocation over mobile/.maestro instead of one per flow, so a single on-device driver session serves both and there is no second session to lose: [scripts/ci/maestro-flows.sh](../../scripts/ci/maestro-flows.sh)"
+    - "the retry is narrow and annotated - it fires only on DeviceServerDiedException and never on a flow that ran and failed an assertion, because a blanket retry turns a regression into a flake"
+    - "the changed-path decision is computed with git in its own job and matches positively: unknown event, absent base, all-zeroes base, or a commit this clone lacks all RUN the job"
+    - "LIVE RULESET DRIFT, found here and not yet fixed: GitHub enforces 15 required checks on develop while github-setup.sh defines 18. 'Mobile on the emulator' and 'OCR golden images' are among the missing, so neither currently blocks a fast-forward. The human re-runs github-setup.sh"
 
 # ---------------------------------------------------------------- M0a (no AWS)
 # Ordering note: M0A-05 and M0A-06 are unblocked and wanted, but they sit ABOVE the CORE

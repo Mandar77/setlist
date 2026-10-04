@@ -24,6 +24,74 @@ env:
   PYTHONUTF8: "1"
 
 jobs:
+  # Which parts of the tree this commit touched. Exists for one consumer — the emulator
+  # job, which costs ~16 minutes and proves nothing about a docs change.
+  #
+  # A JOB-LEVEL `if` on the consumer, never a workflow-level `paths` filter. The two look
+  # interchangeable and are not: a skipped job reports success to a required status check,
+  # while a workflow that never runs leaves its checks *pending forever* and blocks every
+  # fast-forward to develop. ADR-011 makes these checks required, so the difference is the
+  # difference between a faster CI and a branch nobody can merge into.
+  #
+  # Computed with git rather than a changed-files action. AUTOPILOT §2.3 — no new tool
+  # without a `done_when` asking for it or an incident proving it — and ADR-011 would make
+  # it one more third-party action to pin, review and trust in a job that can see the repo.
+  changes:
+    name: Which paths changed
+    runs-on: ubuntu-latest
+    outputs:
+      mobile: ${{ steps.decide.outputs.mobile }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Decide whether the mobile path changed
+        id: decide
+        # Through `env:` and quoted at every use. These are SHAs today, but
+        # `github.event` is attacker-controlled on a fork pull request and the rule does
+        # not get to depend on which field happens to be safe this week.
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          # Positive matching on the events we know, and every other event falls through
+          # to an empty base — which runs the job. A negative condition here would decide
+          # "did not change" for an event nobody anticipated, and skipping is the
+          # unrecoverable direction: a required check reports success either way.
+          base=""
+          if [ "$EVENT" = "pull_request" ]; then
+            base="$PR_BASE"
+          elif [ "$EVENT" = "push" ]; then
+            base="$PUSH_BEFORE"
+          fi
+
+          # Absent, all-zeroes (the first push of a new branch), or a commit this clone
+          # does not have: all mean "cannot tell", and cannot-tell runs the job.
+          if [ -z "$base" ] \
+            || [ "$base" = "0000000000000000000000000000000000000000" ] \
+            || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            echo "cannot establish a base to compare against; running the mobile jobs"
+            echo "mobile=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Captured rather than piped into grep: under `pipefail` a closed pipe makes git
+          # exit non-zero, which would read as "nothing changed" exactly when something did.
+          changed="$(git diff --name-only "$base" "$HEAD_SHA" -- mobile packages/core)"
+          if [ -n "$changed" ]; then
+            echo "mobile or packages/core changed:"
+            echo "$changed"
+            echo "mobile=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "no change under mobile/ or packages/core; the emulator job will skip"
+            echo "mobile=false" >> "$GITHUB_OUTPUT"
+          fi
+
   quality:
     name: make verify
     runs-on: ubuntu-latest
@@ -262,6 +330,12 @@ jobs:
   mobile-emulator:
     name: Mobile on the emulator (M1-01, M1-07)
     runs-on: ubuntu-latest
+    needs: changes
+    # Positive match. Anything other than a definite "false" from the `changes` job runs
+    # the emulator, and `changes` only emits "false" when it successfully compared two
+    # real commits. If `changes` itself fails, this is skipped but `changes` is red, so
+    # develop stays blocked — the gate fails closed.
+    if: needs.changes.outputs.mobile == 'true'
     # The only job that proves the product works rather than that its parts do.
     #
     # Everything under mobile/ except the screen itself is a pure function and is gated by
@@ -349,9 +423,44 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # Booting a fresh AVD is most of this job's fixed cost. Cache the device image and
+      # a boot snapshot so later runs resume instead of cold-booting.
+      #
+      # The key carries every property that changes what the AVD *is*. A cache keyed more
+      # loosely would restore an image built for a different API level and fail in a way
+      # that looks like an emulator fault, which is the expensive kind of wrong here.
+      - name: Cache the AVD and its boot snapshot
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-api34-google_apis-x86_64-pixel_6
+
+      # Negative condition, deliberately, and this is the one shape where firing on an
+      # absent value is correct: `cache-hit` is unset on a miss, on a partial restore, and
+      # on any cache failure, and all three mean "there is no snapshot" — so the safe
+      # default is to build one. The cost of firing when it was not needed is one boot;
+      # the cost of NOT firing when it was needed is a job that cannot start.
+      - name: Create the AVD and snapshot it, on a cache miss
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "AVD created and snapshotted for the cache."
+
       - name: Install all three and drive them
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           api-level: 34
           target: google_apis
           arch: x86_64
@@ -383,8 +492,7 @@ jobs:
             adb install -r "$RUNNER_TEMP/apks/stage.apk"
             adb install -r "$RUNNER_TEMP/apks/prod.apk"
             adb shell pm list packages com.setlist.app
-            maestro test mobile/.maestro/variants-side-by-side.yaml
-            maestro test mobile/.maestro/paste-to-list.yaml
+            bash scripts/ci/maestro-flows.sh mobile/.maestro
 
       - name: Keep the Maestro output when a flow fails
         if: failure()
