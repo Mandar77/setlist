@@ -343,7 +343,10 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
-            set -euo pipefail
+            # `set -eu`, not `-euo pipefail`: this block runs under /usr/bin/sh, which is
+            # dash on the runner, and dash has no pipefail. The other steps in this job
+            # are `run:` blocks and get bash, which is why they differ.
+            set -eu
             for variant in dev stage prod; do
               adb install -r "$RUNNER_TEMP/apks/$variant.apk"
             done
