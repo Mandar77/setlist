@@ -82,7 +82,15 @@ jobs:
 
           # Captured rather than piped into grep: under `pipefail` a closed pipe makes git
           # exit non-zero, which would read as "nothing changed" exactly when something did.
-          changed="$(git diff --name-only "$base" "$HEAD_SHA" -- mobile packages/core)"
+          # The app, the grammar it runs, and the two files that DRIVE the job. Leaving
+          # the last two out is the obvious mistake and this job made it on its first
+          # run: a change to the Maestro runner skipped the only thing that executes it,
+          # so the fix would have been merged having never run once.
+          changed="$(git diff --name-only "$base" "$HEAD_SHA" -- \
+            mobile \
+            packages/core \
+            scripts/ci/maestro-flows.sh \
+            .github/workflows/ci.yml)"
           if [ -n "$changed" ]; then
             echo "mobile or packages/core changed:"
             echo "$changed"
