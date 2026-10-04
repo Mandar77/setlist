@@ -19,7 +19,14 @@ import { CfnWebACL } from 'aws-cdk-lib/aws-wafv2'
 import { CfnJob } from 'aws-cdk-lib/aws-glue'
 import { CfnCanary } from 'aws-cdk-lib/aws-synthetics'
 import { CfnRestApi } from 'aws-cdk-lib/aws-apigateway'
-import { AttributeType, BillingMode, Table } from 'aws-cdk-lib/aws-dynamodb'
+import {
+  AttributeType,
+  Billing,
+  BillingMode,
+  Capacity,
+  Table,
+  TableV2,
+} from 'aws-cdk-lib/aws-dynamodb'
 import { Key } from 'aws-cdk-lib/aws-kms'
 import { Secret } from 'aws-cdk-lib/aws-secretsmanager'
 import { Bucket } from 'aws-cdk-lib/aws-s3'
@@ -317,6 +324,30 @@ export const FIXTURES: Readonly<Record<string, FixturePair>> = {
         readCapacity: 1,
         writeCapacity: 1,
         pointInTimeRecovery: true,
+      })
+    },
+    compliant: s => {
+      provisionedTable(s, 'T')
+    },
+  },
+
+  'SZC-AUTOSCALING': {
+    // Deliberately the INLINE shape, not an ApplicationAutoScaling resource.
+    //
+    // `TableV2` renders AWS::DynamoDB::GlobalTable and carries autoscaling inside the
+    // table's own properties, emitting no ApplicationAutoScaling resource at all. A
+    // rule written as `bansTypes('AWS::ApplicationAutoScaling::ScalableTarget', ...)`
+    // passes this fixture while the table autoscales — which is exactly how
+    // never-use.test.ts's capacity assertion iterated an empty set for two months
+    // (ADR-013). Pinning the harder shape here means the easy one cannot be mistaken
+    // for coverage.
+    violating: s => {
+      new TableV2(s, 'T', {
+        partitionKey: { name: 'pk', type: AttributeType.STRING },
+        billing: Billing.provisioned({
+          readCapacity: Capacity.autoscaled({ minCapacity: 1, maxCapacity: 2 }),
+          writeCapacity: Capacity.autoscaled({ minCapacity: 1, maxCapacity: 2 }),
+        }),
       })
     },
     compliant: s => {

@@ -28,6 +28,58 @@
  * would be spending the thing it guards.
  */
 
+/**
+ * Counting what the account actually holds, as opposed to what the template declares.
+ *
+ * Separate from {@link MetricSource} because it is a different kind of read — a
+ * Describe/List call rather than a metric — and because keeping the metric interface at
+ * exactly one method is load-bearing (see above).
+ *
+ * This exists because of [ADR-013](../../../docs/adr/0013-dynamodb-fixed-capacity.md).
+ * Alarms are free up to ten account-wide, and the project budgets seven. Both gates that
+ * were supposed to protect that number are template-shaped: `SZC-ALARM-BUDGET` counts
+ * `AWS::CloudWatch::Alarm` resources at synth, and `never-use.test.ts` asserts against
+ * `Template.fromStack`. Neither can see an alarm a *service* creates after deploy, which
+ * is exactly what Application Auto Scaling was doing.
+ *
+ * Banning auto scaling removes the cause we found. This measures the quantity, so the
+ * next cause does not need to be guessed at — and the list of services that create
+ * alarms on your behalf is not one this project controls.
+ *
+ * `DescribeAlarms` is a Describe call and is free. It is not `GetMetricData`.
+ */
+export interface AlarmSource {
+  /** Every alarm in the account and region, counted. Paginates internally. */
+  countAlarms(): Promise<number>
+}
+
+/** What the account holds against what it is allowed. */
+export interface AlarmCensus {
+  /** Null when the count could not be read. */
+  readonly count: number | null
+  readonly allowance: number
+  /** How far past the allowance, or 0. Null when unknown. */
+  readonly overBy: number | null
+  readonly unknown: boolean
+}
+
+/**
+ * Count the account's alarms against the free allowance.
+ *
+ * Reports; never trips. An eleventh alarm is $0.10 a month, and engaging the kill switch
+ * — which disables an environment — over ten cents would be an outage caused by the
+ * guard, the same reasoning that keeps an unreadable metric from tripping. The number is
+ * surfaced so a human sees it while it is still ten cents.
+ */
+export async function countAlarms(source: AlarmSource, allowance: number): Promise<AlarmCensus> {
+  try {
+    const count = await source.countAlarms()
+    return { count, allowance, overBy: Math.max(0, count - allowance), unknown: false }
+  } catch {
+    return { count: null, allowance, overBy: null, unknown: true }
+  }
+}
+
 /** A free CloudWatch read. Deliberately the only one. */
 export interface MetricSource {
   /**

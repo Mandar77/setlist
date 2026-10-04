@@ -12,8 +12,7 @@
 
 import { CfnOutput, Stack, type StackProps, Tags } from 'aws-cdk-lib'
 import { Alarm, ComparisonOperator } from 'aws-cdk-lib/aws-cloudwatch'
-import { AttributeType, Billing, Operation, TableV2 } from 'aws-cdk-lib/aws-dynamodb'
-import { Capacity } from 'aws-cdk-lib/aws-dynamodb'
+import { AttributeType, BillingMode, Operation, Table } from 'aws-cdk-lib/aws-dynamodb'
 import { ParameterTier, StringParameter } from 'aws-cdk-lib/aws-ssm'
 import type { Construct } from 'constructs'
 import { loadBudget, shareFor, type EnvName } from '../config/budget.js'
@@ -52,40 +51,38 @@ export class PlatformStack extends Stack {
     // The domain event bus — SNS under zero, EventBridge under enterprise.
     const domain = this.factory.domainBus(this, 'Domain')
 
-    // Single table, PROVISIONED. On-demand is billed per request and is on the
-    // never-use list; the capacity here is this environment's share of an allowance
-    // that is account-wide across every table AND index (PED D6).
-    const table = new TableV2(this, 'Table', {
+    // Single table, PROVISIONED at FIXED capacity ([ADR-013](../../../docs/adr/0013-dynamodb-fixed-capacity.md)).
+    // On-demand is billed per request and is on the never-use list; the capacity here
+    // is this environment's share of an allowance that is account-wide across every
+    // table AND index (PED D6).
+    //
+    // This used to autoscale between 1 and the share, to "give the allowance back"
+    // while idle. That trade was backwards. Provisioned capacity inside the free
+    // allowance is free whether it is used or not, so the thing being conserved was
+    // never scarce — while Application Auto Scaling creates CloudWatch alarms AT
+    // RUNTIME, in the account, outside the template, and the 10-alarm allowance already
+    // has 7 allocated. It spent a scarce allowance to conserve an abundant one.
+    //
+    // `Table` and not `TableV2`, and the reason is structural rather than stylistic:
+    // `AWS::DynamoDB::GlobalTable` has no `WriteCapacityUnits` at all — its
+    // `WriteProvisionedThroughputSettings` holds only autoscaling settings — which is
+    // why `Capacity.fixed()` throws on the write side. TableV2 cannot express this
+    // decision. Global tables are on the never-use list anyway.
+    const table = new Table(this, 'Table', {
       tableName: `setlist-${envName}`,
       partitionKey: { name: 'pk', type: AttributeType.STRING },
       sortKey: { name: 'sk', type: AttributeType.STRING },
-      // Autoscaled with a hard ceiling, not fixed. Two reasons, and the second is the
-      // one that matters:
-      //
-      //   * TableV2 rejects FIXED write capacity outright — only read may be fixed.
-      //   * The 25 WCU / 25 RCU allowance is consumed by what is *provisioned*, so a
-      //     table pinned at its ceiling burns that share around the clock. Scaling to
-      //     1 when idle gives the allowance back, while maxCapacity keeps the worst
-      //     case at exactly the share this environment is budgeted (PED §11).
-      //
-      // maxCapacity is therefore the number the estimator and the "total ≤ 17" check
-      // reason about: it is the most this environment can ever hold.
-      billing: Billing.provisioned({
-        readCapacity: Capacity.autoscaled({
-          minCapacity: 1,
-          maxCapacity: this.config.dynamoCapacity.read,
-        }),
-        writeCapacity: Capacity.autoscaled({
-          minCapacity: 1,
-          maxCapacity: this.config.dynamoCapacity.write,
-        }),
-      }),
+      billingMode: BillingMode.PROVISIONED,
+      // The share, held constantly. This is the number the estimator and the
+      // "total ≤ 17" check reason about, and now it is also the number in the account.
+      readCapacity: this.config.dynamoCapacity.read,
+      writeCapacity: this.config.dynamoCapacity.write,
       timeToLiveAttribute: 'ttl',
       removalPolicy: this.config.removalPolicy,
       // Point-in-time recovery is billed per GB of backup and is on the never-use
       // list. Stated explicitly rather than left to the default, so the intent is
       // visible in the diff when someone is tempted to turn it on.
-      pointInTimeRecovery: false,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: false },
     })
 
     // ---------------------------------------------------------------- M0A-06
@@ -111,6 +108,10 @@ export class PlatformStack extends Stack {
       removalPolicy: this.config.removalPolicy,
       table,
       tripPct: budget.tripPct,
+      // The account-wide total, not this environment's share: DescribeAlarms counts
+      // every alarm in the account, including the ones no stack of ours created, which
+      // is the only reason it is worth calling (ADR-013).
+      alarmAllowance: budget.limits['cloudwatch_alarms']?.total ?? 0,
       // Resolved here so the function carries four integers instead of a bundled copy
       // of budget.yaml and a YAML parser to read it with.
       shares: Object.fromEntries(
@@ -189,7 +190,11 @@ export class PlatformStack extends Stack {
           threshold: 1,
           evaluationPeriods: 1,
           comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
-          alarmDescription: 'Provisioned capacity is short; the autoscaler has not caught up.',
+          // Capacity is fixed at this environment's share (ADR-013), so a throttle is
+          // the designed failure rather than a scaling lag: it means demand exceeded
+          // the budgeted share. The right response is to look at the demand, because
+          // raising the share spends another environment's units or the reserve.
+          alarmDescription: 'Demand exceeded this environment’s fixed provisioned share.',
         }),
     ]
       .slice(0, this.config.maxAlarms)

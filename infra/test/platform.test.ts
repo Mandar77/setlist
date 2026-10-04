@@ -47,23 +47,32 @@ describe('DynamoDB capacity stays inside the account-wide allowance', () => {
 
   it('provisions exactly this environment’s share, never on-demand', () => {
     for (const env of ENVS) {
-      const tables = propsOf(templates.get(env)!, 'AWS::DynamoDB::GlobalTable')
+      const tables = propsOf(templates.get(env)!, 'AWS::DynamoDB::Table')
       expect(tables, env).toHaveLength(1)
-      const throughput = tables[0]!['WriteProvisionedThroughputSettings']
+      // `ProvisionedThroughput` is the POSITIVE signal and the one that carries the
+      // claim: CloudFormation rejects it on a PAY_PER_REQUEST table, so its presence
+      // cannot coexist with on-demand. `BillingMode` is asserted only negatively,
+      // because CDK omits the key entirely when provisioned — PROVISIONED is the
+      // CloudFormation default — and an `=== 'PROVISIONED'` assertion would fail on a
+      // correct template.
+      const throughput = tables[0]!['ProvisionedThroughput']
       expect(throughput, `${env} must be provisioned, not PAY_PER_REQUEST`).toBeDefined()
-      expect(tables[0]!['BillingMode']).not.toBe('PAY_PER_REQUEST')
+      expect(tables[0]!['BillingMode'], env).not.toBe('PAY_PER_REQUEST')
     }
   })
 
-  it('caps autoscaling at the budgeted share rather than at a round number', () => {
+  it('holds the budgeted share as a fixed number, not a scaling ceiling', () => {
+    // ADR-013. The template number is now the account number: with autoscaling there
+    // were two quantities — what was provisioned right now and the most it could reach
+    // — and only the second was ever asserted. Fixed capacity collapses them into one.
     for (const env of ENVS) {
-      const table = propsOf(templates.get(env)!, 'AWS::DynamoDB::GlobalTable')[0]!
-      const write = table['WriteProvisionedThroughputSettings'] as {
-        WriteCapacityAutoScalingSettings?: { MaxCapacity?: number }
+      const table = propsOf(templates.get(env)!, 'AWS::DynamoDB::Table')[0]!
+      const throughput = table['ProvisionedThroughput'] as {
+        ReadCapacityUnits?: number
+        WriteCapacityUnits?: number
       }
-      expect(write.WriteCapacityAutoScalingSettings?.MaxCapacity, env).toBe(
-        shareFor('dynamodb_wcu', env, budget),
-      )
+      expect(throughput.WriteCapacityUnits, env).toBe(shareFor('dynamodb_wcu', env, budget))
+      expect(throughput.ReadCapacityUnits, env).toBe(shareFor('dynamodb_rcu', env, budget))
     }
   })
 })

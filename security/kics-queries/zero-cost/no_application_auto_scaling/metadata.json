@@ -1,0 +1,12 @@
+{
+  "id": "f707389d-fde2-5f9a-b27d-fb278a3c5024",
+  "queryName": "Application Auto Scaling Creates CloudWatch Alarms Outside The Template",
+  "severity": "HIGH",
+  "category": "Resource Management",
+  "descriptionText": "Target-tracking policies create alarms at runtime, in the account, against a 10-alarm free allowance that already has 7 budgeted — where no template-shaped gate can see them (ADR-013). Enforced as SZC-AUTOSCALING.",
+  "descriptionUrl": "https://github.com/setlist/setlist/blob/main/infra/free-tier/budget.yaml",
+  "platform": "CloudFormation",
+  "descriptionID": "f707389d",
+  "cloudProvider": "aws",
+  "szcRule": "SZC-AUTOSCALING"
+}

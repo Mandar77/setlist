@@ -29,7 +29,7 @@ import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs'
 import { LogGroup, type RetentionDays } from 'aws-cdk-lib/aws-logs'
 import { Rule, Schedule } from 'aws-cdk-lib/aws-events'
 import { LambdaFunction as LambdaTarget } from 'aws-cdk-lib/aws-events-targets'
-import type { TableV2 } from 'aws-cdk-lib/aws-dynamodb'
+import type { Table } from 'aws-cdk-lib/aws-dynamodb'
 import { Construct } from 'constructs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -43,10 +43,22 @@ export interface GuardrailsProps {
   readonly env: EnvName
   readonly logRetention: RetentionDays
   readonly removalPolicy: RemovalPolicy
-  readonly table: TableV2
+  // The concrete `Table`, not `ITable`, and not by preference: CDK declares
+  // `ITable.tableStreamArn` as `string` while `Table` has `string | undefined`, which
+  // `exactOptionalPropertyTypes` rejects outright. Only `tableName` and
+  // `grantWriteData` are used here, so if that typing is ever fixed this can widen.
+  readonly table: Table
   readonly tripPct: number
   /** Limit name -> this environment's allowance, resolved from budget.yaml at synth. */
   readonly shares: Readonly<Record<string, number>>
+  /**
+   * The ACCOUNT-wide free alarm allowance, not this environment's share (ADR-013).
+   *
+   * `DescribeAlarms` sees every alarm in the account regardless of which stack made it,
+   * which is the whole point — the alarms being hunted are the ones no stack made. So
+   * the number it is compared against has to be the account ceiling too.
+   */
+  readonly alarmAllowance: number
 }
 
 export class Guardrails extends Construct {
@@ -117,6 +129,7 @@ export class Guardrails extends Construct {
         // Resolved from budget.yaml at synth time. The function needs four integers, not
         // a YAML parser and a bundled copy of the budget.
         SHARES: JSON.stringify(props.shares),
+        ALARM_ALLOWANCE: String(props.alarmAllowance),
       },
       logGroup: new LogGroup(this, 'UsageSentinelLogs', {
         logGroupName: `/aws/lambda/setlist-${props.env}-usage-sentinel`,
@@ -127,12 +140,21 @@ export class Guardrails extends Construct {
       description: 'Reads each free-tier share from free vended metrics and reports a trip.',
     })
 
-    // GetMetricStatistics only. GetMetricData is billed per call and is banned; granting
-    // it here would make the ban a convention rather than a control.
+    // GetMetricStatistics and DescribeAlarms only. GetMetricData is billed per call and
+    // is banned; granting it here would make the ban a convention rather than a control.
+    //
+    // DescribeAlarms is a Describe call and is free (ADR-013). It is granted on `*` by
+    // necessity rather than laziness: the alarms worth finding are the ones no stack of
+    // ours created, so a resource-scoped grant would see exactly the alarms that were
+    // never the problem.
     this.usageSentinel.addToRolePolicy(
       new PolicyStatement({
         effect: Effect.ALLOW,
-        actions: ['cloudwatch:GetMetricStatistics', 'cloudwatch:ListMetrics'],
+        actions: [
+          'cloudwatch:GetMetricStatistics',
+          'cloudwatch:ListMetrics',
+          'cloudwatch:DescribeAlarms',
+        ],
         resources: ['*'],
       }),
     )

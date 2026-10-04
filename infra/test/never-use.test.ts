@@ -63,6 +63,15 @@ const BANNED_TYPES: ReadonlyArray<readonly [string, string]> = [
   ['AWS::ECR::Repository', 'storage is billed; Lambdas are zip-packaged'],
   ['AWS::Synthetics::Canary', 'billed per run'],
   ['AWS::CloudFront::Distribution', 'enrolled manually in the flat-rate Free plan (HITL)'],
+  [
+    'AWS::ApplicationAutoScaling::ScalableTarget',
+    'creates CloudWatch alarms at runtime, outside the template, against a 10-alarm allowance (ADR-013)',
+  ],
+  ['AWS::ApplicationAutoScaling::ScalingPolicy', 'the policy is what creates the alarms (ADR-013)'],
+  [
+    'AWS::DynamoDB::GlobalTable',
+    'global tables replicate and bill per replica; never_use bans them',
+  ],
 ]
 
 describe('profile=zero synthesizes nothing that costs money', () => {
@@ -80,39 +89,64 @@ describe('profile=zero synthesizes nothing that costs money', () => {
         // PAY_PER_REQUEST is billed per request and is on the never-use list. The
         // non-empty assertion matters: with no tables at all, a "none are on-demand"
         // loop passes vacuously.
-        const tables = template.findResources('AWS::DynamoDB::GlobalTable')
+        const tables = template.findResources('AWS::DynamoDB::Table')
         expect(Object.keys(tables).length).toBeGreaterThan(0)
         for (const table of Object.values(tables)) {
+          // `ProvisionedThroughput` carries the claim — CloudFormation rejects it on a
+          // PAY_PER_REQUEST table. `BillingMode` is absent on a provisioned table
+          // because PROVISIONED is the CloudFormation default, so it can only be
+          // asserted negatively.
           expect(props(table)['BillingMode']).not.toBe('PAY_PER_REQUEST')
-          expect(props(table)['Replicas']?.[0]?.ReadProvisionedThroughputSettings).toBeDefined()
+          expect(props(table)['ProvisionedThroughput']).toBeDefined()
         }
       })
 
-      it('caps provisioned capacity at this environment ledger share', () => {
-        // The ceiling is what consumes the shared 25/25 allowance in the worst case,
-        // so it is the number that must match budget.yaml. A table that can scale past
-        // its share is the quiet way to a bill.
+      it('provisions exactly this environment’s share, as a fixed number', () => {
+        // ADR-013. Fixed, so the number in the template IS the number in the account —
+        // there is no ceiling-versus-current distinction left to get wrong.
+        //
+        // The previous version of this test looped over
+        // `AWS::ApplicationAutoScaling::ScalableTarget`, which TableV2 never emitted
+        // because a GlobalTable carries autoscaling inline. It passed for two months by
+        // iterating an empty set. Hence the length assertion below: a loop over nothing
+        // must fail here, not pass.
         const expected = envConfig(envName).dynamoCapacity
-        for (const target of Object.values(
-          template.findResources('AWS::ApplicationAutoScaling::ScalableTarget'),
-        )) {
-          const dimension = props(target)['ScalableDimension'] as string
-          const max = props(target)['MaxCapacity'] as number
-          if (dimension === 'dynamodb:table:ReadCapacityUnits') {
-            expect(max).toBe(expected.read)
-          } else if (dimension === 'dynamodb:table:WriteCapacityUnits') {
-            expect(max).toBe(expected.write)
-          }
-        }
+        const tables = Object.values(template.findResources('AWS::DynamoDB::Table'))
+        expect(tables).toHaveLength(1)
+        const throughput = props(tables[0]!)['ProvisionedThroughput']
+        expect(throughput.ReadCapacityUnits).toBe(expected.read)
+        expect(throughput.WriteCapacityUnits).toBe(expected.write)
       })
 
       it('keeps point-in-time recovery off', () => {
-        const tables = template.findResources('AWS::DynamoDB::GlobalTable')
+        const tables = template.findResources('AWS::DynamoDB::Table')
         expect(Object.keys(tables).length).toBeGreaterThan(0)
         for (const table of Object.values(tables)) {
-          const replica = props(table)['Replicas']?.[0]
-          const pitr = replica?.PointInTimeRecoverySpecification?.PointInTimeRecoveryEnabled
+          const pitr = props(table)['PointInTimeRecoverySpecification']?.PointInTimeRecoveryEnabled
           expect(pitr === undefined || pitr === false).toBe(true)
+        }
+      })
+
+      it('uses no Application Auto Scaling, in either shape', () => {
+        // ADR-013. Autoscaling creates CloudWatch alarms at runtime, in the account and
+        // not in the template, so it consumes the 10-alarm allowance somewhere neither
+        // SZC-ALARM-BUDGET nor this file can see.
+        //
+        // TWO shapes, because the obvious ban catches only one of them. A v1 `Table`
+        // with `autoScaleWriteCapacity()` emits ApplicationAutoScaling resources; a
+        // `TableV2` emits none and puts the same behaviour inside the table's own
+        // properties. Checking only the resource types is how this went unnoticed
+        // before — so the second assertion searches the rendered DynamoDB properties
+        // for the inline settings by name.
+        template.resourceCountIs('AWS::ApplicationAutoScaling::ScalableTarget', 0)
+        template.resourceCountIs('AWS::ApplicationAutoScaling::ScalingPolicy', 0)
+
+        for (const type of ['AWS::DynamoDB::Table', 'AWS::DynamoDB::GlobalTable']) {
+          for (const table of Object.values(template.findResources(type))) {
+            const rendered = JSON.stringify(props(table))
+            expect(rendered).not.toContain('ReadCapacityAutoScalingSettings')
+            expect(rendered).not.toContain('WriteCapacityAutoScalingSettings')
+          }
         }
       })
 

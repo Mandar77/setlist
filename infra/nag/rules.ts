@@ -293,6 +293,31 @@ export const SZC_RULES: readonly SzcRule[] = [
     },
   },
   {
+    id: 'SZC-AUTOSCALING',
+    title: 'No Application Auto Scaling',
+    why: 'Target-tracking policies create CloudWatch alarms AT RUNTIME, in the account and not in the template, so they consume the 10-alarm free allowance (7 of which are already budgeted) where no template-shaped gate can see them. DynamoDB capacity inside the free allowance is free whether used or not, so there is nothing to scale down to (ADR-013).',
+    enforces: /auto ?scaling/i,
+    check: (node, { props }) => {
+      if (
+        node.cfnResourceType === 'AWS::ApplicationAutoScaling::ScalableTarget' ||
+        node.cfnResourceType === 'AWS::ApplicationAutoScaling::ScalingPolicy'
+      ) {
+        return true
+      }
+      // The second shape, and the reason this rule is not a `bansTypes`. A `TableV2`
+      // renders AWS::DynamoDB::GlobalTable and carries autoscaling INLINE, emitting no
+      // ApplicationAutoScaling resource at all — so a type ban is satisfied by a table
+      // that autoscales. `never-use.test.ts` passed for two months on exactly that gap.
+      if (
+        node.cfnResourceType !== 'AWS::DynamoDB::Table' &&
+        node.cfnResourceType !== 'AWS::DynamoDB::GlobalTable'
+      ) {
+        return false
+      }
+      return /(Read|Write)CapacityAutoScalingSettings/.test(JSON.stringify(props))
+    },
+  },
+  {
     id: 'SZC-GLUE',
     title: 'No Glue jobs or crawlers',
     why: 'No Glue option reaches $0 — the cheapest Python shell job bills 1/16 DPU-hour at a one-minute minimum and Spark bills two full DPUs. The Data Catalog is free and is all this project uses; ETL runs as a Lambda (PED D8).',

@@ -12,8 +12,10 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 import {
+  countAlarms,
   readShares,
   sharePct,
+  type AlarmSource,
   type MetricQuery,
   type MetricSource,
   type Share,
@@ -116,6 +118,47 @@ describe('a metric that cannot be read', () => {
   })
 })
 
+describe('counting the alarms no template shows (ADR-013)', () => {
+  const alarmsOf = (value: number | Error): AlarmSource => ({
+    countAlarms: async () => {
+      if (value instanceof Error) throw value
+      return value
+    },
+  })
+
+  it('reports how far over the allowance the account is', async () => {
+    const census = await countAlarms(alarmsOf(13), 10)
+    expect(census.count).toBe(13)
+    expect(census.allowance).toBe(10)
+    expect(census.overBy).toBe(3)
+    expect(census.unknown).toBe(false)
+  })
+
+  it('reports zero over when the account is inside the allowance', async () => {
+    // Both directions, because a census that returned a positive `overBy` for every
+    // input would pass the test above and be useless.
+    const census = await countAlarms(alarmsOf(7), 10)
+    expect(census.overBy).toBe(0)
+    expect(census.unknown).toBe(false)
+  })
+
+  it('treats exactly the allowance as not over', async () => {
+    // Ten alarms are free; the ELEVENTH costs money. An off-by-one here would warn
+    // about a free account every hour, which is how a real warning gets ignored.
+    expect((await countAlarms(alarmsOf(10), 10)).overBy).toBe(0)
+    expect((await countAlarms(alarmsOf(11), 10)).overBy).toBe(1)
+  })
+
+  it('is unknown rather than fine when it cannot read the count', async () => {
+    // Same rule as an unreadable metric: a count that could not be taken is not a count
+    // of zero, and reporting "0 alarms" after a failed call is the comfortable lie.
+    const census = await countAlarms(alarmsOf(new Error('throttled')), 10)
+    expect(census.unknown).toBe(true)
+    expect(census.count).toBeNull()
+    expect(census.overBy).toBeNull()
+  })
+})
+
 describe('the banned APIs', () => {
   const here = dirname(fileURLToPath(import.meta.url))
   const srcDir = resolve(here, '..', 'src')
@@ -147,5 +190,25 @@ describe('the banned APIs', () => {
   it('reads only through GetMetricStatistics', () => {
     const code = sources.map(s => s.text).join('\n')
     expect(code).toContain('getMetricStatistics')
+  })
+
+  it('adds DescribeAlarms and nothing else billable (ADR-013)', () => {
+    // DescribeAlarms is a Describe call and is free, unlike everything in the list
+    // above. Asserted positively so that the one new CloudWatch call this service makes
+    // is a decision recorded in a test, rather than something that turns up in a diff.
+    const code = sources
+      .map(s => s.text)
+      .join('\n')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '')
+    expect(code).toContain('DescribeAlarmsCommand')
+
+    // Every CloudWatch command this service constructs, so a fifth one cannot arrive
+    // unnoticed by being absent from the banned list.
+    const commands = [...code.matchAll(/new\s+(\w+Command)\(/g)].map(m => m[1])
+    expect([...new Set(commands)].sort()).toEqual([
+      'DescribeAlarmsCommand',
+      'GetMetricStatisticsCommand',
+    ])
   })
 })

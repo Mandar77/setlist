@@ -214,6 +214,7 @@ never_use:
   - Step Functions Express state machines
   - SQS event source mappings
   - DynamoDB PAY_PER_REQUEST, Standard-IA, PITR, global tables
+  - Application Auto Scaling (its alarms are created at runtime, outside the template)
   - Glue jobs and crawlers (unless batch.glue.enabled)
   - log groups without retention
   - S3 buckets without lifecycle rules

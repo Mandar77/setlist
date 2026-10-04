@@ -757,7 +757,7 @@ tasks:
   milestone: M0
   title: ADR-013 - fixed DynamoDB capacity, Application Auto Scaling banned, alarms counted
   deps: [M0A-06]
-  status: todo
+  status: doing
   blocked_on: null
   not_before: null
   # One decision, so one task. Splitting it would let the ban land without the removal, or

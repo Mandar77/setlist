@@ -267,6 +267,47 @@ const QUERIES = [
     },
   },
   {
+    id: 'SZC-AUTOSCALING',
+    slug: 'no_application_auto_scaling',
+    name: 'Application Auto Scaling Creates CloudWatch Alarms Outside The Template',
+    why: 'Target-tracking policies create alarms at runtime, in the account, against a 10-alarm free allowance that already has 7 budgeted — where no template-shaped gate can see them (ADR-013).',
+    // Two shapes, so the body is a union rather than a conjunction.
+    //
+    // A v1 Table with autoScaleWriteCapacity() emits ApplicationAutoScaling RESOURCES.
+    // A TableV2 emits none and puts the same behaviour INSIDE the table's properties,
+    // so a type ban is satisfied by a table that autoscales. Each comprehension below
+    // evaluates independently and contributes a marker; one marker is enough.
+    body: [
+      'markers := {m |',
+      '\tbanned := {"AWS::ApplicationAutoScaling::ScalableTarget", "AWS::ApplicationAutoScaling::ScalingPolicy"}',
+      '\tbanned[resource.Type]',
+      '\tm := "autoscaling-resource"',
+      '} | {m |',
+      '\twalk(resource.Properties, [path, _])',
+      '\tcontains(sprintf("%v", [path]), "CapacityAutoScalingSettings")',
+      '\tm := "inline-autoscaling-settings"',
+      '}',
+      'count(markers) > 0',
+    ],
+    searchKey: 'Resources.%s',
+    positive: {
+      // The INLINE shape on purpose: it is the one a resource-type ban misses, and the
+      // one that actually shipped here.
+      T: res('AWS::DynamoDB::GlobalTable', {
+        KeySchema: [{ AttributeName: 'pk', KeyType: 'HASH' }],
+        AttributeDefinitions: [{ AttributeName: 'pk', AttributeType: 'S' }],
+        BillingMode: 'PROVISIONED',
+        WriteProvisionedThroughputSettings: {
+          WriteCapacityAutoScalingSettings: {
+            MinCapacity: 1,
+            MaxCapacity: 10,
+            TargetTrackingScalingPolicyConfiguration: { TargetValue: 70 },
+          },
+        },
+      }),
+    },
+  },
+  {
     id: 'SZC-DDB-PITR',
     slug: 'no_point_in_time_recovery',
     name: 'Point-In-Time Recovery Is Billed Per GB Of Backup',
