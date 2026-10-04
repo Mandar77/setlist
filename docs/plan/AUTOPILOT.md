@@ -212,11 +212,25 @@ Three patterns that previously stopped the loop, and what to do instead:
 
 Only §2.4 stop-rule items go to the human. If a decision is reversible, costs nothing, and does not relax a gate, it is yours.
 
+#### ADR-008: the rule is decided, four rows are not
+The human's rule — planned volumes follow from the gate, computed not rounded, provider-quota rows judged at 90% because the runtime unit bucket is what actually stops the spend — was applied and **reaches only three of the seven failing rows**. The three contested volumes compute to prod 236, stage 50, dev 16, all bound by the YouTube quota at 90%.
+
+The other four (`cloudwatch_logs_gb` in all three environments, `cloudfront_requests` in prod) are not fed by a playlist volume at all: the log rows are fixed monthly overheads that exist before any traffic, and the CloudFront row comes from scans and review sessions. No value of the three volumes, including zero, moves them. That is option (E) in ADR-008 — re-cutting two numbers in `budget.yaml` — and it was never folded into the rule, so it is back with the human rather than guessed at. Nothing was applied: `make estimate` still exits 1 on seven rows rather than on four, because a partial application would be a worse record of where this stands than no application.
+
+The anchors are in place regardless, so whatever the numbers become is a one-line edit each, and the three services that enforce them at runtime now say so in their `done_when`.
+
 #### ADR-008 is open; build around it
 [ADR-008](../adr/0008-free-tier-gate-vs-ped-volumes.md) stays open and stays the human's call. It is not a reason to stop:
 - keep the undecided numbers in **exactly one config entry each**, so the decision lands as a one-line change and nothing else moves;
 - finish every part of **M0A-05 and M0A-06** that does not depend on the outcome — which is all of it except the estimator's verdict on seven rows;
 - leave `make estimate` exiting 1 and say so. The failing gate is the accurate state and is reported, not edited.
+
+### 2.3a Size the goal before starting it
+Before each goal run, estimate turns per task and say whether the bundle fits. If it does not, **trim from the end of the list and say what was cut** — before working, not after.
+
+An honest estimate is cheap and a discovered overrun is not. A goal that asks for seven tasks including an Expo app with three APK builds, a 600-image OCR corpus and a Playwright conformance suite does not become achievable by starting it; it becomes a partial result discovered at turn 45, with the trimming decision made by exhaustion instead of by judgement. Saying "these four fit, these three do not, I am cutting the last three" at turn 1 gives the human the choice of which three.
+
+Estimate from the work, not from the title: a task whose `done_when` needs a 5-minute mutation run per iteration, an emulator, or a CI round trip per change costs turns in multiples of those, not one each.
 
 ### 2.4 Stop rules: these go to the human
 When any of the cases below applies:
@@ -333,6 +347,8 @@ Finite, and all of it sits in front of the critical path. After HYG-06 the next 
 | HYG-04 | Auto-merge re-runs on every PR update and disarms anything not patch or minor | HYG-03 | the disarm path provably calls the API; the job is named stably so it can be required |
 | HYG-05 | CI jobs become required status checks for PRs into `develop` | HYG-04 | a red build cannot merge by approval alone, **and** a fast-forward push of an already-green commit still succeeds |
 | HYG-06 | Lockfile-age check runs on `pnpm-lock.yaml` change and nightly, caches publish dates, retries transient registry errors | none | both must-fail directions still fail; a 5xx-then-success run goes green; unknown age still fails closed |
+| HYG-07 | Replace the hand-written SHA-256 with `@noble/hashes`, or record in an ADR why not (ADR-010) | none | FIPS vectors still pass against the library; every digest unchanged; the ratchet re-baselined in the same commit, and only if surviving mutants does not rise |
+| VERIFY-PINS | `check_workflows.js` resolves every pinned action SHA through the GitHub API and checks it against the tag in its comment | none | a well-formed SHA that does not exist must FAIL; so must a real SHA whose tag comment is wrong |
 
 ### M0a: foundations that need no AWS
 | ID | Task | Deps | Done when |

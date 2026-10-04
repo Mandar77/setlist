@@ -88,6 +88,57 @@ monthly allowance, and saying so in one field is better than pretending they are
 away product capability to satisfy a threshold that was never chosen with provider
 quotas in mind, and (B) removes the gate exactly where it is most needed.
 
+## 2026-10-03: the decided rule, computed — and the four rows it does not reach
+
+The human's decision was: **planned volumes follow from the gate.** Set each of the three
+contested volumes to the largest value that keeps every row it feeds at or under 70% of
+its free-tier share; compute it, do not round up. Provider-quota rows cannot produce a
+bill, so judge those at 90% instead, enforced at runtime by the unit bucket. Then
+`make estimate` must exit 0 — and if a row still fails after that, stop rather than guess.
+
+Computed, with the arithmetic cross-checked against the estimator itself (at the
+committed volumes it reproduces 95.2% / 88.9% / 160.0% exactly, so the model below is the
+same model the gate uses):
+
+| Env | Largest volume | Exact | Bound by |
+| --- | ---: | ---: | --- |
+| prod | **236** | 236.25 | `youtube_units` at 90% |
+| stage | **50** | 50.63 | `youtube_units` at 90% |
+| dev | **16** | 16.88 | `youtube_units` at 90% |
+
+All three are bound by the YouTube unit quota at the 90% provider threshold, which is
+what the exception anticipated. Every AWS row these volumes feed — Lambda, DynamoDB, SNS,
+X-Ray — stays far below 70% at those numbers.
+
+**`make estimate` would still exit 1, on four rows, and none of them is fed by a playlist
+volume:**
+
+| Row | Share | Fed by |
+| --- | ---: | --- |
+| prod `cloudwatch_logs_gb` | 80.0% | `baseline.prod`, a declared constant |
+| stage `cloudwatch_logs_gb` | 83.3% | `baseline.stage`, a declared constant |
+| dev `cloudwatch_logs_gb` | 75.0% | `baseline.dev`, a declared constant |
+| prod `cloudfront_requests` | 73.2% | `on_device_scan` × 20, `review_session` × 15, `server_ocr_page` × 2 |
+
+`playlist_job_15_songs` emits eight metrics and neither `cloudwatch_logs_gb` nor
+`cloudfront_requests` is among them. The three log rows are fixed monthly overheads that
+exist before any traffic at all; the CloudFront row is driven by scans and review
+sessions. **No value of the three contested volumes — including zero — moves any of these
+four rows.** They are option (E) in the table above, which is bookkeeping rather than a
+volume decision, and it was never folded into the rule.
+
+So the rule is applied as far as it reaches and no further. Per the instruction, this is
+shown rather than guessed at: adopting 236 / 50 / 16 would take the failures from seven
+to four and `make estimate` would still exit 1, so the stated success condition cannot be
+met by this rule alone.
+
+**What is still needed, and it is small.** Option (E): re-cut `cloudwatch_logs_gb` in
+`budget.yaml` so each environment's share covers its own declared baseline with headroom,
+and reconcile `cloudfront.planned_requests` with the model — the estimator already
+reports that drift separately (prod declares 350,000 against a modelled 732,000). Both
+are numbers in `budget.yaml`, neither changes the product, and together they are the
+difference between four failing rows and zero.
+
 ## What I did not do
 
 I did not edit `budget.yaml` or `usage-model.yaml` to make the gate pass. Per

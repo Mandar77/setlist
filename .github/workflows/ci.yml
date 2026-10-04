@@ -233,11 +233,18 @@ jobs:
         # push it would be ~350 registry requests to re-answer a question whose answer
         # cannot have changed — publish dates only get older, so a lockfile that was
         # compliant yesterday is still compliant today unless it moved.
-        # Through `env:`, never interpolated into the script. `github.base_ref` is a
-        # branch name, and a branch name on a fork's pull request is attacker-chosen —
-        # `${{ }}` splices it in before the shell ever sees it, so a name containing
-        # `$(...)` would execute on the runner. Semgrep's run-shell-injection rule
+        # Through `env:`, never interpolated into the script. `${{ }}` splices a value in
+        # before the shell sees it, so text containing `$(...)` would execute on the
+        # runner with whatever token this job holds. Semgrep's run-shell-injection rule
         # caught exactly this here, which is the rule earning its place.
+        #
+        # To be accurate about which of these is actually dangerous: `base_ref` is the
+        # TARGET branch and is ours, so this particular line was not exploitable. The
+        # attacker-controlled fields on a fork pull request are `head_ref`, the PR title
+        # and body, branch and tag names, commit messages and author fields. The rule is
+        # written as "no github.event text in a run: block" rather than "no dangerous
+        # fields" because that distinction is exactly the thing nobody re-checks when a
+        # line is copied somewhere else.
         env:
           EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}

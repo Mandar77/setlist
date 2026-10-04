@@ -259,6 +259,51 @@ tasks:
     - "the original must-fail directions still fail with caching in play: the unknown-version fixture, and the real lockfile against a hundred-year floor"
     - "NEAR MISS worth recording: the actions/cache pin was written from memory and was a fabricated SHA. check_workflows.js validates the 40-hex FORMAT, not existence, so it passed. Caught by checking the tag against the API - the real v4 commit is 0057852. GitHub fails loudly on a nonexistent pin, so the blast radius is a red run rather than a silent hole, but format-valid is not the same as real"
 
+- id: VERIFY-PINS
+  milestone: HYG
+  title: Every pinned action SHA is resolved against the GitHub API
+  deps: []
+  status: todo
+  blocked_on: null
+  not_before: null
+  # A pin written from memory is forty hex characters, which is exactly what the existing
+  # check tests for. One got committed on 2026-10-03 - an actions/cache SHA recalled
+  # rather than fetched - and the format check passed it. GitHub refuses a nonexistent
+  # action at run time, so the blast radius was a red run, but the check whose entire
+  # purpose is pinning had nothing to say about it.
+  done_when:
+    - check_workflows.js resolves every pinned action SHA through the GitHub API
+    - the resolved commit must match the tag named in the trailing comment, so `@<sha> # v4` fails when the sha is not v4's commit
+    - a valid 40-hex format alone does NOT pass - proven by a must-fail case using a well-formed SHA that does not exist
+    - a second must-fail case uses a real SHA from the right repo whose tag comment is wrong
+    - network failures retry and then FAIL rather than passing, matching check_lockfile_maturity.js - unverifiable is not verified
+    - results are cached by sha (an immutable fact) so the common case costs nothing, and it runs where the workflows change plus nightly
+    - runs in CI, not in `make verify` - that gate is offline by contract
+  verify: node tools/check_workflows.js
+  evidence: []
+
+- id: HYG-07
+  milestone: HYG
+  title: Replace the hand-written SHA-256 with a vetted library (ADR-010)
+  deps: []
+  status: todo
+  blocked_on: null
+  not_before: null
+  # ADR-010's 2026-10-03 amendment. 60 lines of hand-implemented FIPS 180-4 is not an
+  # asset. The original reason for writing it was sound - node:crypto breaks the ESLint
+  # purity rule and crypto.subtle.digest is async, which would make the whole extraction
+  # path async on a 6s p95 - but that argues for a synchronous pure implementation, not
+  # for ours.
+  done_when:
+    - "@noble/hashes replaces packages/core/src/sha256.ts, or an ADR records the specific reason it cannot - a bundle-size budget it breaks, a Hermes incompatibility, or an ESLint purity violation. `it works` is not such a reason"
+    - the FIPS 180-4 known-answer vectors in sha256.test.ts are kept and still pass against the library
+    - the differential is unchanged - every digest in golden/oracle and the 10,000 pipeline digests byte for byte
+    - the ESLint purity rule still passes, and the library is checked to be pure (no node:crypto, no DOM)
+    - "the ratchet is re-baselined IN THIS COMMIT, and only if surviving mutants does not rise: deleting ~127 well-covered mutants shrinks the denominator and would otherwise LOWER the score while improving the code"
+    - both mutation numbers reported - full suite and stryker.units.config.json
+  verify: make mutate-ts
+  evidence: []
+
 # ---------------------------------------------------------------- M0a (no AWS)
 # Ordering note: M0A-05 and M0A-06 are unblocked and wanted, but they sit ABOVE the CORE
 # section here only because this file is grouped by milestone. AUTOPILOT S2.3 sets the
@@ -692,7 +737,10 @@ tasks:
 - id: CORE-04b
   milestone: CORE
   title: packages/core mutation score at least 70%
-  deps: [CORE-04]
+  # M1-07 added by the ADR-010 amendment: scheduled AFTER the demo bundle. This is a
+  # large grind with no user-visible output, and M1-07 is the first thing in this project
+  # a person can actually use. It still blocks CORE-07; it does not block the demo.
+  deps: [CORE-04, M1-07]
   status: todo
   blocked_on: null
   not_before: null
@@ -701,8 +749,15 @@ tasks:
   # tests get credit for. CORE-07 deletes the oracle. The question "does the TypeScript
   # suite catch a regression on its own" has to be answered BEFORE the thing that is
   # currently answering it goes away.
+  #
+  # Measured on 2026-10-03: deleting sha256.test.ts (11 FIPS tests) moved the FULL-suite
+  # score by nothing at all - 55.43 both times, 809 survivors both times. The
+  # differentials already kill every mutant those tests kill. That is why this task is
+  # judged on the units-only number.
   done_when:
-    - Stryker at least 70% on packages/core, with the ratchet raised to match and never lowered
+    - "Stryker at least 70% measured with stryker.units.config.json - the hand-written suites ONLY, differentials excluded, because that is the suite left after CORE-07 deletes the oracle"
+    - "both numbers reported on every run: the full-suite score the ratchet gates on, and the units-only score this task is judged by. They are far apart and printing one invites confusing them"
+    - the full-suite ratchet is also raised to match and never lowered
     - every survivor killed by a test, or excluded with a written reason next to the exclusion that the reviewer agrees is behaviour-equivalent
     - "equivalent means no input can distinguish the mutant - not that no current test does. Any exclusion whose reason is really the second is a missing test"
     - the csv reader's character-loop conditionals are covered, since those are the known-reachable group
@@ -892,6 +947,7 @@ tasks:
     - JWT verified against a cached JWKS
     - OpenAPI published; Schemathesis fuzzing against dev finds no 5xx
     - unauthenticated calls return 401
+    - "enforces the ADR-008 anchors from the single config source - per-env request and scan ceilings read the committed numbers rather than constants of their own, so the planned volume and the runtime cap cannot disagree"
   verify: pnpm -C services/bff test
   evidence: []
 
@@ -1104,10 +1160,35 @@ tasks:
   verify: pnpm -C packages/contracts test
   evidence: []
 
+- id: M3-01b
+  milestone: M3
+  title: ingestion service
+  deps: [M3-01, M0B-03]
+  status: blocked
+  blocked_on: H1
+  not_before: null
+  # ADDED 2026-10-03, and the gap is worth recording rather than quietly filling.
+  # `services/ingestion/` exists in the tree and PED S365 gives it "Scans, idempotency,
+  # quotas" - it publishes ScanSubmitted.v1, which M3-02 consumes - but NO task in this
+  # ledger built it. It was found only because ADR-008's runtime caps had to be attached
+  # to "the tasks that build bff, ingestion and yt-adapter" and one of the three did not
+  # exist. M3-02 depends on an event nothing was scheduled to publish.
+  done_when:
+    - Node; accepts a submitted scan or pasted text and publishes ScanSubmitted.v1
+    - idempotency via Powertools @idempotent against the IDEMP# keyspace; a replayed submission creates no second scan, proven by a test
+    - every event carries correlationid and idempotencykey
+    - "enforces the ADR-008 anchors from the single config source - per-env scan and playlist ceilings read the committed numbers rather than constants of their own, so the planned volume and the runtime cap cannot disagree"
+    - a submission that would exceed the env's share is refused at the edge rather than absorbed, and the refusal is a modelled outcome rather than a 5xx
+    - no image is persisted server-side; EXIF and GPS stripped again on arrival, not trusted from the device
+    - submitted text is treated as data and never as instructions
+  verify: pnpm -C services/ingestion test
+  evidence: []
+
 - id: M3-02
   milestone: M3
   title: extraction service
-  deps: [M3-01, M0B-03]
+  # M3-01b added: it consumes ScanSubmitted.v1, which nothing was scheduled to publish.
+  deps: [M3-01, M3-01b, M0B-03]
   status: blocked
   blocked_on: H1
   not_before: null
@@ -1210,6 +1291,8 @@ tasks:
     - create, insert and delete implemented; one item per playlistItems.insert
     - never exceeds its share in a simulator soak, proven by a test
     - honours Retry-After on 429 with backoff and full jitter
+    - "enforces the ADR-008 anchors from the single config source - the unit bucket reads the committed per-env share rather than a constant of its own, so the planned volume and the runtime cap cannot disagree"
+    - "provider rows are planned at 90% of share, not 70% (ADR-008): the gate tolerates that only BECAUSE this bucket is what actually stops the spend, so a bucket that reads a stale number silently removes the justification for the looser planning threshold"
   verify: pnpm -C services/yt-adapter test
   evidence: []
 

@@ -14,3 +14,6 @@ Check that:
 5. New endpoints validate input, images are never stored server-side, and EXIF/GPS data is stripped.
 6. Contract changes are versioned (PED section 10.4) and consumer tests are updated.
 7. The change stays within the task; unrelated edits become new tasks.
+8. Every condition that triggers an action matches known values positively (`x == 'a' || x == 'b'`), not negatively (`x != 'c' && x != 'd'`), and says what happens when the value is absent. A negative condition over a value that may not exist evaluates to true, so it fires when the thing it guards is missing — which is how the auto-merge disarm step would have run on pushes that had no pull request. Positive matching fails safe.
+9. No `github.event` text — `head_ref`, PR title or body, branch, tag, commit message, author — is interpolated into a `run:` block with `${{ }}`. Those are attacker-controlled on a fork pull request. They go through `env:` and are quoted at every use.
+10. No identifier was written from memory. Action SHAs, package versions, checksums, URLs, API and model names and ARNs must be fetched and the output shown; a well-formed identifier is not evidence that it exists.

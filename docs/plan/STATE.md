@@ -1,6 +1,6 @@
 # Autopilot state
 
-Milestone: M0 | Last done: CORE-04 | Next: HYG-01, then the rest of the HYG block, then the critical path | Blocked: 30 tasks — M0B-\* + M1-02/03 on H1
+Milestone: M0 | Last done: M0A-05 | Next: VERIFY-PINS and HYG-07, then the critical path | Blocked: 31 tasks — M0B-\* + M1-02/03 on H1
 
 Metrics: coverage 95% (Python core), 96.0% stmts / 90.7% branches (`packages/core`) | Stryker 55.4%, now an [ADR-010](../adr/0010-mutation-floor-ratchet.md) ratchet with the 70% target carried to CORE-04b, which blocks CORE-07 | extraction P=0.988 R=0.982 F1=0.985 on 319 generated clean cases, 1.00 on the 8 hand-written | free-tier max 160% of dev's YouTube share (see ADR-008) | quarantined tests 0 | `make verify` ~60s
 
@@ -105,6 +105,18 @@ Notes:
   differential suites threw ENOENT during load, because the sandbox breaks a `../../..`
   path to `golden/`. That is the third and fourth thing in this repo found to report
   success while doing nothing.
+- **ADR-008's rule was computed and reaches only three of the seven rows.** Planned
+  volumes follow from the gate, provider rows judged at 90% because the runtime unit
+  bucket is what stops the spend: that gives prod 236, stage 50, dev 16, all bound by the
+  YouTube quota. The other four rows - `cloudwatch_logs_gb` in every environment and
+  prod's `cloudfront_requests` - are not fed by a playlist volume at all, so no value of
+  the three, including zero, moves them. Back with the human rather than guessed at;
+  nothing was applied, so `make estimate` still exits 1 on seven rows and not on four.
+- **A service nobody scheduled.** `services/ingestion/` exists and PED S365 gives it
+  scans, idempotency and quotas - it publishes the `ScanSubmitted.v1` that M3-02 consumes
+  - and no task in the ledger built it. Found only because ADR-008's runtime caps had to
+  be attached to the tasks building bff, ingestion and yt-adapter, and one of the three
+  did not exist. Now M3-01b, and M3-02 depends on it.
 - **`normalize_document` is not idempotent, in both languages; decided, and HYG-02 fixes
   it** ([ADR-009](../adr/0009-oracle-bug-fixes.md): the frozen oracle may take bug fixes,
   never features, when both implementations move in one change and the corpus does not).

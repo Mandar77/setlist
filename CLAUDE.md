@@ -59,6 +59,46 @@ Organization does the same thing immediately.
 - Every event carries `correlationid` and `idempotencykey`; handlers use Powertools
   `@idempotent`.
 
+### Never write an identifier from memory
+
+Action SHAs, package versions, checksums, URLs, API names, model names, ARNs. Fetch it
+and show the output — `gh api`, `git ls-remote`, the registry — then paste what came back.
+
+A recalled identifier is plausible, well-formed, and wrong in a way nothing local checks.
+`check_workflows.js` validates that a pin is forty hex characters, which a fabricated SHA
+also is; an `actions/cache` pin written from memory passed that check and was caught only
+by asking the API for the real tag. The failure modes differ in how loudly they land —
+GitHub refuses a nonexistent action, while a wrong model name or a wrong package version
+may simply behave differently — but none of them is caught by looking harder at the
+string.
+
+`VERIFY-PINS` closes the workflow half of this: every pinned SHA is resolved through the
+GitHub API and must match the tag in its trailing comment.
+
+### Conditions that trigger an action match known values positively
+
+Write `if: x == 'a' || x == 'b'`, not `if: x != 'c' && x != 'd'`, and say what happens
+when the value is absent.
+
+A negative condition over a value that may not exist defaults to **firing**. The
+auto-merge workflow's disarm step was guarded by
+`update-type != 'semver-patch' && update-type != 'semver-minor'`, which is true when
+`update-type` is the empty string — so on a push event, where the metadata step never
+runs, it would have disarmed a pull request that was not there. Positive matching fails
+safe; negative matching fails open.
+
+### Fork pull requests: `github.event` text is attacker-controlled
+
+`github.head_ref`, PR titles, PR bodies, branch and tag names, commit messages, and
+author fields all come from whoever opened the pull request. (`base_ref` is the target
+branch and is yours.) Interpolating any of them into a `run:` block with `${{ }}` splices
+the text in before the shell sees it, so a branch named with a command substitution
+executes on the runner with whatever token the job holds.
+
+Pass them through `env:` and quote every use: `env: { HEAD: ${{ github.head_ref }} }`,
+then `"$HEAD"`. Semgrep's `run-shell-injection` rule catches this and has already caught
+it here once.
+
 ### Create and edit files with the file tools, never a shell heredoc
 
 Use Write and Edit. Do not pipe file content through `cat <<EOF`, `echo >`, or a

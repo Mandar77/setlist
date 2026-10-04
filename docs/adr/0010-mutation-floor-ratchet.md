@@ -57,6 +57,55 @@ What changes is how it is enforced while the gap is being closed:
 The ratchet applies to `packages/core`. Floors elsewhere (Stryker ≥65%, mutmut ≥70%) are
 unchanged.
 
+## 2026-10-03 amendment: what the 70% is measured on, and when
+
+Three additions, after the first ratchet run produced a result that changes what the
+number means.
+
+### CORE-04b's 70% excludes the oracle differential
+
+The target is measured with `stryker.units.config.json` — the hand-written suites only —
+because that is the suite that still exists after CORE-07 deletes the oracle.
+
+This is not a technicality. Deleting `sha256.test.ts`, eleven FIPS known-answer tests,
+moved the full-suite score by **nothing at all**: 55.43 before and after, 809 survivors
+both times, only the killed/timeout split shifting. The differentials compare digests
+against the oracle byte for byte, so they already kill every mutant those tests kill. A
+70% that includes them would be satisfied in part by a suite scheduled for deletion, and
+CORE-07 would then drop the real number without anyone seeing it move.
+
+**Report both numbers on every run.** The full-suite score is what the ratchet gates on;
+the units-only score is what CORE-04b is judged by. Printing only one invites the two to
+be confused, and they are already far apart.
+
+### CORE-04b is scheduled after the M1 demo bundle
+
+It is a large grind with no user-visible output, and M1-07 — the offline paste-to-list
+screen — is the first thing in this project a person can actually use. CORE-04b still
+blocks CORE-07; it simply does not block the demo. Ordering it after M1 is a sequencing
+decision, not a weakening of the dependency.
+
+### A hand-written SHA-256 is not worth owning
+
+`packages/core/src/sha256.ts` is sixty lines of FIPS 180-4 implemented by hand. Replace
+it with a vetted library — `@noble/hashes` is the default choice: audited, dependency-free,
+and pure enough for the ESLint purity rule — unless there is a specific reason to keep
+the hand-written one, recorded in its own ADR. "It works" is not such a reason; the
+reasons that would count are a bundle-size budget it breaks, a Hermes incompatibility, or
+a purity-rule violation in the library.
+
+The original justification for writing it was real — `node:crypto` violates the purity
+rule and `crypto.subtle.digest` is async, which would have made the whole extraction path
+async — but that argues for a synchronous pure implementation, not for ours.
+
+**When deleting source shrinks the mutant count, re-baseline the ratchet in the same
+commit, and only if the number of surviving mutants does not go up.** Fewer mutants
+changes the denominator, so the percentage moves for reasons that have nothing to do with
+test quality: removing 127 well-covered sha256 mutants would *lower* the score while
+improving the codebase. Surviving mutants is the honest quantity to hold flat across such
+a change. Re-baselining in the same commit is what stops the new denominator from being
+discovered later and read as a regression.
+
 ## Consequences
 
 - The nightly workflow goes green and stays meaningful: a regression below the current
