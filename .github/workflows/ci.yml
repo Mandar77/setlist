@@ -284,6 +284,13 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
+      # Bundle before building, because the bundler is what breaks and Gradle is what is
+      # slow. A Metro failure shows up here in about a minute; inside `assembleRelease` it
+      # shows up after four, as `:app:createBundleReleaseJsAndAssets FAILED` with the real
+      # error forty lines further up. Same pipeline, same resolver, much earlier.
+      - name: The app bundles for Hermes
+        run: APP_VARIANT=dev pnpm -C mobile exec expo export --platform android --output-dir "$RUNNER_TEMP/bundle-check"
+
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
