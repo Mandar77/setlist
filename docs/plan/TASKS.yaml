@@ -488,8 +488,8 @@ tasks:
   milestone: M0
   title: Platform and guardrail stacks, kill switch, usage sentinel
   deps: [M0A-03, M0A-04, M0A-05]
-  status: blocked
-  blocked_on: ADR-008 - `make preflight` runs `make estimate`, which exits 1 on four rows ADR-008 has not resolved
+  status: done
+  blocked_on: null
   not_before: null
   done_when:
     - provisioned DynamoDB per env, WCU/RCU sum across all tables and GSIs at or under 17
@@ -503,18 +503,30 @@ tasks:
     - usage-sentinel Lambda computes shares from free vended metrics only - never GetMetricData, Logs Insights or Cost Explorer
     - preflight green for dev, stage and prod, EXCEPT the free-tier estimate rows ADR-008 governs
     - every stack, Lambda, test and nag/KICS check above is finished and green regardless of how ADR-008 lands
-    # Reclassified 2026-10-04: `verify` here is `make preflight ENV=prod`, and
-    # `preflight: verify nag kics estimate`. `make estimate` exits 1 on the four rows
-    # ADR-008's decided rule does not reach (the three cloudwatch_logs_gb rows and prod
-    # cloudfront_requests - none fed by a playlist volume). So this task cannot reach
-    # `done` no matter how much of it is built, which is what `blocked` means.
-  # Build around ADR-008 (AUTOPILOT S2.3). Only the last line of `make preflight` - the
-  # estimator's verdict on seven rows - depends on the decision. The stacks, the kill
-  # switch, the sentinel, the retention settings and the alarm budget do not, and none
-  # of them should wait on it. When ADR-008 lands, the one-line change in M0A-05 is what
-  # turns the remaining red green; nothing here gets rebuilt.
+  # Unblocked 2026-10-04: ADR-008 is applied in full and `make estimate` exits 0, which
+  # was the only part of `make preflight` this task could not reach. Building around the
+  # decision (AUTOPILOT S2.3) paid off exactly as intended - nothing here was rebuilt
+  # when it landed.
   verify: make preflight ENV=prod
-  evidence: []
+  evidence:
+    - "preflight is green, verified in two halves because this machine has no Docker: `make verify`, `make nag ENV=prod` and `make estimate` all pass locally, and the KICS half runs in the CI job `Zero-cost guardrails (cdk-nag + KICS)`, which passed on run 37179019705 alongside the six-way synth matrix"
+    - "DynamoDB stays PROVISIONED and autoscales to the budgeted share rather than a round number, so the account-wide 25 WCU/RCU allowance is never consumed around the clock by a table parked at its ceiling. Total across all three environments is 17/17, read from budget.yaml rather than written down again"
+    - "the never-use test CAUGHT A REAL MISTAKE: the first delivery.ts synthesized an AWS::CloudFront::Distribution, which is banned under profile=zero because prod runs the flat-rate Free plan and that plan is enrolled in the console - CloudFormation cannot express it, so a CDK-created distribution would be an ordinary pay-as-you-go one. A bill, in the environment the plan exists to make free"
+    - "what is synthesized instead is everything that CAN be code: the Function URL at AWS_IAM (never NONE, which publishes a URL bypassing the distribution and billing per request) and the OriginAccessControl, both published as CfnOutputs so the manual step attaches to a value rather than to a runbook paragraph that goes stale"
+    - "Cognito is pinned to FeaturePlan.LITE. Lite and Essentials share a 10,000 MAU always-free allowance and Plus has none - and the CDK DEFAULT for a new pool is ESSENTIALS, so a future default change would move the project onto a billed plan with no diff to review. Asserted against the synthesized UserPoolTier, not the source constant"
+    - "SNS filtering is message-attribute only. `ProviderCommands.subscribe` has no parameter that could become a body filter, and a template assertion checks no subscription carries FilterPolicyScope: MessageBody. Body filtering stops matching silently when the payload shape changes - a consumer does not fail, it stops receiving, and nobody notices until a user asks where their playlist went"
+    - "alarms are capped BY CONSTRUCTION: the list is in priority order and sliced to `maxAlarms`, so dev gets zero and a new alarm added at the bottom is unaffordable in dev rather than a surprise $0.10 line item. 0 + 2 + 3 = 5 against the done_when cap of 7, with a test asserting dev has none AND prod has some - without the second half, an implementation ignoring the budget entirely would still pass"
+    - "SSM is standard tier only (advanced is $0.05 each per month) and nothing is written under secrets/ - a secret reaching a synthesized template is a secret in this public repository's CI logs"
+    - "the kill switch KEEPS GOING when calls fail. Stopping at the first error leaves three quarters of the system running, so every step is attempted, failures collected, and the audit record written BEFORE it throws - that record is the only durable account of the incident, and an exception losing it leaves an operator with nothing but the alarm"
+    - "it never disables the prod distribution. dev and stage are positively listed so an environment nobody considered is left alone; taking production offline to save money is a decision for a human, and an automated switch making it at 3am is a worse outage than the bill it prevented"
+    - "its IAM is narrowed on ACTIONS rather than resources, because it must reach any function in the account. Every action it holds reduces availability - PutFunctionConcurrency, UpdateEventSourceMapping, UpdateSchedule, UpdateDistribution - and none can create, invoke or move data, so the blast radius of the role being misused is an outage rather than a bill or a leak"
+    - "16 kill-switch tests, each checked against input that must NOT trigger it as well as input that must: a function tagged for another app, a mapping already disabled, a schedule targeting someone else, a distribution this project did not create. A kill switch that disabled everything indiscriminately would pass a suite that only showed it things it should disable"
+    - "the usage sentinel reads ONLY GetMetricStatistics, which is free. GetMetricData, Logs Insights and Cost Explorer are billed per call, and a monitoring loop built on them would be a recurring charge whose job is preventing recurring charges. The interface exposes one method so the rest are unexpressible, and a test greps the service's own source for the banned names - an interface only constrains code that goes through it"
+    - "a metric that cannot be read is UNKNOWN rather than fine, and deliberately does not trip. The opposite of check_lockfile_maturity.js, which fails closed, and the asymmetry is the point: there, unverifiable means an unchecked supply-chain risk; here, tripping means taking the system down, so a CloudWatch blip would be an outage caused by the guard"
+    - "no datapoints is distinguished from zero - no data means the service was never called, zero means it was called and did nothing. Collapsing them would hide a sentinel reading the wrong dimension and reporting 0% forever"
+    - "the sentinel's allowances are resolved from budget.yaml at SYNTH time and passed as four integers. The first version bundled a JSON copy of the budget and shelled out to a YAML parser to produce it, which broke immediately: pnpm does not hoist `yaml` and the generated command carried Windows paths"
+    - "esbuild had to move to the workspace ROOT: CDK's NodejsFunction spawns it as a command resolved from the process CWD, so having it only in infra/ passed locally and failed every CI job that synthesizes the platform stack"
+
 
 - id: M0A-07
   milestone: M0
