@@ -11,11 +11,13 @@
 # evidence: commit SHAs, CI run URLs, measured values - required to set `done`
 
 version: 1
-updated: 2026-09-28
+updated: 2026-10-04
 
 # Human sessions, referenced as deps. Details in docs/hitl/SESSION-*.md.
 humans:
-  H1: { title: "GitHub + AWS account + bootstrap stack + Expo token", status: todo, doc: docs/hitl/SESSION-1.md }
+  # The Expo token is OPTIONAL as of ADR-012 - it buys EAS Update (M1-08) and nothing else.
+  # Builds need no account. Do not let S7 hold up the rest of the session.
+  H1: { title: "GitHub + AWS account + bootstrap stack (+ Expo token, only for EAS Update)", status: todo, doc: docs/hitl/SESSION-1.md }
   H2: { title: "Google Cloud OAuth, test account, Firebase, optional Spotify", status: todo, doc: docs/hitl/SESSION-2.md }
   H3: { title: "Handwrite and photograph 15 song lists", status: todo, doc: docs/hitl/SESSION-3.md }
   H4: { title: "Add beta testers and send invites", status: todo, doc: docs/hitl/SESSION-4.md }
@@ -293,9 +295,9 @@ tasks:
 - id: HYG-07
   milestone: HYG
   title: Replace the hand-written SHA-256 with a vetted library (ADR-010)
-  deps: []
+  deps: [HYG-08]
   status: blocked
-  blocked_on: "issue #17 - Stryker reports orientation.ts mutants as survived that demonstrably fail tests"
+  blocked_on: "task HYG-08 - the survived/killed verdict is not trustworthy, and this task's last done_when is a comparison of survivor counts"
   not_before: null
   # ADR-010's 2026-10-03 amendment. 60 lines of hand-implemented FIPS 180-4 is not an
   # asset. The original reason for writing it was sound - node:crypto breaks the ESLint
@@ -317,6 +319,92 @@ tasks:
     - "BLOCKED on the last done_when item only. Re-baselining requires knowing whether surviving mutants rose, and the full run says 809 -> 869 - but 63 of those are orientation.ts mutants that Stryker reports as survived and that a hand-applied edit proves are killed (issue #17). Excluding that file the comparison is like-for-like with the pre-orientation baseline and survivors went 809 -> 806, which does NOT rise; including it, the condition fails"
     - "so the number ADR-010's condition depends on is produced by an instrument just shown to be wrong, and nothing has been re-baselined on it. `make mutate-ts` stays at break 55.43 and fails at the measured 52.30, which makes the nightly mutation job red until #17 is resolved. That is the accurate state"
     - "the drop itself is expected and is exactly what ADR-010's re-baseline rule anticipates: removing ~62 well-covered sha256 mutants shrinks the denominator, lowering the percentage while improving the codebase"
+
+- id: HYG-08
+  milestone: HYG
+  title: Make the Stryker survived/killed verdict trustworthy (was issue #17)
+  deps: []
+  status: todo
+  blocked_on: null
+  not_before: null
+  # Decided 2026-10-04 and taken off the human: this is not a stop-rule item. Nothing
+  # here costs money, creates an account, touches prod or relaxes a gate - the ratchet
+  # stays at 55.43 and orientation.ts stays in `mutate` throughout. Only a RESOLUTION
+  # that excluded the file or lowered the ratchet would be a relaxation, and that is
+  # exactly the resolution this task is not allowed to reach for.
+  #
+  # The symptom: orientation.ts scores 3.08% (2 killed, 63 survived) against 35 passing
+  # tests, and hand-applying the mutant Stryker calls Survived at src/orientation.ts:115
+  # fails two of them. Ruled out already - tests not running (dry run counts are right),
+  # coverage attribution (same 2/63 at perTest, scoped, and with coverageAnalysis off),
+  # and self-referential assertions (fixed; the score did not move).
+  #
+  # The first step is the CLAUDE.md rule, not a theory: `reporters` is
+  # ["progress", "clear-text"], which emits a score and nothing else. An instrument that
+  # cannot be asked what it did is the thing to fix before asking why it is wrong.
+  done_when:
+    - "the json reporter is enabled on both Stryker configs, so every run leaves a per-mutant record with its status and the tests that ran against it"
+    - "the verdict is read from that record rather than inferred from the score: for the src/orientation.ts:115 mutant, state how many tests Stryker ran against it and which"
+    - "the cause is stated from the artifact before anything is changed, and `Ran 0.37 tests per mutant on average` is either explained or shown to be a red herring"
+    - "a mutant proven killed by hand is proven killed by Stryker, or the divergence is reported upstream with the reproduction and the task records the upstream issue"
+    - "the ratchet is re-baselined ONLY after the number is trustworthy, and only under ADR-010's condition that surviving mutants did not rise"
+    - "nothing is excluded from `mutate` and no threshold is lowered by this task - if that turns out to be the only option, it is a human-needed issue with an ADR, which is what made this one"
+  verify: make mutate-ts
+  evidence: []
+
+- id: HYG-09
+  milestone: HYG
+  title: Ledger hygiene - evidence is one line with a link, STATE.md is one screen
+  deps: []
+  status: todo
+  blocked_on: null
+  not_before: null
+  # AUTOPILOT S3 already specifies "Notes: (5 lines at most)" and S2.1 step 9 says "one
+  # screen at most". STATE.md reached 214 lines, and evidence entries reached paragraphs.
+  # Both drifted the same way: the ledger is the autopilot's MEMORY, and reasoning kept
+  # being written where the next session would definitely read it rather than where it
+  # belongs. A memory nobody can scan is not one.
+  #
+  # Reasoning goes in commit messages and docs/reports. Evidence says what was proven and
+  # links to the proof.
+  done_when:
+    - "every evidence item is one line that fits the limit and carries a link - a CI run, a commit, a file, an ADR - so the claim is checkable rather than just assertable"
+    - "STATE.md is back inside one screen, in the AUTOPILOT S3 shape: milestone line, metrics line, at most 5 notes"
+    - "the long-form history moves to docs/reports/ rather than being deleted - it is the record of seven instruments found reporting success while doing nothing, and that is the most useful thing this repo knows"
+    - "check_ledger.py enforces both limits: a maximum length per evidence item, and a maximum line count for STATE.md"
+    - "each limit is checked against a fixture that must FAIL as well as the real files that must pass, per the house rule"
+    - "the limits are stated in AUTOPILOT S3 next to the format they belong to, so the check and the spec cannot drift"
+  verify: make verify
+  evidence: []
+
+- id: HYG-10
+  milestone: HYG
+  title: The emulator job - one driver session, and skip it when nothing mobile changed
+  deps: [M1-01]
+  status: todo
+  blocked_on: null
+  not_before: null
+  # Two changes to one CI job, together because each costs a ~16 minute round trip and
+  # they touch the same steps.
+  #
+  # The flake is diagnosed, not guessed: the same commit 22b81c7 is green on the task
+  # branch (run 37183436407) and red on develop (run 37220493983), and the maestro-debug
+  # artifact says why - `DeviceServerDiedException ... Caused by: java.io.IOException:
+  # Command failed (tcp:39213): closed`. The job runs two separate `maestro test`
+  # invocations; the second starts a fresh on-device driver and that gRPC channel died
+  # three seconds in, before the flow's first command ran. variants-side-by-side had
+  # already passed in full.
+  done_when:
+    - "both flows run in ONE maestro invocation against mobile/.maestro/, so a single driver session serves both and there is no second session to lose"
+    - "if the driver still dies, the retry is bounded and LOUD - a silent retry turns a real regression into an intermittent one, which is worse than a red build"
+    - "the job runs only when mobile/ or packages/core changed, decided by a JOB-LEVEL `if`, never workflow-level paths filters: a skipped job reports success to a required check, while a workflow that never runs leaves the check pending forever and blocks the fast-forward"
+    - "the changed-path decision is computed with git in a small setup job, not by adding a third-party action - ADR-011 and S2.3's 'no tool without a done_when or an incident' both apply"
+    - "the condition is positive and says what happens when the value is absent, per CLAUDE.md - on a push to develop with no comparable base, it RUNS"
+    - "the AVD snapshot and the Gradle cache are reused between runs"
+    - "check_workflows.js still passes, including the ADR-011 requirement that any new job be a required status check"
+    - "proven both ways: a mobile-only change runs the job, a docs-only change skips it AND the required check still reports success"
+  verify: make verify
+  evidence: []
 
 # ---------------------------------------------------------------- M0a (no AWS)
 # Ordering note: M0A-05 and M0A-06 are unblocked and wanted, but they sit ABOVE the CORE
@@ -651,6 +739,39 @@ tasks:
     - "the rule id is asserted, not just a non-zero exit: a crash, or a different rule firing, would otherwise read as enforcement"
     - "`make nag` runs them, so a silently disabled pack fails the gate that gates preflight and CI"
 
+- id: M0A-11
+  milestone: M0
+  title: ADR-013 - fixed DynamoDB capacity, Application Auto Scaling banned, alarms counted
+  deps: [M0A-06]
+  status: todo
+  blocked_on: null
+  not_before: null
+  # One decision, so one task. Splitting it would let the ban land without the removal, or
+  # the removal without anything stopping the next person reinstating it.
+  #
+  # The table autoscales read and write between 1 and the environment's share. Application
+  # Auto Scaling creates CloudWatch alarms AT RUNTIME, in the account, not in the template -
+  # and the 10-alarm allowance already has 7 allocated. Both gates that exist to catch this
+  # are template-shaped and see none of it.
+  #
+  # Worse, `never-use.test.ts`'s capacity-cap test loops over
+  # findResources('AWS::ApplicationAutoScaling::ScalableTarget'), which returns ZERO:
+  # TableV2 renders AWS::DynamoDB::GlobalTable, which carries autoscaling INLINE. That loop
+  # has never had a body. Seventh instrument in this repo found reporting success while
+  # doing nothing, and the first one inside the never-use suite itself.
+  done_when:
+    - "the table provisions FIXED capacity at the budgeted share - prod 10, stage 4, dev 3, totalling 17 of 25 RCU and WCU, with the reserve of 8 left intact"
+    - "TableV2 is replaced, because it structurally cannot do this: CfnGlobalTable's WriteProvisionedThroughputSettings has only writeCapacityAutoScalingSettings and no writeCapacityUnits, which is why Capacity.fixed() throws on the write side (verified in aws-cdk-lib 2.270.0)"
+    - "every rule, test and assertion keyed on AWS::DynamoDB::GlobalTable moves to whatever the new construct renders - SZC-DDB-ONDEMAND, SZC-DDB-PITR, three tests in never-use.test.ts, two in platform.test.ts. A type-keyed assertion left behind becomes another empty loop"
+    - "the vacuous capacity-cap test gets a real assertion and is shown to FAIL when the capacity is wrong"
+    - "Application Auto Scaling is on the never-use list in all four places the parity tests tie together: never_use in budget.yaml, a cdk-nag rule, the KICS pack, and never-use.test.ts"
+    - "that ban catches BOTH shapes - the AWS::ApplicationAutoScaling::ScalableTarget and ::ScalingPolicy types, and ReadCapacityAutoScalingSettings / WriteCapacityAutoScalingSettings anywhere in a DynamoDB resource's properties. A ban on the types alone would pass vacuously here, which the existing test proves"
+    - "the usage sentinel counts the account's alarms with DescribeAlarms and reports against the allowance of 10, because a template-shaped gate cannot see runtime-created alarms and autoscaling is not the only service that makes them"
+    - "DescribeAlarms is asserted to be the only new CloudWatch call - sentinel.test.ts already greps the service's own source for GetMetricData, StartQuery, GetQueryResults and GetCostAndUsage, and that must keep passing"
+    - "make preflight ENV=dev stays green and make estimate still exits 0"
+  verify: make preflight ENV=dev
+  evidence: []
+
 # ---------------------------------------------------------------- CORE (no AWS)
 - id: CORE-01
   milestone: CORE
@@ -955,21 +1076,27 @@ tasks:
   milestone: M1
   title: Expo app with three variants
   deps: [CORE-04]
-  status: blocked
-  blocked_on: H1
+  status: done
+  blocked_on: null
   not_before: null
+  # ADR-012 amended the third item on 2026-10-04. It used to say `eas build --local`,
+  # which needs an Expo access token only a human can create - so one line of a done_when
+  # held M1-04, M1-05, M2-02, M5-01 and the whole mobile path behind a login that nothing
+  # technical required. `expo prebuild` + Gradle produces the same native project from the
+  # same app.config.ts, on any Linux runner, with no account. EAS returns only for EAS
+  # Update, which is M1-08.
   done_when:
     - app.config.ts reads APP_VARIANT to set package, scheme, API URL and update channel
     - runtimeVersion uses fingerprint
-    - CI builds three APKs on Linux with eas build --local
+    - CI builds three APKs on Linux with expo prebuild + Gradle assembleRelease, needing no account or credential (ADR-012)
     - all three install side by side on the CI emulator, proven by Maestro
-  # Reclassified 2026-10-04. Deps were satisfied so this read `todo`, but the third
-  # done_when item cannot be met without an Expo access token, and docs/hitl/SESSION-1.md
-  # S7 is where that token is created and stored. The app scaffold could be written
-  # without it; the task as specified cannot be finished without it, and a task that is
-  # selectable but uncompletable is how the loop wastes a session.
   verify: pnpm -C mobile test
-  evidence: []
+  evidence:
+    - "three release APKs built and installed side by side, all three packages present: [run 37183436407](https://github.com/Mandar77/setlist/actions/runs/37183436407)"
+    - "variants.json is read by BOTH Vitest and `expo prebuild`, because Expo transpiles app.config.ts and then Node `require`s its imports, and Node cannot resolve .ts: [mobile/variants.json](../../mobile/variants.json)"
+    - "variantFrom() throws rather than defaulting - both plausible defaults ship the wrong app: [mobile/src/variant.ts](../../mobile/src/variant.ts)"
+    - "Metro needs watchFolders, nodeModulesPaths and hierarchical lookup left ON under pnpm, plus a resolveRequest shim for NodeNext `.js` specifiers: [mobile/metro.config.js](../../mobile/metro.config.js)"
+    - "ADR-012 records what EAS was carrying that now has an owner - EAS Update is M1-08, the release keystore is SESSION-2 S6: [ADR-012](../adr/0012-builds-without-eas.md)"
 
 - id: M1-02
   milestone: M1
@@ -1045,13 +1172,11 @@ tasks:
   milestone: M1
   title: Offline paste-text to parsed-song-list screen, on Hermes
   deps: [M1-01, CORE-05]
-  # The WORK is finished and proven on the CI emulator (see evidence). This is `blocked`
-  # rather than `done` only because M1-01 is, and M1-01 is blocked on an Expo access
-  # token a human has to create (issue #18). Marking this done would mean marking M1-01
-  # done, and M1-01's third done_when - `eas build --local` - genuinely is not met.
-  # Same shape as M6-02 before ADR-008 landed: complete, waiting on something outside it.
-  status: blocked
-  blocked_on: H1
+  # Closed 2026-10-04 under ADR-012. This was `blocked` only because M1-01 was, and M1-01
+  # was blocked on an Expo token that ADR-012 removed from the path. The work itself has
+  # been finished and proven on the emulator since run 37179612448.
+  status: done
+  blocked_on: null
   not_before: null
   # The first thing in this project a person can actually use, and it needs no AWS, no
   # sign-in and no OCR. It is also the first time the core runs on the engine it will
@@ -1077,7 +1202,28 @@ tasks:
     - "an over-limit paste is explained rather than thrown: extractDeterministic throws InputTooLargeError by contract, and letting that reach an error boundary is worse than stating the limit"
     - "four CI rounds, each a different real defect, none findable locally: `set -euo pipefail` under dash; android-emulator-runner executing each script line in its own sh -c, so a for loop died on 'end of file unexpected'; a debug APK that installs and launches and shows NOTHING because it expects a Metro server; and Metro unable to resolve './confidence.js' because packages/core is NodeNext TypeScript where that means './confidence.ts'"
     - "CI now runs `expo export` before Gradle, so a bundler failure surfaces in a minute instead of after a four-minute build as ':app:createBundleReleaseJsAndAssets FAILED' with the real error forty lines above it"
+    - "KNOWN FLAKE, not a defect in this screen, and HYG-10 fixes it: the same commit is green on the task branch ([run 37183436407](https://github.com/Mandar77/setlist/actions/runs/37183436407)) and red on develop ([run 37220493983](https://github.com/Mandar77/setlist/actions/runs/37220493983)). The maestro-debug artifact names the cause rather than leaving it to be inferred - `DeviceServerDiedException ... Caused by: java.io.IOException: Command failed (tcp:39213): closed`. The job runs two separate `maestro test` invocations; the second starts a fresh on-device driver session and that gRPC channel died 3s in, before the flow's first command. variants-side-by-side had already passed in full"
 
+
+- id: M1-08
+  milestone: M1
+  title: EAS Update for over-the-air JavaScript updates
+  deps: [M1-01]
+  status: blocked
+  blocked_on: "issue #18 - Expo access token, created in SESSION-1 S7"
+  not_before: null
+  # The only thing EAS still carries after ADR-012, and the only reason issue #18 is
+  # still open. This is a PRODUCT decision - ship a parser fix without a store review -
+  # not a build-system one, which is why it is a task of its own rather than a line in
+  # M1-01. Nothing on the critical path waits for it.
+  done_when:
+    - "expo-updates configured against the update channel app.config.ts already sets per variant"
+    - "runtimeVersion stays on fingerprint, so an update that needs new native code cannot be delivered as JS"
+    - "a rollback is proven, not assumed: publish, verify the app takes it, roll back, verify the app returns"
+    - "the free EAS Update tier's monthly active-user ceiling is recorded in budget.yaml with the same gate treatment as a provider quota (ADR-008), since it is a hard ceiling with no overage"
+    - "an update is never fetched on a metered connection without consent, and a failed fetch is silent - the app works offline by design"
+  verify: pnpm -C mobile test
+  evidence: []
 
 # ------------------------------------------------------------- deferred upgrades
 - id: TS-6
@@ -1180,18 +1326,43 @@ tasks:
   verify: uv run pytest services/ocr
   evidence: []
 
-- id: M2-05
+# M2-05 was split on 2026-10-04. It depended on M2-03 AND M2-04, so the on-device engines
+# - which need nothing but the golden set - could not be measured until the server Lambda
+# existed, and M2-04 is blocked on H1. That made the first OCR number in this project wait
+# on AWS, which is backwards: the on-device path is the one the product leads with, and the
+# server engine is the fallback. 05a measures the engines directly against M2-01 and can run
+# today; 05b adds the server engine and the comparison when there is one to add.
+- id: M2-05a
   milestone: M2
-  title: OCR evaluation harness
-  deps: [M2-01, M2-03, M2-04]
+  title: OCR evaluation harness - on-device engines against the golden set
+  deps: [M2-01]
   status: todo
   blocked_on: null
   not_before: null
+  # Deliberately does NOT depend on M2-02 or M2-03. Those wire the engines into the app;
+  # this calls each engine directly on the golden images, which is what makes the number a
+  # property of the ENGINE rather than of our capture pipeline. The same harness then grades
+  # the integrated path later without being rewritten.
   done_when:
-    - CER and WER via jiwer, plus song-level F1 through the core
-    - runs on Linux (RapidOCR, Tesseract.js), a macOS runner (Apple Vision via a Swift CLI) and the Android emulator (ML Kit)
-    - nightly docs/reports/ocr-eval.md broken down by engine and image class
-    - regressions against the previous report are flagged
+    - "each engine is driven directly on the M2-01 golden images, not through the app: Apple Vision via a Swift CLI on a macOS runner, ML Kit via an Android instrumented test, Tesseract.js in Node"
+    - "CER and WER via jiwer against `line.text`, and song-level F1 through packages/core against `songTruth` - the corpus carries two truths because a struck-out line has two right answers, and grading either against the other is wrong"
+    - "results broken down by engine AND image class (handwriting, print, screenshot); a single averaged number hides the only distinction the gate cares about"
+    - "docs/reports/ocr-eval.md is written by the harness and regressions against the previous report are flagged"
+    - "a deliberately degraded input scores worse, proving the metric responds - a harness that reports a number for everything is not yet measuring anything"
+  verify: make gate M=M2
+  evidence: []
+
+- id: M2-05b
+  milestone: M2
+  title: OCR evaluation harness - the server engine, compared against on-device
+  deps: [M2-05a, M2-04]
+  status: blocked
+  blocked_on: H1
+  not_before: null
+  done_when:
+    - RapidOCR on Linux joins the same harness and the same report, with no second scoring path
+    - "the report states cost as well as accuracy - GB-s per page against the at most 12 GB-s budget - because the server engine is only worth invoking when it is enough better to pay for"
+    - the fallback threshold is derived from the measured numbers rather than chosen, and recorded with them
   verify: make gate M=M2
   evidence: []
 
@@ -1213,7 +1384,7 @@ tasks:
 - id: M2-07
   milestone: M2
   title: Gate M2
-  deps: [M2-01, M2-02, M2-03, M2-04, M2-05, M2-06]
+  deps: [M2-01, M2-02, M2-03, M2-04, M2-05a, M2-05b, M2-06]
   status: blocked
   blocked_on: H3
   not_before: null

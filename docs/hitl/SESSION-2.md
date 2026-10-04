@@ -85,13 +85,31 @@ If you do have Premium:
 **Answer this either way**, since the ledger is waiting on it: *do you have Spotify
 Premium?* Put the answer in the H2 issue.
 
-## 6. Android signing (varies)
+## 6. Android release keystore (10 min) — required before beta
 
-Claude Code tries Expo-managed credentials first, which needs nothing from you. If a
-step does need you, the issue will give you one command to run.
+Nothing else is going to do this. [ADR-012](../adr/0012-builds-without-eas.md) builds the
+APKs with `expo prebuild` + Gradle rather than EAS, so there is no service holding
+credentials on our behalf.
 
-**Save the keystore and its password in your password manager.** If it is lost, the
-app can never be updated under the same identity again.
+CI's emulator APKs are signed with Expo's generated debug keystore, which is fine for a
+build that never leaves a runner and **is not shippable**. A beta needs a real one:
+
+```bash
+bash scripts/hitl/make-release-keystore.sh
+```
+
+It generates the keystore locally, prompts for the password twice without echoing it,
+uploads both as GitHub environment secrets, and **deletes the local copy only after you
+confirm you have saved it**. The keystore never enters git, an issue, or the Claude chat —
+this repository is public.
+
+> **Save the keystore file and its password in your password manager before you answer
+> that prompt.** There is no recovery. If it is lost, Google Play will not accept an
+> update to the same package name again, ever — the app has to be republished under a new
+> identity and every installed user is stranded.
+
+Nothing before beta needs this, so it is safe to defer — but it is on the critical path to
+H4 (adding testers), not something that can be done alongside it.
 
 ## 7. CloudFront flat-rate Free plan (2 min, only if asked)
 

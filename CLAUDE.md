@@ -75,6 +75,25 @@ string.
 `VERIFY-PINS` closes the workflow half of this: every pinned SHA is resolved through the
 GitHub API and must match the tag in its trailing comment.
 
+### When a check fails, read what it produced before changing anything
+
+Screenshots, the UI hierarchy, the full log, the SARIF, the report JSON. Open the artifact,
+state the cause it shows, and only then edit. "The log says X, so probably Y" is a guess
+wearing evidence's clothes.
+
+The emulator job failed four times and the first two diagnoses were both wrong — "a
+cold-launch race", then "the element never appeared" — and the second shipped a fix for a
+cause that did not exist. A step in that same job uploads a screenshot and the UI hierarchy
+on failure. It showed the app **rendering correctly**, with a Pixel Launcher ANR dialog on
+top of it holding the focused window. One `gh run download` ended the question; two rounds
+of CI were spent not asking it.
+
+Log text is a summary written by whoever wrote the tool, and it is at its least informative
+exactly when something unanticipated happened — a timeout and an occluded window produce the
+same line. If a failing step produces no artifact worth reading, that is the first thing to
+fix: a reporter that emits only a score (`reporters: ["progress", "clear-text"]`) cannot be
+asked which tests ran.
+
 ### Conditions that trigger an action match known values positively
 
 Write `if: x == 'a' || x == 'b'`, not `if: x != 'c' && x != 'd'`, and say what happens
