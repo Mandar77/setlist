@@ -1530,8 +1530,8 @@ tasks:
   milestone: M6
   title: Weekly re-match on Step Functions Standard
   deps: [M3-03]
-  status: blocked
-  blocked_on: ADR-008 - the work is complete; `make estimate` exits 1 on the seven rows ADR-008 has not resolved
+  status: done
+  blocked_on: null
   not_before: null
   done_when:
     - Standard only; Express is banned

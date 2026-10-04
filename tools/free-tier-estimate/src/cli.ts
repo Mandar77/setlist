@@ -83,10 +83,13 @@ if (scoped.breaches.length > 0) {
   const label = args.env ?? 'any environment'
   console.error(
     `\nfree-tier-estimate: ${scoped.breaches.length} limit(s) above the ` +
-      `${full.gatePct}% gate in ${label}. Relaxing the gate is a human-needed issue ` +
+      `${full.gatePct}%/${full.providerGatePct}% gate in ${label}. Relaxing the gate is a human-needed issue ` +
       'with an ADR proposal, not an edit to budget.yaml.',
   )
   process.exit(1)
 }
 
-console.log(`\nfree-tier-estimate: every modelled limit is under the ${full.gatePct}% gate`)
+console.log(
+  `\nfree-tier-estimate: every modelled limit is under the gate ` +
+    `(${full.gatePct}% AWS, ${full.providerGatePct}% provider)`,
+)

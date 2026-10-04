@@ -49,6 +49,9 @@ To add an amendment: change the spec inline, add a callout there, then add a row
 | 31 | PED | §18 CLAUDE.md block | "Before ANY deploy: `make preflight`" → "Deploys run only in CI; run `make preflight` before pushing infrastructure changes." | [ADR-005](adr/0005-credentials-branches-deploys.md) |
 | 32 | PED | §18 Tooling | The `PreToolUse` hook is `guard-bash.sh`, which blocks outright rather than wrapping preflight. Adds the `reviewer` subagent and the `/autopilot` and `/run-accuracy` skills. Adds `tools/test-guard-hook.sh` to `make verify`. | [ADR-005](adr/0005-credentials-branches-deploys.md) |
 
+| 33 | PED | §10.8 arithmetic | **"CloudFront Free plan: 700,000 requests ÷ 20 per session ≈ 35,000 scans"** counts scans only. Review sessions cost 15 CloudFront requests each and fallback OCR pages 2, so the three together bind well before 35,000 scans — at the modelled ratios the ceiling is ~28,700 scans, and the planned volume is 28,000. The 700,000 figure itself is unchanged and correct: it is 70% of the flat-rate plan's 1,000,000. | [ADR-008](adr/0008-free-tier-gate-vs-ped-volumes.md) |
+| 34 | PED | §11 volumes | Planned monthly playlists cut from prod 250 / stage 50 / dev 30 to **236 / 50 / 16**, each being the largest value that keeps every row it feeds under its threshold. prod 250 was 95.2% of the YouTube quota against a 90% provider gate; dev 30 was 160%, which also made dev unable to create a playlist at all. | [ADR-008](adr/0008-free-tier-gate-vs-ped-volumes.md) |
+
 ## Provenance
 
 Neither spec was authored in this repository. Both were transcribed on 2026-09-29 from

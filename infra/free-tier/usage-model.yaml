@@ -117,18 +117,43 @@ operations:
 # `tools/free-tier-estimate/test/adr-008-single-source.test.ts` asserts each of these
 # appears exactly once as a literal, so the next edit cannot quietly spread them back out.
 adr008_playlists_per_month:
-  prod: &adr008_prod_playlists 250 # capped by YouTube units, not by us
+  # DECIDED 2026-10-03: planned volumes follow from the gate. Each is the largest value
+  # that keeps every row it feeds at or under its threshold - 70% for AWS allowances,
+  # 90% for provider quotas, which cannot bill (see `provider_gate_pct` in budget.yaml).
+  # All three are bound by the YouTube unit quota; every AWS row they feed is far below.
+  #
+  #   prod  236  =  236 * 800 / 30 = 6,293 units/day, 89.9% of 7,000   (was 250, 95.2%)
+  #   stage  50  =   50 * 800 / 30 = 1,333 units/day, 88.9% of 1,500   (unchanged)
+  #   dev    16  =   16 * 800 / 30 =   427 units/day, 85.3% of 500     (was 30, 160%)
+  prod: &adr008_prod_playlists 236
   stage: &adr008_stage_playlists 50
-  dev: &adr008_dev_playlists 30
+  dev: &adr008_dev_playlists 16
 
 # Projected monthly volume per environment. These drive the CI gate, so they are
 # deliberately pessimistic: under-forecasting is the only direction that costs money.
 volumes:
   prod:
-    on_device_scan: 30000
-    server_ocr_page: 6000 # 20% fallback rate
+    # Reduced 2026-10-04, same rule as the playlist volumes above and for the row they
+    # could not reach: prod CloudFront.
+    #
+    # PED S453 budgets prod at 700,000 CloudFront requests — already 70% of the flat-rate
+    # plan's 1,000,000 — and derives "about 35,000 scans" from it. That arithmetic counts
+    # scans only. Review sessions cost 15 requests each and fallback OCR pages 2, and at
+    # 30,000 / 8,000 / 6,000 the three together come to 732,000, which is 73.2% and fails.
+    # The PED figure is the stale one; it is amended in the same change
+    # (docs/spec-amendments.md).
+    #
+    #   28,000 * 20 + 7,400 * 15 + 5,600 * 2 = 682,200, which is 68.2% of 1,000,000.
+    #
+    # The exact ceiling is 28,688 scans at the same ratios (699,984, or 69.9998%). Round
+    # numbers a hair under it are taken deliberately: every operation here is
+    # `confidence: estimated` and will be measured at M4, and sizing to four significant
+    # figures of a number nobody has measured is false precision that would turn the
+    # first real measurement into a gate failure.
+    on_device_scan: 28000
+    server_ocr_page: 5600 # 20% fallback rate
     playlist_job_15_songs: *adr008_prod_playlists
-    review_session: 8000
+    review_session: 7400
     # 4 runs a month, 115 batches per run -- 23,000 items re-matched weekly.
     #
     # Sized to the GATE, not to the allowance, which is ADR-008's rule applied to a new

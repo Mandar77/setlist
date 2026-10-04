@@ -6,7 +6,7 @@
  * first row, not something to be found by scanning.
  */
 
-import type { Estimate, Row } from './estimate.js'
+import { gateFor, type Estimate, type Row } from './estimate.js'
 
 const SCOPE_LABEL: Record<Row['scope'], string> = {
   aws: 'AWS',
@@ -26,11 +26,19 @@ function num(value: number): string {
 
 const pct = (value: number): string => (Number.isFinite(value) ? `${value.toFixed(1)}%` : 'over')
 
-/** `>` the gate is a failure, `>` two thirds of it is worth seeing coming. */
-function mark(row: Row, gatePct: number): string {
+/**
+ * `>` the gate is a failure, `>` two thirds of it is worth seeing coming.
+ *
+ * Takes the estimate rather than a single percentage because the threshold depends on
+ * the row: provider quotas are judged at `providerGatePct` (ADR-008). A report that
+ * marked a row FAIL while the gate passed it — or the reverse — would be worse than no
+ * report, since the table is what a reader trusts over the exit code.
+ */
+function mark(row: Row, estimate: Estimate): string {
   if (!row.modelled) return '·'
-  if (row.pct > gatePct) return '**FAIL**'
-  if (row.pct > gatePct * (2 / 3)) return 'watch'
+  const gate = gateFor(row.scope, estimate)
+  if (row.pct > gate) return '**FAIL**'
+  if (row.pct > gate * (2 / 3)) return 'watch'
   return 'ok'
 }
 
@@ -59,7 +67,7 @@ export function toMarkdown(estimate: Estimate): string {
   for (const row of estimate.rows) {
     const projected = row.modelled ? num(row.projected) : '—'
     lines.push(
-      `| ${mark(row, estimate.gatePct)} | \`${row.limit}\` | ${row.env} | ` +
+      `| ${mark(row, estimate)} | \`${row.limit}\` | ${row.env} | ` +
         `${SCOPE_LABEL[row.scope]} | ${projected} | ${num(row.allowance)} | ` +
         `${row.modelled ? pct(row.pct) : '—'} | ${row.confidence} |`,
     )
@@ -67,7 +75,9 @@ export function toMarkdown(estimate: Estimate): string {
   lines.push('')
 
   if (estimate.breaches.length > 0) {
-    lines.push(`### Over the ${estimate.gatePct}% gate`)
+    lines.push(
+      `### Over the gate (${estimate.gatePct}% AWS, ${estimate.providerGatePct}% provider)`,
+    )
     lines.push('')
     for (const row of estimate.breaches) {
       lines.push(

@@ -202,6 +202,92 @@ describe('the gate', () => {
   })
 })
 
+describe('the provider threshold (ADR-008)', () => {
+  /** The same one-limit model, but metered against a provider quota instead. */
+  const providerBudget = (share: number): Budget =>
+    ({
+      ...budget,
+      gatePct: 70,
+      providerGatePct: 90,
+      limits: {},
+      providerLimits: {
+        youtube_units_per_day: {
+          total: share * 4,
+          unit: 'quota units',
+          basis: 'monthly',
+          split: { prod: share, stage: share, dev: share, reserve: share },
+        },
+      },
+    }) as Budget
+
+  const providerModel = (perOperation: number) => ({
+    ...model,
+    meters: { youtube_units: { limit: 'youtube_units_per_day' } },
+    operations: {
+      only: {
+        description: 'only',
+        metrics: { youtube_units: perOperation },
+        confidence: 'measured',
+      },
+    },
+    volumes: { prod: { only: 1 }, stage: { only: 1 }, dev: { only: 1 } } as never,
+    baseline: { prod: {}, stage: {}, dev: {} } as never,
+  })
+
+  it('passes a provider quota at 89%, which the AWS gate would fail', () => {
+    // The whole point of the exception: a hard quota with no overage cannot produce a
+    // bill, so holding 30% back buys a smaller product and nothing else.
+    expect(estimate(providerBudget(100), providerModel(89)).breaches).toEqual([])
+  })
+
+  it('still fails a provider quota above 90%', () => {
+    // It is a raised gate, not a removed one. 95.2% — the number prod was actually at —
+    // must still fail, which is what forced 250 playlists a month down to 236.
+    const result = estimate(providerBudget(100), providerModel(95))
+    expect(result.breaches).toHaveLength(3)
+    expect(result.breaches[0]!.limit).toBe('youtube_units_per_day')
+  })
+
+  it('does not apply the provider threshold to an AWS allowance', () => {
+    // The containment check. If `scope` were ever compared loosely, or the exception
+    // widened, an AWS row at 89% would silently start passing — and an AWS allowance
+    // that is exceeded bills, which is the thing the 70% gate exists for.
+    const awsModel = {
+      ...model,
+      meters: { lambda_requests: { limit: 'lambda_requests' } },
+      operations: {
+        only: {
+          description: 'only',
+          metrics: { lambda_requests: 89 },
+          confidence: 'measured',
+        },
+      },
+      volumes: { prod: { only: 1 }, stage: { only: 1 }, dev: { only: 1 } } as never,
+      baseline: { prod: {}, stage: {}, dev: {} } as never,
+    }
+    const result = estimate(syntheticBudget(100), awsModel)
+    expect(result.breaches).toHaveLength(3)
+    expect(result.breaches[0]!.scope).toBe('aws')
+  })
+
+  it('does not apply it to CloudFront either', () => {
+    // Prod's flat-rate plan also has no overage, which makes it look like the provider
+    // case. It is still gated at 70%, because the plan is a choice this project made and
+    // could leave; widening the exception to it has to be a deliberate edit that breaks
+    // this test first.
+    const result = estimate(budget, model)
+    const cloudfront = result.rows.filter(row => row.scope === 'cloudfront' && row.modelled)
+    expect(cloudfront.length).toBeGreaterThan(0)
+    for (const row of cloudfront) expect(row.pct).toBeLessThanOrEqual(budget.gatePct)
+  })
+
+  it('reads both thresholds from budget.yaml rather than hard-coding them', () => {
+    expect(budget.gatePct).toBe(70)
+    expect(budget.providerGatePct).toBe(90)
+    expect(estimate(budget, model).providerGatePct).toBe(budget.providerGatePct)
+  })
+})
+
 describe('the model refuses to under-report', () => {
   it('rejects an operation whose cost nobody meters', () => {
     // An unmetered cost counts as zero, and zero reads as headroom.

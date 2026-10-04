@@ -448,9 +448,15 @@ No Glue option is $0, so Glue stays off.
 
 **Arithmetic (prod share):**
 
-- **YouTube:** 7,000 units/day ÷ 800 = 8 playlists/day ≈ **250/month**. **Binds first.**
-- **Lambda:** 200,000 GB-s − (250 × 8) = 198,000. At a 20% fallback rate a scan averages 2.5 GB-s, so about 79,000 scans.
-- **CloudFront Free plan:** 700,000 requests ÷ 20 per session ≈ **35,000 scans**. Binds second.
+- **YouTube:** 7,000 units/day ÷ 800 = 8 playlists/day ≈ 250/month — but the gate takes
+  90% of a provider quota, so the planned volume is **236/month**. **Binds first.**
+  *(Amended 2026-10-04, [ADR-008](adr/0008-free-tier-gate-vs-ped-volumes.md).)*
+- **Lambda:** 200,000 GB-s − (236 × 8) = 198,112. At a 20% fallback rate a scan averages 2.5 GB-s, so about 79,000 scans.
+- **CloudFront Free plan:** 700,000 requests — 70% of the plan's 1,000,000 — but **not**
+  ÷ 20 per session. Scans cost 20 requests, review sessions 15 and fallback OCR pages 2,
+  and all three draw on the same allowance, so the ceiling is about **28,700 scans** at
+  the modelled ratios rather than 35,000. Planned: 28,000. Binds second.
+  *(Amended 2026-10-04, [ADR-008](adr/0008-free-tier-gate-vs-ped-volumes.md).)*
 - **MAU:** EAS Update Free allows 1,000 MAU (OTA updates stop beyond that). Cognito cap is 7,000.
 - **Spotify:** 5 users.
 

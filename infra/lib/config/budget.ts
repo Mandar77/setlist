@@ -49,8 +49,16 @@ export interface Budget {
   readonly version: number
   readonly accountType: string
   readonly region: string
-  /** CI fails above this share of any allowance. */
+  /** CI fails above this share of any AWS allowance. */
   readonly gatePct: number
+  /**
+   * The threshold provider quotas are judged against instead (ADR-008).
+   *
+   * Higher because the risk is different, not because the limit is less important: an
+   * AWS allowance that is exceeded bills, while a provider quota that is exceeded simply
+   * refuses the request. There is no overage to hold 30% back against.
+   */
+  readonly providerGatePct: number
   /** The runtime sentinel throttles above this share. */
   readonly tripPct: number
   readonly limits: Readonly<Record<string, Limit>>
@@ -90,6 +98,7 @@ interface RawBudget {
   account_type: string
   region: string
   gate_pct: number
+  provider_gate_pct: number
   trip_pct: number
   limits: Record<string, RawLimit>
   provider_limits: Record<string, RawLimit>
@@ -151,6 +160,7 @@ export function loadBudget(path: string = BUDGET_PATH): Budget {
     accountType: raw.account_type,
     region: raw.region,
     gatePct: raw.gate_pct,
+    providerGatePct: raw.provider_gate_pct,
     tripPct: raw.trip_pct,
     limits: withBasis('limits', raw.limits),
     providerLimits: withBasis('provider_limits', raw.provider_limits),

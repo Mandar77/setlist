@@ -44,8 +44,37 @@ export interface Row {
   readonly confidence: string
 }
 
+/**
+ * The threshold a row is judged against.
+ *
+ * Two numbers, because the allowances are two different kinds of thing (ADR-008). An AWS
+ * allowance is elastic: cross it and the meter starts charging, so the 70% gate is
+ * headroom against an estimate being wrong. A provider quota is a hard ceiling with no
+ * overage — crossing YouTube's returns `quotaExceeded` and the request fails — so there
+ * is no bill to hold headroom against, and 30% of a quota that cannot be purchased is
+ * just a smaller product.
+ *
+ * Keyed on `scope` rather than on a per-limit override: a knob per row would let any
+ * inconvenient limit be moved one at a time, while a threshold per kind has to be argued
+ * once and then applies to every provider quota, including ones added later.
+ *
+ * `cloudfront` is an AWS allowance and gates at 70% like the rest. Prod's flat-rate plan
+ * has no overage either, which makes it look like the provider case, but the plan is
+ * something this project chose and could leave — and `estimate.test.ts` pins that, so
+ * widening the exception to CloudFront has to be a deliberate edit with a failing test
+ * in front of it.
+ */
+export function gateFor(
+  scope: Scope,
+  thresholds: { readonly gatePct: number; readonly providerGatePct: number },
+): number {
+  return scope === 'provider' ? thresholds.providerGatePct : thresholds.gatePct
+}
+
 export interface Estimate {
   readonly gatePct: number
+  /** The higher threshold provider quotas are judged against. See {@link gateFor}. */
+  readonly providerGatePct: number
   readonly tripPct: number
   /** Every row, sorted by percentage of allowance used, descending. */
   readonly rows: readonly Row[]
@@ -225,10 +254,11 @@ export function estimate(
 
   return {
     gatePct: budget.gatePct,
+    providerGatePct: budget.providerGatePct,
     tripPct: budget.tripPct,
     rows,
     bindsFirst: modelledRows[0],
-    breaches: modelledRows.filter(row => row.pct > budget.gatePct),
+    breaches: modelledRows.filter(row => row.pct > gateFor(row.scope, budget)),
     unmodelled,
     planDrift,
   }

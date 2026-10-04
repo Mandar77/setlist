@@ -1,6 +1,6 @@
 # ADR-008 — The 70% CI gate and the PED's own volume targets contradict each other
 
-- **Status:** **Proposed** — needs a human decision (AUTOPILOT §2.4)
+- **Status:** **Accepted** — decided 2026-10-03, applied in full 2026-10-04
 - **Date:** 2026-09-30
 - **Context:** PED §10.8, §11; `infra/free-tier/budget.yaml`; `infra/free-tier/usage-model.yaml`; task M0A-05
 - **Raised by:** the first run of `tools/free-tier-estimate`, which is the tool M0A-05 asked for
@@ -147,9 +147,67 @@ proposal — never a quiet edit. The estimator is finished and its tests pass; M
 `blocked` on this decision rather than `done`, and `make estimate` correctly exits 1
 until it is made.
 
+## 2026-10-04: applied in full — `make estimate` exits 0
+
+The decision above reached three of the seven rows. This is what closed the other four,
+and one of them needed more than the bookkeeping the previous section expected.
+
+**The provider threshold is now a field, not a special case.** `budget.yaml` gains
+`provider_gate_pct: 90` beside `gate_pct: 70`, and the estimator picks between them on a
+row's existing `scope`. This is option (C) narrowed: a threshold per *kind* of limit
+rather than per limit, so it has to be argued once and then applies to every provider
+quota including ones added later — a per-row override would let any inconvenient limit be
+moved one at a time. `estimate.test.ts` checks the containment as well as the behaviour:
+an AWS row at 89% still fails, and so does a provider row at 95%.
+
+**Volumes, as decided:** prod 250 → **236**, stage 50 (unchanged), dev 30 → **16**.
+
+**`cloudwatch_logs_gb`, option (E) as written:** each share now covers its own declared
+baseline with 30% headroom — prod 2.5 → 2.9, stage 0.6 → 0.75, dev 0.4 → 0.45, reserve
+1.5 → 0.9. No product change; the reserve absorbs it.
+
+**prod `cloudfront_requests` needed more than reconciliation, and this is the correction
+to the section above.** That section said the remaining work was to "reconcile
+`cloudfront.planned_requests` with the model". Reconciling the *declared forecast* removes
+the drift warning but not the breach: the row was 732,000 of 1,000,000, and 1,000,000 is
+the flat-rate plan's own inclusion rather than a share this project allocates, so no
+re-cut can move it.
+
+What moved it was the same rule the decision states — planned volumes follow from the
+gate — applied to the volumes that actually feed the row. They are not the playlist
+volumes, which is why the earlier pass missed them: scans cost 20 CloudFront requests
+each, review sessions 15 and fallback OCR pages 2.
+
+> 28,000 × 20 + 7,400 × 15 + 5,600 × 2 = **682,200**, which is 68.2% of 1,000,000.
+
+The exact ceiling at those ratios is 28,688 scans (699,984, or 69.9998%). Round numbers a
+little under it are taken deliberately: every operation feeding this row is
+`confidence: estimated` and is due to be measured at M4, and sizing to four significant
+figures of an unmeasured number would turn the first real measurement into a gate failure.
+
+This contradicts **PED §10.8**, which derives "about 35,000 scans" from the same 700,000
+by counting scans alone. The PED is amended inline and logged as amendments 33 and 34 in
+`docs/spec-amendments.md`. Its 700,000 figure is itself unchanged and was always right —
+it is 70% of 1,000,000, which is this gate applied to this plan.
+
+### Still open, and deliberately not fixed here
+
+**Option (A) — dev cannot burst a single playlist — is untouched.** dev's share is still
+500 YouTube units a day and one 15-song playlist still costs 800. The gate passes because
+16 playlists a month averages 427 units a day, and an average is not what a developer
+hits when they press the button once. The decision recorded above was about volumes and
+did not re-split the quota, and re-splitting it is a cost decision rather than arithmetic,
+so it is raised as a `human-needed` issue instead of being taken here. The ADR's own
+recommendation that "(A) is needed regardless" still stands.
+
 ## Consequences
 
-- Until this is decided, `make preflight` fails, so no infrastructure change can be
-  pushed. That is the gate working, but it does block M0A-06 onward.
-- Whichever option is chosen, the numbers change in `budget.yaml` only. The estimator
-  reads them; it has none of its own.
+- `make estimate` exits 0, so `make preflight` can run and M0A-06 is unblocked.
+- The gate still binds: prod is at 89.9% of the YouTube quota, and a single extra
+  playlist a month puts it over.
+- The product is smaller than the PED described — 236 playlists and 28,000 scans a month
+  in prod rather than 250 and 35,000. That is the gate doing its job rather than a
+  regression, and it is now written down in both specs.
+- Two thresholds exist where there was one. The risk is that "provider" becomes a place
+  to put inconvenient limits, which is why the scope is derived from the budget's own
+  sections and a test pins CloudFront — the nearest neighbour — to the AWS gate.
