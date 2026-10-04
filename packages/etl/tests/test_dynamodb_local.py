@@ -29,7 +29,18 @@ pytestmark = pytest.mark.local_aws
 
 ENDPOINT = os.environ.get("DYNAMODB_LOCAL_ENDPOINT", "http://localhost:8000")
 TABLE = "setlist-etl-test"
-DAY = date(2026, 10, 3)
+
+# A distinct day per test, so each one owns its own EVT# partition.
+#
+# The table fixture is module-scoped (creating it per test would triple the runtime), and
+# pytest-randomly shuffles order, so tests sharing a partition are tests whose result
+# depends on which ran first. That is exactly how this failed on its first CI run: the
+# 400-event case ran before the 3-event case and leaked into it. Separate partitions make
+# the order irrelevant rather than making the suite depend on it being lucky.
+DAY_BASIC = date(2026, 10, 3)
+DAY_RERUN = date(2026, 10, 4)
+DAY_PAGED = date(2026, 10, 5)
+DAY_EMPTY = date(2020, 1, 1)
 
 
 @pytest.fixture(scope="module")
@@ -71,8 +82,14 @@ def table():  # type: ignore[no-untyped-def]
     created.delete()
 
 
-def _put_events(table, count: int, event_type: str = "scan.submitted", tracks: int = 1) -> None:  # type: ignore[no-untyped-def]
-    partition = EVENT_PARTITION.format(env="dev", day=DAY.isoformat())
+def _put_events(  # type: ignore[no-untyped-def]
+    table,
+    day: date,
+    count: int,
+    event_type: str = "scan.submitted",
+    tracks: int = 1,
+) -> None:
+    partition = EVENT_PARTITION.format(env="dev", day=day.isoformat())
     with table.batch_writer() as batch:
         for i in range(count):
             batch.put_item(
@@ -80,7 +97,7 @@ def _put_events(table, count: int, event_type: str = "scan.submitted", tracks: i
                     "pk": partition,
                     "sk": f"EVT#{i:06d}",
                     "event_type": event_type,
-                    "occurred_on": DAY.isoformat(),
+                    "occurred_on": day.isoformat(),
                     "env": "dev",
                     "payload": {"tracks": tracks},
                 }
@@ -88,8 +105,8 @@ def _put_events(table, count: int, event_type: str = "scan.submitted", tracks: i
 
 
 def test_reads_a_partition_and_writes_aggregates(table) -> None:  # type: ignore[no-untyped-def]
-    _put_events(table, 3, tracks=2)
-    spec = JobSpec(day=DAY, env="dev", sum_fields=("tracks",))
+    _put_events(table, DAY_BASIC, 3, tracks=2)
+    spec = JobSpec(day=DAY_BASIC, env="dev", sum_fields=("tracks",))
 
     written = run(spec, DynamoDbSource(table), DynamoDbSink(table))
 
@@ -102,13 +119,15 @@ def test_reads_a_partition_and_writes_aggregates(table) -> None:  # type: ignore
 
 
 def test_a_rerun_overwrites_rather_than_duplicating(table) -> None:  # type: ignore[no-untyped-def]
-    _put_events(table, 2)
-    spec = JobSpec(day=DAY, env="dev")
+    _put_events(table, DAY_RERUN, 2)
+    spec = JobSpec(day=DAY_RERUN, env="dev")
     run(spec, DynamoDbSource(table), DynamoDbSink(table))
     run(spec, DynamoDbSource(table), DynamoDbSink(table))
 
     rows = table.query(
-        KeyConditionExpression=boto3.dynamodb.conditions.Key("pk").eq(f"AGG#dev#{DAY.isoformat()}")
+        KeyConditionExpression=boto3.dynamodb.conditions.Key("pk").eq(
+            f"AGG#dev#{DAY_RERUN.isoformat()}"
+        )
     )["Items"]
     assert len(rows) == 1
 
@@ -117,11 +136,11 @@ def test_pagination_reads_every_record(table) -> None:  # type: ignore[no-untype
     # The thing the in-memory source cannot model. `Table.query` returns at most 1 MB per
     # call, so a day large enough to exceed it would otherwise be silently truncated —
     # an aggregate correct about the first megabyte and wrong overall.
-    _put_events(table, 400)
-    written = run(JobSpec(day=DAY, env="dev"), DynamoDbSource(table), DynamoDbSink(table))
+    _put_events(table, DAY_PAGED, 400)
+    written = run(JobSpec(day=DAY_PAGED, env="dev"), DynamoDbSource(table), DynamoDbSink(table))
     assert written[0].count == 400
 
 
 def test_an_empty_partition_writes_nothing(table) -> None:  # type: ignore[no-untyped-def]
-    spec = JobSpec(day=date(2020, 1, 1), env="dev")
+    spec = JobSpec(day=DAY_EMPTY, env="dev")
     assert run(spec, DynamoDbSource(table), DynamoDbSink(table)) == []

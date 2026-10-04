@@ -59,7 +59,13 @@ jobs:
       - name: Unit tests with coverage gate
         # Not part of `make verify` — coverage instrumentation roughly doubles the
         # runtime, and verify has a sub-5-minute budget it has to keep.
-        run: uv run pytest --cov --cov-report=term-missing --cov-report=xml -q
+        #
+        # The marker filter has to match `make test-unit`'s. Without it this step
+        # collects the `local_aws` tests and tries to reach a DynamoDB Local container
+        # that only exists in its own job, which is how it failed the first time.
+        run: >-
+          uv run pytest -m "not integration and not e2e and not local_aws"
+          --cov --cov-report=term-missing --cov-report=xml -q
 
       - name: Core coverage gate (>=90%)
         run: |
