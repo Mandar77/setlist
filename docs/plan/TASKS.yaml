@@ -1186,7 +1186,7 @@ tasks:
   milestone: M3
   title: packages/contracts
   deps: [CORE-04]
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -1196,7 +1196,17 @@ tasks:
     - a test asserts message bodies carry identifiers only, never song names or personal data
     - SNS filtering uses message attributes, never payload filtering
   verify: pnpm -C packages/contracts test
-  evidence: []
+  evidence:
+    - "CloudEvents-style envelope per PED S10.4: id, type, correlationid, idempotencykey, env, data. Field names are lowercase and unpunctuated because they cross a TypeScript producer and a Python consumer - a casing idiomatic on one side is wrong on the other, so neither gets its preference and both get the same string"
+    - "12 versioned event types from the PED S10.3 service table, each with a zod schema and a producer golden sample. messageSchema() narrows `type` to the literal, so a payload cannot be attached to the wrong type name - asserted by checking every sample is REJECTED by all 11 other schemas"
+    - "PAYLOADS CARRY IDENTIFIERS, NEVER CONTENT, and it is enforced structurally rather than by review: every string field is a ULID/UUID, an enum, a sha256 digest or a whitespace-free token, so a song title cannot be put in one. The test proves it by TRYING - it poisons every string field of every event with titles, artist names, an email and CJK text and requires rejection, with a control asserting the legitimate value still passes"
+    - "that test earns its shape: a sample with no song title in it proves only that THIS sample has none. Checked in the failing direction - loosening one field to z.string() fails 2 tests and names the field and the value it wrongly accepted"
+    - "JSON Schema generated from the zod schemas (ADR-004 made contracts zod-first; a hand-maintained Python mirror is the drift problem versioning exists to prevent) and committed, with a --check mode and a test asserting the committed file is current. The staleness check is itself checked against a drifted document"
+    - "SNS filtering uses message attributes derived FROM the envelope, never payload filtering - payload filtering is a billed feature, so a policy reaching into `data` is a cost bug that works perfectly. A test asserts the policy names only attribute keys and contains no `data` or JSONPath"
+    - "size limit measured in UTF-8 BYTES not characters, with a test that a 30,000-character CJK payload trips the 64 KB budget while being well under it by length - exactly the case a length check waves through"
+    - "FOUND BY THE GATES, three times: check_no_secrets.py caught a real email address in the poison list (public repo, ADR-005) and then caught the example.invalid replacement too, since it matches any email shape - the value is assembled at runtime now, so the file holds no email and the test still covers one. Crockford base32 excludes I, L, O and U, and the first draft spelled USER/JOB/CONN into the sample ids, making three of five invalid ULIDs. And prettier reformats generated JSON differently from JSON.stringify, so the schemas directory is in .prettierignore or the staleness check fails whenever the file is correct"
+    - "packages/contracts added to the root tsconfig references, which CI asserts for every workspace member - a package missing from that list lints but is never type-checked"
+    - "second package to need its own vitest config excluding dist/ (tools/free-tier-estimate was the first): the root config excludes it so `make verify` never saw the stale compiled copies, but a package-local `test` script does"
 
 - id: M3-01b
   milestone: M3

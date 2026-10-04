@@ -1,0 +1,22 @@
+{
+  "name": "@setlist/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Event envelope, versioned zod schemas and the generated JSON Schema the Python consumers read.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --build",
+    "test": "vitest run",
+    "schema": "tsx src/generate-json-schema.ts"
+  },
+  "dependencies": {
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.4",
+    "tsx": "4.23.15"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "docs": [
+    "Unlike packages/core this one DOES take Node's ambient types. The schemas, samples",
+    "and SNS helpers are pure and run anywhere, but `generate-json-schema.ts` is a build",
+    "tool that reads and writes files — it is the thing that produces the committed JSON",
+    "Schema, and it only ever runs on Node.",
+    "",
+    "The purity that matters here is of the payloads, not the package: no event body may",
+    "carry user content, which `test/events.test.ts` enforces by trying to put some in."
+  ],
+
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

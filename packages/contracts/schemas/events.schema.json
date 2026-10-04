@@ -1,0 +1,505 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://setlist.invalid/schemas/events.schema.json",
+  "title": "Setlist event contracts",
+  "description": "Generated from packages/contracts/src by `pnpm -C packages/contracts schema`. Do not edit by hand; the generator is the source of truth (ADR-004).",
+  "$defs": {
+    "envelope": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "type": {
+          "type": "string",
+          "pattern": "^setlist\\.[a-z][a-z-]*\\.[A-Z][A-Za-z]*\\.v[1-9][0-9]*$"
+        },
+        "correlationid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "idempotencykey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "env": {
+          "type": "string",
+          "enum": [
+            "dev",
+            "stage",
+            "prod"
+          ]
+        },
+        "data": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "correlationid",
+        "idempotencykey",
+        "env",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "setlist.identity.UserDeleted.v1": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "pattern": "^(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+        },
+        "deletedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "userId",
+        "deletedAt"
+      ],
+      "additionalProperties": false
+    },
+    "setlist.provider.ProviderConnected.v1": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "pattern": "^(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "youtube",
+            "spotify",
+            "apple",
+            "amazon"
+          ]
+        },
+        "connectionId": {
+          "type": "string",
+          "pattern": "^(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+        }
+      },
+      "required": [
+        "userId",
+        "provider",
+        "connectionId"
+      ],
+      "additionalProperties": false
+    },
+    "setlist.provider.ProviderTokenRevoked.v1": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "pattern": "^(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "youtube",
+            "spotify",
+            "apple",
+            "amazon"
+          ]
+        },
+        "connectionId": {
+          "type": "string",
+          "pattern": "^(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "user_revoked",
+            "expired",
+            "provider_error",
+            "kill_switch"
+          ]
+        }
+      },
+      "required": [
+        "userId",
+        "provider",
+        "connectionId",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "setlist.ingestion.ScanSubmitted.v1": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "scanId": {
+          "type": "string",
+          "pattern": "^(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+        },
+        "userId": {
+          "type": "string",
+          "pattern": "^(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+        },
+        "sourceKind": {
+          "type": "string",
+          "enum": [
+            "scan_handwriting",
+            "scan_print",
+            "screenshot",
+            "paste",
+            "file"
+          ]
+        },
+        "textDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "byteLength": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "scanId",
+        "userId",
+        "sourceKind",
+        "textDigest",
+        "byteLength"
+      ],
+      "additionalProperties": false
+    },
+    "setlist.extraction.SongsExtracted.v1": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "scanId": {
+          "type": "string",
+          "pattern": "^(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+        },
+        "userId": {
+          "type": "string",
+          "pattern": "^(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+        },
+        "itemCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "rejectedCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "residualCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "deterministicCoverage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "scanId",
+        "userId",
+        "itemCount",
+        "rejectedCount",
+        "residualCount",
+        "deterministicCoverage"
+      ],
+      "additionalProperties": false
+    },
+    "setlist.matching.SongsMatched.v1": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "scanId": {
+          "type": "string",
+          "pattern": "^(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+        },
+        "userId": {
+          "type": "string",
+          "pattern": "^(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+        },
+        "matchedCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "unmatchedCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "needsReviewCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "scanId",
+        "userId",
+        "matchedCount",
+        "unmatchedCount",
+        "needsReviewCount"
+      ],
+      "additionalProperties": false
+    },
+    "setlist.playlist.CreatePlaylistRequested.v1": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "jobId": {
+          "type": "string",
+          "pattern": "^(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+        },
+        "scanId": {
+          "type": "string",
+          "pattern": "^(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+        },
+        "userId": {
+          "type": "string",
+          "pattern": "^(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "youtube",
+            "spotify",
+            "apple",
+            "amazon"
+          ]
+        },
+        "trackCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "jobId",
+        "scanId",
+        "userId",
+        "provider",
+        "trackCount"
+      ],
+      "additionalProperties": false
+    },
+    "setlist.playlist.PlaylistCreated.v1": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "jobId": {
+          "type": "string",
+          "pattern": "^(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+        },
+        "userId": {
+          "type": "string",
+          "pattern": "^(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "youtube",
+            "spotify",
+            "apple",
+            "amazon"
+          ]
+        },
+        "providerPlaylistId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "trackCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "jobId",
+        "userId",
+        "provider",
+        "providerPlaylistId",
+        "trackCount"
+      ],
+      "additionalProperties": false
+    },
+    "setlist.playlist.JobCompleted.v1": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "jobId": {
+          "type": "string",
+          "pattern": "^(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+        },
+        "userId": {
+          "type": "string",
+          "pattern": "^(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "succeeded",
+            "partial",
+            "failed",
+            "cancelled"
+          ]
+        },
+        "trackCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "failedCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "jobId",
+        "userId",
+        "outcome",
+        "trackCount",
+        "failedCount"
+      ],
+      "additionalProperties": false
+    },
+    "setlist.provider.ProviderCallFailed.v1": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "jobId": {
+          "type": "string",
+          "pattern": "^(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "youtube",
+            "spotify",
+            "apple",
+            "amazon"
+          ]
+        },
+        "statusCode": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 599
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "quota",
+            "rate_limit",
+            "auth",
+            "not_found",
+            "server",
+            "unknown"
+          ]
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "jobId",
+        "provider",
+        "statusCode",
+        "reason",
+        "retryable"
+      ],
+      "additionalProperties": false
+    },
+    "setlist.analytics.UsageThresholdCrossed.v1": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "limitName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "env": {
+          "type": "string",
+          "enum": [
+            "dev",
+            "stage",
+            "prod"
+          ]
+        },
+        "sharePct": {
+          "type": "number",
+          "minimum": 0
+        },
+        "threshold": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "limitName",
+        "env",
+        "sharePct",
+        "threshold"
+      ],
+      "additionalProperties": false
+    },
+    "setlist.config.FlagChanged.v1": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "flag": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "env": {
+          "type": "string",
+          "enum": [
+            "dev",
+            "stage",
+            "prod"
+          ]
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "changedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "flag",
+        "env",
+        "enabled",
+        "changedAt"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

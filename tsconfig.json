@@ -16,6 +16,9 @@
       "path": "infra"
     },
     {
+      "path": "packages/contracts"
+    },
+    {
       "path": "packages/core"
     },
     {
