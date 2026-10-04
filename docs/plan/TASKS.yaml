@@ -1515,15 +1515,30 @@ tasks:
   milestone: M6
   title: Weekly re-match on Step Functions Standard
   deps: [M3-03]
-  status: todo
-  blocked_on: null
+  status: blocked
+  blocked_on: ADR-008 - the work is complete; `make estimate` exits 1 on the seven rows ADR-008 has not resolved
   not_before: null
   done_when:
     - Standard only; Express is banned
     - the estimator shows at most 2000 transitions per month in prod
     - re-matching is idempotent on rerun
   verify: make estimate
-  evidence: []
+  # The work is DONE and its own rows pass. This is blocked exactly as M0A-06 is: the
+  # verify command is `make estimate`, which exits 1 on the seven ADR-008 rows - three
+  # YouTube, three cloudwatch_logs_gb and prod cloudfront_requests. None is fed by
+  # anything in this task. It flips to `done` the moment ADR-008 lands, with no further
+  # work here.
+  evidence:
+    - "STANDARD only. Express bills per request and per GB-second with no free tier at all; Standard gives 4,000 transitions a month. SZC-SFN-EXPRESS catches EXPRESS on a synthesized template and a test catches it in the definition, which is where it would be written"
+    - "the Map bounds MaxConcurrency, because an unbounded one runs every batch at once and the MusicBrainz token bucket is per-process - it cannot help when the processes are separate Lambdas"
+    - "TRANSITIONS ARE COMPUTED, not measured: a state machine's cost is its transitions, and transitions are a property of the definition plus the input size, so the cost is knowable before anything is deployed - which is the only useful time to know it. A test holds the usage model's per-run and per-batch numbers to the states the definition actually contains, so a state added without updating the model fails rather than quietly making every forecast wrong"
+    - "batches, not items. Mapping per item makes the count scale with the catalog, so a growing user base walks into the limit silently; batching makes it scale with ceil(items/200) and puts a ceiling in reach"
+    - "prod 1,396 of 2,000 transitions (69.8%) - inside the done_when's 2,000 AND inside the 70% gate. The first sizing fit the allowance at 1,816 and FAILED the gate at 90.8%, which is ADR-008's rule applied to a new row rather than a special case: planned volumes follow from the gate"
+    - "modelling it as a flat per-run cost first made dev fail at 165% and stage at 99%, because the transition count scales with the catalog and not with the schedule. Splitting fixed from per-batch cost is what made the model right; the design was never the thing that was unaffordable"
+    - "IDEMPOTENT on rerun, and `ran twice` is a normal event for a Standard workflow - an operator reruns it, the scheduler retries, a run resumes after a partial failure. The record is keyed by itemId and overwritten, and a byte-identical result produces no write at all, which matters because every write is a WCU against a provisioned table"
+    - "the fingerprint deliberately excludes the score: treating a 0.91 to 0.9100001 drift as a change would make every weekly run rewrite every row. Tested in both directions - a moved score is not a change, a moved verdict or orientation outcome is"
+    - "and idempotent must not mean inert: a recording unmatched last week and matched this week DOES write, which is the entire point of re-matching. 70 tests in catalog-matching, 13 in infra"
+
 
 - id: M6-03
   milestone: M6

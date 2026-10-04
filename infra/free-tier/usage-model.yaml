@@ -36,6 +36,7 @@ meters:
   youtube_units: { limit: youtube_units_per_day }
   youtube_search_list: { limit: youtube_search_list_per_day }
   cloudfront_requests: { cloudfront: requests }
+  step_functions_transitions: { limit: step_functions_transitions }
 
 # Cost of one unit of work, per flow.
 operations:
@@ -67,6 +68,28 @@ operations:
     youtube_search_list: 4      # only when ISRC resolution fails
     xray_traces: 1
     confidence: estimated       # measure at M4
+
+  weekly_rematch_run:
+    description: The fixed cost of one weekly re-match pass (M6-02), Standard workflow.
+    lambda_requests: 2
+    lambda_gb_seconds: 0.5
+    dynamodb_rcu_ops: 10
+    # The 4 states outside the Map: load, choose, the Map itself, done.
+    step_functions_transitions: 4
+    confidence: estimated       # measure at M6
+
+  weekly_rematch_batch:
+    description: One Map iteration, re-matching 200 stored items (M6-02).
+    lambda_requests: 2
+    lambda_gb_seconds: 1.0
+    dynamodb_rcu_ops: 4
+    dynamodb_wcu_ops: 1
+    # 3 states per iteration. Split from the run above because the transition count
+    # scales with the catalog, not with the schedule -- modelling it as a flat per-run
+    # cost made dev and stage fail at 165% and 99% of their shares, which was the model
+    # being wrong rather than the design being unaffordable.
+    step_functions_transitions: 3
+    confidence: estimated       # measure at M6
 
   review_session:
     description: A user correcting low-confidence items before creation.
@@ -106,16 +129,28 @@ volumes:
     server_ocr_page: 6000 # 20% fallback rate
     playlist_job_15_songs: *adr008_prod_playlists
     review_session: 8000
+    # 4 runs a month, 115 batches per run -- 23,000 items re-matched weekly.
+    #
+    # Sized to the GATE, not to the allowance, which is ADR-008's rule applied to a new
+    # row rather than a special case: 600 batches fits inside prod's 2,000 transitions at
+    # 1,816, and fails the 70% gate at 90.8%. 460 gives 16 + 1,380 = 1,396, which is
+    # 69.8%. The first number was the one that looked affordable; this is the one that is.
+    weekly_rematch_run: 4
+    weekly_rematch_batch: 460
   stage:
     on_device_scan: 2000
     server_ocr_page: 400
     playlist_job_15_songs: *adr008_stage_playlists
     review_session: 500
+    weekly_rematch_run: 4
+    weekly_rematch_batch: 100
   dev:
     on_device_scan: 1000
     server_ocr_page: 200
     playlist_job_15_songs: *adr008_dev_playlists
     review_session: 200
+    weekly_rematch_run: 4
+    weekly_rematch_batch: 40
 
 # Fixed monthly overheads independent of traffic.
 baseline:

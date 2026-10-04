@@ -10,4 +10,5 @@
 export * from './cache.js'
 export * from './match.js'
 export * from './rate-limit.js'
+export * from './rematch.js'
 export * from './score.js'

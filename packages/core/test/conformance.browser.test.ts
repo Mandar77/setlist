@@ -69,8 +69,10 @@ describe('engine conformance on Chromium', () => {
       const page = await browser.newPage()
       await page.addScriptTag({ content: bundle })
       report = (await page.evaluate(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (input: unknown) => (globalThis as any).__setlistConformance(input, 'chromium'),
+        (input: unknown) =>
+          (globalThis as unknown as Record<string, (...args: unknown[]) => unknown>)[
+            '__setlistConformance'
+          ]!(input, 'chromium'),
         cases,
       )) as ConformanceReport
     } finally {
