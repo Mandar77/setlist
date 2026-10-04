@@ -22,6 +22,9 @@
       "path": "packages/core"
     },
     {
+      "path": "services/catalog-matching"
+    },
+    {
       "path": "tests/fixtures/ddb-ondemand"
     },
     {

@@ -1252,7 +1252,7 @@ tasks:
   milestone: M3
   title: catalog-matching service
   deps: [M3-01]
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   done_when:
@@ -1262,7 +1262,17 @@ tasks:
     - PED match targets met on the golden set
     - a test proves the rate limit is never exceeded, including under concurrency
   verify: pnpm -C services/catalog-matching test
-  evidence: []
+  evidence:
+    - "the MusicBrainz limit is the test M3-03 singles out and it is a SERIALIZED bucket, not a counter. A counter-and-timer has a race - two callers both read 1, both decrement, two requests leave in the same second - and the window is small, which is worse than large: it passes everything not looking for it and then gets the IP blocked, which no retry fixes and which affects a volunteer-run service"
+    - "slot assignment happens synchronously before any await, so it cannot interleave. Proven with 20 simultaneous callers on a fake clock: every gap at least 1000ms, every slot distinct, arrival order preserved. The control runs the same property against a zero-interval bucket and requires it to FAIL"
+    - "the User-Agent carries application, version and contact as MusicBrainz demands, and a test asserts it contains no `@` - a contact email in a committed constant is exactly the personal data ADR-005 bans from a public repo. The repository URL is the contact"
+    - "cache keys are neutral by construction: an ISRC, or a sha256 of the FOLDED query. A test asserts the text key contains none of the query's words, and the cache REFUSES a non-neutral key rather than sanitizing it - sanitizing would keep working while the upstream bug that produced the key stayed invisible"
+    - "TTL bounded at 30 days and asserted to exist and to be bounded, because CLAUDE.md forbids persisting provider content beyond ToS limits and an unbounded cache is that violation held indefinitely"
+    - "PRD S7.10.4 thresholds exactly: >=0.8 auto-accept, 0.5-0.8 review, <0.5 not-found, with the boundaries tested on both sides. Weights sum to 1. Normalization is packages/core's fold and tokens, not a second implementation - a matcher that normalized differently would score against a string the parser never produced"
+    - "FOUND BY A TEST THAT SHOULD HAVE PASSED: a live recording offered for a studio query scored 0.95 and auto-accepted, because the qualifier term is worth 0.1 and no weighting can make it veto. The fix is a CAP, not a reweighting - an unwanted qualifier caps the verdict at review while leaving the score alone, because a live take is not a worse match for the studio cut, it is a different recording"
+    - "and a second test was simply wrong: `keeps the original when the swap does not win` had the orientations reversed, so the swap genuinely did win by more than the margin. The matcher was right; the expectation was not"
+    - "ADR-002 step 5 resolves the alternate reading against the FREE catalogs only, before any YouTube quota is spent, and flips only on a >=0.10 margin. A test asserts the matcher holds no provider client at all"
+  
 
 - id: M3-04
   milestone: M3
