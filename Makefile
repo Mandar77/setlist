@@ -314,8 +314,13 @@ kics: cdk-out-zero ## KICS: the zero-cost query pack plus the default catalog (n
 		--fail-on high,critical --no-progress --no-color
 	@# ...and clean under the DEFAULT catalog too, which covers security issues the
 	@# zero-cost pack says nothing about, and the workflow files along with them.
+	@# --exclude-queries comes from the suppression paperwork, never from this line.
+	@# security/kics-exclude-queries.txt is GENERATED from security/suppressions.yaml,
+	@# and `make suppressions` fails if the two disagree — so a KICS finding cannot be
+	@# silenced here without an owner, a reason and an expiry.
 	MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR):/path" checkmarx/kics:latest scan \
 		-p /path/infra/cdk.out,/path/.github/workflows \
+		--exclude-queries "$$(cat security/kics-exclude-queries.txt)" \
 		--fail-on high,critical --no-progress --no-color
 
 estimate: node_modules ## Fail if projected usage exceeds the gate in infra/free-tier/budget.yaml

@@ -190,3 +190,46 @@ def test_the_checked_in_ignore_file_matches_the_checked_in_suppressions() -> Non
     # someone might not have run yet.
     expected = checker.render_trivyignore(checker.load(checker.DEFAULT_PATH))
     assert checker.TRIVYIGNORE_PATH.read_text(encoding="utf-8") == expected
+
+
+# ------------------------------------------------------------------ kics exclusions
+
+
+def _kics_exclude(*entries: dict[str, object]) -> str:
+    return checker.render_kics_exclude({"suppressions": list(entries)})
+
+
+def test_a_kics_entry_becomes_an_excluded_query_id() -> None:
+    rendered = _kics_exclude(_entry(tool="kics", id="c8dee387-a2e6-4a73-a942-183c975549ac"))
+    assert rendered == "c8dee387-a2e6-4a73-a942-183c975549ac\n"
+
+
+def test_entries_for_other_tools_are_not_excluded_from_kics() -> None:
+    # The must-fail direction: a Trivy suppression must NOT silence a KICS query. The
+    # two scanners share this file and nothing else, and an id that leaked across would
+    # disable a gate nobody asked to disable.
+    assert _kics_exclude(_entry(tool="trivy")) == "\n"
+
+
+def test_no_kics_entries_excludes_nothing() -> None:
+    # An empty list must stay empty rather than becoming a stray token: the file's whole
+    # contents are substituted into `--exclude-queries`, so a header line or a `-` would
+    # be read by KICS as a query id and silently match nothing.
+    assert _kics_exclude() == "\n"
+
+
+def test_the_exclusion_list_is_stable_across_entry_order() -> None:
+    # Sorted and de-duplicated, so the generated file does not churn when a suppression
+    # is inserted above another and `make verify` does not fail on a reordering.
+    first = _kics_exclude(_entry(tool="kics", id="bbb"), _entry(tool="kics", id="aaa", scope="x"))
+    second = _kics_exclude(_entry(tool="kics", id="aaa", scope="x"), _entry(tool="kics", id="bbb"))
+    assert first == second == "aaa,bbb\n"
+
+
+def test_the_checked_in_kics_exclusions_match_the_checked_in_suppressions() -> None:
+    # Same staleness guarantee as the Trivy file. A hand-edited exclusion list is how a
+    # HIGH finding gets silenced with no owner and no expiry — and KICS's flag has
+    # nowhere to carry a date, so this file and `check()` are the only things enforcing
+    # one.
+    expected = checker.render_kics_exclude(checker.load(checker.DEFAULT_PATH))
+    assert checker.KICS_EXCLUDE_PATH.read_text(encoding="utf-8") == expected

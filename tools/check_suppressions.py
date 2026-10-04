@@ -45,6 +45,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PATH = REPO_ROOT / "security" / "suppressions.yaml"
 TRIVYIGNORE_PATH = REPO_ROOT / ".trivyignore.yaml"
 OSV_CONFIG_PATH = REPO_ROOT / "osv-scanner.toml"
+KICS_EXCLUDE_PATH = REPO_ROOT / "security" / "kics-exclude-queries.txt"
 
 REQUIRED_FIELDS = ("id", "tool", "scope", "reason", "owner", "opened", "expires")
 DEFAULT_MAX_AGE_DAYS = 90
@@ -228,6 +229,28 @@ def render_osv_config(document: Document) -> str:
     return "\n".join(lines)
 
 
+def render_kics_exclude(document: Document) -> str:
+    """Render the KICS `--exclude-queries` list the `tool: kics` entries describe.
+
+    A bare comma-separated line of query UUIDs, because that is exactly what the flag
+    takes and the Makefile and CI substitute the file's contents directly. No header:
+    anything else in the file would be passed to KICS as a query id.
+
+    The expiry therefore cannot be enforced by KICS the way Trivy's `expired_at` and
+    osv-scanner's `ignoreUntil` are — the flag has nowhere to put a date. `check()` is
+    what enforces it instead: an expired entry fails this script, which fails
+    `make verify`, which fails CI. The suppression stops working because the build stops
+    working, rather than by quietly becoming permanent.
+    """
+    entries: list[Entry] = [
+        entry
+        for entry in (document.get("suppressions") or [])
+        if isinstance(entry, dict) and entry.get("tool") == "kics"
+    ]
+    ids = sorted({str(entry["id"]) for entry in entries})
+    return ",".join(ids) + "\n" if ids else "\n"
+
+
 def main(argv: list[str]) -> int:
     """Entry point: validate the suppressions, then write or verify the generated file."""
     args = [a for a in argv[1:] if not a.startswith("--")]
@@ -245,6 +268,7 @@ def main(argv: list[str]) -> int:
     generated = (
         (TRIVYIGNORE_PATH, render_trivyignore(document)),
         (OSV_CONFIG_PATH, render_osv_config(document)),
+        (KICS_EXCLUDE_PATH, render_kics_exclude(document)),
     )
 
     if write:

@@ -852,9 +852,13 @@ jobs:
       - name: KICS default catalog
         run: |
           mkdir -p kics-results
+          # The exclusion list is GENERATED from security/suppressions.yaml and `make
+          # suppressions` fails when the two disagree, so a finding cannot be silenced
+          # here without an owner, a reason and an expiry (PED §618).
           docker run --rm -v "$PWD:/path" checkmarx/kics:v2.1.11 scan \
             -p /path/infra/cdk.out,/path/.github/workflows \
             -o /path/kics-results --report-formats sarif \
+            --exclude-queries "$(cat security/kics-exclude-queries.txt)" \
             --fail-on high,critical --no-progress --no-color
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
