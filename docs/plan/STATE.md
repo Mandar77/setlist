@@ -1,11 +1,42 @@
 # Autopilot state
 
-Milestone: M2 | Last done: M2-01 | Next: **nothing is selectable** — every remaining task waits on the human session H1, on [ADR-008](../adr/0008-free-tier-gate-vs-ped-volumes.md), or on [issue #17](https://github.com/Mandar77/setlist/issues/17) | Blocked: 35 tasks, nearly all on H1
+Milestone: M1 | Last done: M0A-06 | Next: **nothing is selectable** — everything left waits on the human session H1 or on [issue #17](https://github.com/Mandar77/setlist/issues/17). [ADR-008](../adr/0008-free-tier-gate-vs-ped-volumes.md) is **decided and applied**: `make estimate` exits 0 | Blocked: 34 tasks, nearly all on H1
 
-Metrics: coverage 95% (Python core), 96.0% stmts / 90.7% branches (`packages/core`) | Stryker 55.4%, now an [ADR-010](../adr/0010-mutation-floor-ratchet.md) ratchet with the 70% target carried to CORE-04b, which blocks CORE-07 | extraction P=0.988 R=0.982 F1=0.985 on 319 generated clean cases, 1.00 on the 8 hand-written | OCR golden set 620 images across 3 classes, 14 OFL/Apache faces, 1,719 of 1,977 seed rows drawable | free-tier max 160% of dev's YouTube share (see ADR-008) | quarantined tests 0 | `make verify` ~60s
+Metrics: coverage 95% (Python core), 96.0% stmts / 90.7% branches (`packages/core`) | Stryker 55.4%, now an [ADR-010](../adr/0010-mutation-floor-ratchet.md) ratchet with the 70% target carried to CORE-04b, which blocks CORE-07 | extraction P=0.988 R=0.982 F1=0.985 on 319 generated clean cases, 1.00 on the 8 hand-written | OCR golden set 620 images across 3 classes, 14 OFL/Apache faces, 1,719 of 1,977 seed rows drawable | free-tier worst row 89.9% of prod's YouTube quota against a 90% provider gate (ADR-008 applied) | quarantined tests 0 | `make verify` ~90s
 
 Notes:
 
+- **ADR-008 is applied and `make estimate` exits 0.** Provider quotas gate at 90% and AWS
+  allowances stay at 70%, chosen on a row's `scope` — a threshold per *kind* of limit
+  rather than a knob per row. The distinction is real: an AWS allowance that is exceeded
+  **bills**, while YouTube's quota refuses the request. Planned volumes follow from the
+  gate: prod 250 → 236 playlists, dev 30 → 16, scans 30,000 → 28,000. The ADR expected
+  prod's CloudFront row to need only "reconciliation"; it did not — 732,000 of 1,000,000
+  is the *plan's own inclusion*, not a share this project allocates, so the volumes feeding
+  it had to come down. PED §10.8 is amended inline (amendments 33–34): its "35,000 scans"
+  counted scans alone, ignoring the 15 requests a review session costs and the 2 an OCR
+  page does. **Option (A) is deliberately untaken** — dev still cannot burst one playlist
+  (500 units/day against 800) because re-splitting a quota trades away the reserve that
+  absorbs a wrong estimate. That is [issue #19](https://github.com/Mandar77/setlist/issues/19).
+- **The platform is built** (M0A-06): single table, provider-command topic, Cognito on
+  LITE, the Function URL + OAC, SSM config and flags, log retention, alarms, and the two
+  guardrail Lambdas. The never-use test caught the one mistake that mattered — the first
+  version synthesized a CloudFront **Distribution**, which is banned because prod's
+  flat-rate Free plan is enrolled by hand and a CDK-created one would be ordinary
+  pay-as-you-go. A bill, in the environment the plan exists to make free.
+- **The app runs the core on Hermes, offline** (M1-07, proven on the CI emulator). Paste
+  text, get a grounded song list: title, artist, qualifiers, confidence, and the source
+  line each item was read from. All three variants install side by side. The work is
+  finished; the task reads `blocked` because M1-01 needs an Expo access token only a human
+  can create ([issue #18](https://github.com/Mandar77/setlist/issues/18)), and three of
+  its four done_when items are met by `expo prebuild` + Gradle rather than `eas build`.
+- **Four emulator CI rounds, four different real defects, none findable locally:**
+  `set -euo pipefail` under dash; android-emulator-runner running each script line in its
+  own `sh -c`, so a `for` loop died on "end of file unexpected"; a debug APK that installs,
+  launches and shows **nothing** because it expects a Metro server; and Metro unable to
+  resolve `./confidence.js` because `packages/core` is NodeNext TypeScript, where that
+  means `./confidence.ts`. CI now bundles before it builds, so the next one surfaces in a
+  minute rather than after four.
 - **The ledger has no selectable work left.** 31 done, 35 blocked, 12 waiting on a
   dependency that is itself blocked. Everything still open needs one of three things that
   the loop cannot supply: the human's AWS/GitHub/Expo session (H1), the ADR-008 decision,
