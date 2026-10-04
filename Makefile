@@ -34,7 +34,7 @@ M ?=
 .PHONY: help setup verify verify-fast test test-unit test-accuracy lint fmt types cov \
         lint-ts fmt-ts types-ts test-ts cov-ts toolchain \
         mutate mutate-ts mutate-ts-units ledger links eol oracle seed golden golden-check diff-check diff-write \
-        pipeline-diff-check pipeline-diff-write allowlist lockfile-maturity ledger-status \
+        pipeline-diff-check pipeline-diff-write allowlist lockfile-maturity ledger-status verify-pins \
         suppressions suppressions-write guard workflows \
         no-secrets secrets-history \
         synth synth-matrix nag kics lint-cfn cdk-out-zero estimate preflight gate \
@@ -201,6 +201,13 @@ allowlist: node_modules ## The diff allowlist is in scope and in schema
 ## the gap. See the header of tools/check_lockfile_maturity.js.
 lockfile-maturity: node_modules ## Every locked version is older than minimumReleaseAge
 	node tools/check_lockfile_maturity.js
+
+## Also not in `verify`, and for the same reason as lockfile-maturity: it talks to the
+## GitHub API. `make workflows` keeps checking the pin FORMAT offline; this checks that
+## the pin is a real commit and the one its version comment claims. A fabricated SHA is
+## forty hex characters, so no amount of local strictness can tell the difference.
+verify-pins: node_modules ## Resolve every pinned action SHA against the GitHub API
+	node tools/check_workflows.js --verify-pins
 
 ## The committed seed, checked offline. The harvest itself is a thing a person runs
 ## (`pnpm -C tools/seed-catalog harvest`) and is deliberately not in any gate: a build

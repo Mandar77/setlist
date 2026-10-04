@@ -263,7 +263,7 @@ tasks:
   milestone: HYG
   title: Every pinned action SHA is resolved against the GitHub API
   deps: []
-  status: todo
+  status: done
   blocked_on: null
   not_before: null
   # A pin written from memory is forty hex characters, which is exactly what the existing
@@ -279,8 +279,16 @@ tasks:
     - network failures retry and then FAIL rather than passing, matching check_lockfile_maturity.js - unverifiable is not verified
     - results are cached by sha (an immutable fact) so the common case costs nothing, and it runs where the workflows change plus nightly
     - runs in CI, not in `make verify` - that gate is offline by contract
-  verify: node tools/check_workflows.js
-  evidence: []
+  verify: make verify-pins
+  evidence:
+    - "`check_workflows.js --verify-pins` resolves every pin through the GitHub API and compares it to the tag in its trailing comment. Opt-in flag rather than always-on because `make verify` is offline by contract; `make verify-pins` and a CI step run it"
+    - "two distinct lies are possible in `owner/repo@<sha> # v4` and only one is loud: a SHA that does not exist is refused by GitHub at run time, while a SHA that exists and is NOT v4 is never complained about by anything. Both now fail here"
+    - "checked in the failing direction three ways: a well-formed SHA that does not exist FAILS; a real SHA from the right repo with a wrong tag comment FAILS; and inconsistent comments on one SHA FAIL. 71 references across 26 distinct pins resolve clean"
+    - "annotated tags are dereferenced to the commit - `git/ref/tags/v4` returns a tag object for an annotated tag, and comparing that object's sha to a commit pin would fail every annotated-tag action"
+    - "FOUND BY THE CHECK, in the check: `github/codeql-action/init` is a SUBDIRECTORY action living in `github/codeql-action`, and asking the API for `repos/github/codeql-action/init` 404s in a way that reads exactly like a missing tag. The first run reported two such failures and both were this parsing bug, not a bad pin"
+    - "and a second one, found by the must-fail case rather than by reading: reading the version comment with `find()` gave every occurrence of a repeated pin the FIRST line's tag, so changing one comment produced the same failure once per occurrence, attributed to lines that were correct. Now collected as a set per pin, which also makes an inconsistency reportable in its own right"
+    - "unverifiable is not verified: 4 attempts with exponential backoff and jitter, then FAIL. A 404 is an answer and is not retried. Same rule as check_lockfile_maturity.js"
+    - "resolved sha->tag answers are immutable, so the cache never expires: cold 2.4s, warm 0.5s"
 
 - id: HYG-07
   milestone: HYG

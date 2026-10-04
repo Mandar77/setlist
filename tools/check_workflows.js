@@ -26,7 +26,7 @@
 // Parsed as YAML rather than grepped: `uses:` inside a comment should not pass, and a
 // permissions block nested under the wrong key should not count.
 
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -118,6 +118,24 @@ const fail = (file, message) => {
 }
 const ok = message => console.log(`  ok    ${message}`)
 
+/**
+ * `--verify-pins` resolves every pinned SHA against the GitHub API.
+ *
+ * Opt-in rather than always-on because `make verify` is offline by contract, and this
+ * needs the network. CI runs it; the default run stays local.
+ *
+ * It exists because a forty-character hex string is forty characters whether or not it
+ * is a commit. An `actions/cache` pin written from memory passed the format check above
+ * and was caught only by asking the API for the real tag — in the check whose entire
+ * purpose is pinning. The format test cannot be made stricter to fix that; the answer is
+ * not local.
+ */
+const VERIFY_PINS = process.argv.includes('--verify-pins')
+/** Overridable so the must-fail fixtures can point at a stand-in. */
+const GITHUB_API = process.env['GITHUB_API_URL'] ?? 'https://api.github.com'
+/** A resolved sha→tag answer never changes, so it is cached forever. */
+const PIN_CACHE = join(repoRoot, '.cache', 'action-pins.json')
+
 const files = readdirSync(workflowDir).filter(f => f.endsWith('.yml') || f.endsWith('.yaml'))
 if (files.length === 0) {
   console.error('workflow check: no workflows found — did the path move?')
@@ -125,6 +143,9 @@ if (files.length === 0) {
 }
 
 console.log(`workflow check: ${files.length} workflows\n`)
+
+/** Every `repo@sha # tag` found, for the optional API pass. */
+const pins = []
 
 for (const file of files) {
   const raw = readFileSync(join(workflowDir, file), 'utf8')
@@ -141,7 +162,29 @@ for (const file of files) {
     if (typeof uses !== 'string' || EXEMPT_USES.test(uses)) continue
     if (!SHA_PINNED.test(uses)) {
       fail(file, `'${uses}' is not pinned to a 40-character commit SHA`)
+      continue
     }
+    // Collected for --verify-pins. The tag comes from the trailing comment, which the
+    // YAML parser discards, so it is read from the raw text by the same line.
+    // `owner/repo`, which is the first two segments and no more. A subdirectory action
+    // like `github/codeql-action/init` lives in `github/codeql-action`; asking the API
+    // for `repos/github/codeql-action/init` returns a 404 that reads exactly like a
+    // missing tag. The first run of this check reported two such "failures" and both
+    // were this bug.
+    const [path, sha] = uses.split('@')
+    const repo = path.split('/').slice(0, 2).join('/')
+
+    // EVERY line carrying this pin, not the first one. The same action is pinned several
+    // times in a file, and reading the comment off `find()` meant all of them inherited
+    // the first line's tag — so changing one comment reported the same failure once per
+    // occurrence, attributed to lines that were correct. Collected as a set so an
+    // inconsistency between two comments for one SHA is itself reportable.
+    const tags = new Set()
+    for (const l of raw.split('\n')) {
+      if (!l.includes(uses)) continue
+      tags.add(l.match(/#\s*(v[\w.-]+)/)?.[1] ?? null)
+    }
+    pins.push({ file, repo, sha, tags: [...tags], uses })
   }
 
   // 2. The dangerous trigger.
@@ -556,6 +599,126 @@ for (const file of files) {
       `dependabot: ${ecosystems.length} ecosystems ignore majors, group minor+patch, weekly, 7-day cooldown`,
     )
   }
+}
+
+// --verify-pins: every pinned SHA exists, and is the commit its tag comment claims.
+//
+// Two distinct lies are possible in `owner/repo@<sha> # v4`, and only the first is loud:
+//
+//   1. The SHA does not exist. GitHub refuses the workflow, so this is caught at run
+//      time — but at run time means after the push, in a red job nobody expected.
+//   2. The SHA exists and is NOT v4. Nothing complains, ever. The pin is honest about
+//      what it runs and the comment is wrong about what that is, so the next person to
+//      "update to v5" diffs against a version that was never there.
+//
+// Both are checked here. The tag is resolved through the API and compared to the pin.
+if (VERIFY_PINS) {
+  const cache = (() => {
+    try {
+      const parsed = JSON.parse(readFileSync(PIN_CACHE, 'utf8'))
+      return parsed?.schema === 1 ? (parsed.resolved ?? {}) : {}
+    } catch {
+      return {}
+    }
+  })()
+
+  /** Resolve a tag to its commit sha, retrying what is worth retrying. */
+  const resolveTag = async (repo, tag) => {
+    const key = `${repo}@${tag}`
+    if (cache[key]) return { sha: cache[key], cached: true }
+
+    const url = `${GITHUB_API}/repos/${repo}/git/ref/tags/${tag}`
+    let lastError = null
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      try {
+        const headers = { accept: 'application/vnd.github+json' }
+        // Uses the token when CI provides one, purely for rate limit headroom.
+        const token = process.env['GH_TOKEN'] ?? process.env['GITHUB_TOKEN']
+        if (token) headers.authorization = `Bearer ${token}`
+
+        const response = await fetch(url, { headers })
+        if (response.status === 404) return { sha: null, missing: true }
+        if (response.ok) {
+          const body = await response.json()
+          let sha = body?.object?.sha
+          // An annotated tag points at a tag object; dereference to the commit.
+          if (body?.object?.type === 'tag') {
+            const deref = await fetch(`${GITHUB_API}/repos/${repo}/git/tags/${sha}`, { headers })
+            if (deref.ok) sha = (await deref.json())?.object?.sha
+          }
+          if (typeof sha === 'string') {
+            cache[key] = sha
+            return { sha, cached: false }
+          }
+          lastError = new Error('no sha in response')
+        } else {
+          lastError = new Error(`HTTP ${response.status}`)
+        }
+      } catch (error) {
+        lastError = error
+      }
+      if (attempt < 3) {
+        await new Promise(r => setTimeout(r, 300 * 2 ** attempt + Math.floor(Math.random() * 100)))
+      }
+    }
+    // Unverifiable is not verified — same rule as the lockfile check.
+    throw new Error(`${key}: ${lastError?.message ?? 'unreachable'} (after 4 attempts)`)
+  }
+
+  let checked = 0
+  // One entry per (file, uses), so an action pinned five times is resolved once and
+  // reported once rather than five identical times.
+  const seen = new Set()
+  for (const pin of pins) {
+    const key = `${pin.file} ${pin.uses}`
+    if (seen.has(key)) continue
+    seen.add(key)
+
+    if (pin.tags.length > 1) {
+      fail(
+        pin.file,
+        `${pin.repo}@${pin.sha.slice(0, 12)} carries more than one version comment ` +
+          `(${pin.tags.map(t => t ?? '<none>').join(', ')}). One SHA is one version`,
+      )
+      continue
+    }
+    pin.tag = pin.tags[0] ?? null
+
+    if (pin.tag === null) {
+      fail(
+        pin.file,
+        `'${pin.uses}' has no version comment. The pin alone says what runs but not ` +
+          'what it is supposed to be, so nothing can tell a correct pin from a stale one',
+      )
+      continue
+    }
+    try {
+      const { sha } = await resolveTag(pin.repo, pin.tag)
+      if (sha === null) {
+        fail(pin.file, `${pin.repo} has no tag ${pin.tag} — the version comment names nothing`)
+      } else if (sha !== pin.sha) {
+        fail(
+          pin.file,
+          `${pin.repo} is pinned to ${pin.sha.slice(0, 12)} but ${pin.tag} is ` +
+            `${sha.slice(0, 12)}. The pin and its comment disagree about what runs`,
+        )
+      } else {
+        checked += 1
+      }
+    } catch (error) {
+      fail(pin.file, `could not resolve ${pin.repo}@${pin.tag}: ${error.message}`)
+    }
+  }
+
+  try {
+    mkdirSync(dirname(PIN_CACHE), { recursive: true })
+    const sorted = Object.fromEntries(Object.entries(cache).sort(([a], [b]) => (a < b ? -1 : 1)))
+    writeFileSync(PIN_CACHE, `${JSON.stringify({ schema: 1, resolved: sorted }, null, 2)}\n`)
+  } catch (error) {
+    console.warn(`could not write ${PIN_CACHE}: ${error.message}`)
+  }
+
+  if (checked > 0) ok(`${checked} pinned SHA(s) resolve to the tag their comment names`)
 }
 
 // The control. Every check above reports a problem by its absence, so a bug that made
