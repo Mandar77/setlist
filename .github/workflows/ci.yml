@@ -438,7 +438,7 @@ jobs:
       # loosely would restore an image built for a different API level and fail in a way
       # that looks like an emulator fault, which is the expensive kind of wrong here.
       - name: Cache the AVD and its boot snapshot
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: avd-cache
         with:
           path: |
@@ -576,7 +576,7 @@ jobs:
       # back what it learned; `restore-keys` means a new key still starts from the newest
       # previous cache rather than from nothing.
       - name: Restore remembered publish dates
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/lockfile-maturity.json
           key: lockfile-maturity-${{ github.run_id }}
@@ -786,7 +786,7 @@ jobs:
       # A resolved sha→tag answer is immutable, so this cache never goes stale. It only
       # grows when a pin changes, which is when the check has real work to do anyway.
       - name: Restore resolved action pins
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/action-pins.json
           key: action-pins-${{ github.run_id }}
