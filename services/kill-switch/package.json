@@ -12,10 +12,10 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@aws-sdk/client-cloudfront": "3.1141.0",
-    "@aws-sdk/client-dynamodb": "3.1141.0",
-    "@aws-sdk/client-lambda": "3.1141.0",
-    "@aws-sdk/client-scheduler": "3.1141.0",
+    "@aws-sdk/client-cloudfront": "3.1142.0",
+    "@aws-sdk/client-dynamodb": "3.1142.0",
+    "@aws-sdk/client-lambda": "3.1142.0",
+    "@aws-sdk/client-scheduler": "3.1142.0",
     "@types/node": "22.20.4"
   }
 }
