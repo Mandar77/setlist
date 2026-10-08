@@ -1,31 +1,31 @@
 # Autopilot state
 
-Milestone: M1 | Last done: M1-01, M1-07 | Next: **10 tasks selectable** — HYG-08/09/10, M0A-11, CORE-04b, M1-04, M1-05, M2-02, M2-05a, M5-01 | Blocked: 34, nearly all on H1
+Milestone: M2 | Last done: M0A-11 | Next: **8 selectable** — M2-05a (ML Kit collector), M2-02, HYG-08/09, M1-04, M1-05, M5-01, CORE-04b | Blocked: 36, nearly all on H1
 
-Metrics: coverage 96.0% stmts / 90.7% branches (`packages/core`), 95% Python core | Stryker 55.4%, an [ADR-010](../adr/0010-mutation-floor-ratchet.md) ratchet with 70% carried to CORE-04b | extraction F1 0.985 clean (P=0.988 R=0.982) | OCR golden 620 images, 1,719 of 1,977 seed rows drawable | free-tier worst row 89.9% of prod's YouTube quota against a 90% provider gate | quarantined tests 0 | `make verify` ~90s
+Metrics: coverage 96.0% stmts / 90.7% branches (`packages/core`) | Stryker 55.4%, an [ADR-010](../adr/0010-mutation-floor-ratchet.md) ratchet | extraction F1 0.985 clean | **OCR: Tesseract.js song-F1 0.273 overall — 0.425 screenshot, 0.343 print, 0.079 handwriting** | free-tier worst row 69.2% prod CloudFront, Lambda 63.7%, gate 70% | `make verify` ~110s
 
 Notes:
 
-- **[ADR-012](../adr/0012-builds-without-eas.md): builds need no EAS**, so M1-01 and M1-07
-  are done and the mobile path is unblocked. `expo prebuild` + Gradle produces the same
-  native project with no account. EAS returns only for EAS Update (M1-08, issue #18, off the
-  critical path). **A real release keystore is now ours to create** — SESSION-2 §6.
-- **[ADR-013](../adr/0013-dynamodb-fixed-capacity.md): DynamoDB capacity goes fixed** (M0A-11).
-  Autoscaling creates CloudWatch alarms at runtime, outside the template, where neither the
-  alarm budget nor the never-use test can see them — and `never-use.test.ts`'s capacity-cap
-  test was already asserting nothing, looping over a resource type `TableV2` never emits.
-- **The Maestro flake is fixed** (HYG-10, on `task/adr-012-013-decisions`): one driver
-  session for both flows, `2/2 Flows Passed` in [run 37223024851](https://github.com/Mandar77/setlist/actions/runs/37223024851).
-  The job is now skipped when nothing mobile changed, via a job-level `if` — a skipped job
-  reports success to a required check, an unrun workflow leaves it pending forever.
+- **The first OCR numbers exist** ([reports/ocr-eval.md](../reports/ocr-eval.md), M2-05a).
+  [ADR-015](../adr/0015-ocr-engine-decision-rule.md) fires: handwriting F1 0.079 against a
+  0.78 floor, so **handwriting scans default to the server engine**, re-checked at M2-07
+  against the real set. The rule was written before any engine ran, which is the only
+  reason it means anything. **ML Kit is the remaining collector**; Apple Vision is deferred
+  to M2-08 behind the Apple Developer Program.
+- **The fallback rate is measured, and it went UP, not down.** Confidence fallback
+  (FR-M-006) is 13.39% — below the assumed 20% — but ADR-015's routing sends all
+  handwriting to the server regardless, so the effective rate is 37%. `make estimate`
+  still exits 0: prod Lambda 63.7%, CloudFront 69.2%, both now *watch* rather than
+  comfortable.
+- **[ADR-013](../adr/0013-dynamodb-fixed-capacity.md) is applied** (M0A-11): fixed DynamoDB
+  capacity, Application Auto Scaling banned in all four places, alarms counted with
+  `DescribeAlarms`. It found the **seventh instrument reporting success while doing
+  nothing**, and the first inside a gate rather than in front of one — `never-use.test.ts`'s
+  capacity assertion had looped over an empty set for two months.
+- **[ADR-014](../adr/0014-ocr-metrics-oracle.md)'s jiwer oracle paid for itself on its first
+  run**, finding three divergences; two would have shipped. jiwer's default word splitter
+  ignores newlines, so an engine that merged every line would have been *rewarded*.
 - **`protect-develop` enforces 15 required checks; the script defines 18**
-  ([issue #20](https://github.com/Mandar77/setlist/issues/20)). The emulator and OCR golden
-  jobs gate nothing today — which is why develop sat red at `22b81c7` without blocking a
-  thing. `check_workflows.js` ties the script to `ci.yml` and nothing ties either to what
-  GitHub enforces. The human re-runs `github-setup.sh`.
-- **Issues #17 and #19 are closed**; #17 became HYG-08 (the Stryker verdict is untrustworthy,
-  so HYG-07's survivor comparison cannot be made), #19 was closed as intended — dev uses the
-  provider simulator and never makes a live YouTube call.
-- **Long-form history lives in [`reports/journal.md`](../reports/journal.md)**, including the
-  seven instruments found reporting success while doing nothing. This file is capped at one
-  screen on purpose (§3); HYG-09 makes `check_ledger.py` enforce that and the evidence limit.
+  ([issue #20](https://github.com/Mandar77/setlist/issues/20)). The emulator and OCR jobs
+  gate nothing until `github-setup.sh` is re-run. Long-form history:
+  [reports/journal.md](../reports/journal.md).
