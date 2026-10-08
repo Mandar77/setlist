@@ -5,6 +5,14 @@ this table, so a hand-edited number silently becomes the baseline.
 
 Generated: 2026-10-08
 
+**These numbers are platform-specific and are a baseline, not a fixture.** The corpus
+is re-rendered on each machine because FreeType is not byte-identical across operating
+systems (M2-01), so CI reads different pixels than a laptop does and the third decimal
+moves — handwriting F1 was 0.079 on Windows and 0.073 on the Linux runner. Nothing
+byte-compares this file; the gate is the regression check below, which uses a
+1.00% epsilon precisely so that platform noise is not a failure and a
+real regression still is.
+
 **Song-level F1 is the headline metric. CER and WER are diagnostics**
 ([ADR-015](../adr/0015-ocr-engine-decision-rule.md)). The product ships a list of
 songs, not characters, so an engine whose errors fall where the grammar does not look

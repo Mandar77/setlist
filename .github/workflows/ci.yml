@@ -349,12 +349,24 @@ jobs:
       - name: Grade every engine that reported
         run: make ocr-eval
 
-      # The report is committed, so a change to it is a reviewable diff rather than a
-      # number that moved in a log. `make ocr-eval` already exits non-zero on a
-      # regression; this catches the other half — a run whose numbers moved without the
-      # report being regenerated.
-      - name: The committed report matches what grading produced
-        run: git diff --exit-code -- docs/reports/ocr-eval.md
+      # Deliberately NOT `git diff --exit-code` on the report, which is what the first
+      # version did and which fails by construction.
+      #
+      # M2-01 already established that the corpus is deterministic PER PLATFORM and not
+      # across platforms — FreeType is not byte-identical between operating systems, so
+      # the images are rebuilt on each machine rather than compared. CI therefore OCRs
+      # different pixels than a developer does, and the numbers differ in the third
+      # decimal: handwriting F1 was 0.079 locally and 0.073 here.
+      #
+      # So byte-equality is the wrong test for this artifact. `make ocr-eval` above is
+      # the real gate: it compares against the committed report with a 1-point epsilon,
+      # which absorbs platform noise and still catches a regression. The regenerated
+      # report is uploaded so the run's own numbers are readable.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: ocr-eval-report
+          path: docs/reports/ocr-eval.md
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()

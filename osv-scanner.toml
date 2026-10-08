@@ -8,3 +8,13 @@
 # `ignoreUntil` is the same date as the suppression's `expires`. osv-scanner stops
 # honouring the entry on that day, so a forgotten suppression shows up as the finding
 # coming back rather than as nothing happening.
+
+[[IgnoredVulns]]
+id = "GHSA-86w9-cpqp-85rv"
+ignoreUntil = 2026-12-31T00:00:00Z
+reason = "accepted by @Mandar77 until 2026-12-31 - see security/suppressions.yaml"
+
+[[IgnoredVulns]]
+id = "GHSA-vfj7-8cjw-p6xm"
+ignoreUntil = 2026-12-31T00:00:00Z
+reason = "accepted by @Mandar77 until 2026-12-31 - see security/suppressions.yaml"
