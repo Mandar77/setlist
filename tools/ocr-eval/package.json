@@ -10,14 +10,17 @@
   "scripts": {
     "typecheck": "tsc --build",
     "test": "vitest run",
-    "evaluate": "tsx src/cli.ts"
+    "evaluate": "tsx src/cli.ts",
+    "collect:tesseract": "tsx collectors/tesseract/collect.ts"
   },
   "dependencies": {
     "@setlist/core": "workspace:*",
     "@setlist/golden-images": "workspace:*"
   },
   "devDependencies": {
+    "@tesseract.js-data/eng": "1.0.0",
     "@types/node": "22.20.4",
+    "tesseract.js": "7.0.0",
     "tsx": "4.23.15"
   }
 }

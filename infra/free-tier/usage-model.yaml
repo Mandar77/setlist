@@ -151,7 +151,26 @@ volumes:
     # figures of a number nobody has measured is false precision that would turn the
     # first real measurement into a gate failure.
     on_device_scan: 28000
-    server_ocr_page: 5600 # 20% fallback rate
+    # MEASURED 2026-10-07, replacing an assumed 20% (M2-05a). Two mechanisms, and only
+    # the first was ever modelled:
+    #
+    #   * CONFIDENCE fallback (FR-M-006, < 0.6): Tesseract.js measures 13.39% over the
+    #     corpus — 33.64% handwriting, 4.09% print, 0.00% screenshot. On its own this
+    #     would have LOWERED the forecast.
+    #   * ROUTING fallback (ADR-015): handwriting F1 came in at 0.079 against the 0.78
+    #     floor, so handwriting scans now default to the server regardless of confidence.
+    #
+    # They compound. At the corpus mix (220 handwriting / 220 print / 180 screenshot)
+    # the effective rate is (220*1.0 + 220*0.0409 + 180*0) / 620 = 36.9%, taken as 37%.
+    #
+    # The higher number is used because under-forecasting is the only direction that
+    # costs money, and because a model that knew about ADR-015's routing and ignored it
+    # would be wrong on purpose.
+    #
+    # Two things this is NOT: it is one engine, not the worse of two — ML Kit has not
+    # been collected yet and may route less handwriting to the server; and the corpus
+    # mix is standing in for a traffic mix nobody has measured. Both revise this number.
+    server_ocr_page: 10360 # 37% effective fallback: 13.39% measured + ADR-015 handwriting routing
     playlist_job_15_songs: *adr008_prod_playlists
     review_session: 7400
     # 4 runs a month, 115 batches per run -- 23,000 items re-matched weekly.
@@ -164,14 +183,14 @@ volumes:
     weekly_rematch_batch: 460
   stage:
     on_device_scan: 2000
-    server_ocr_page: 400
+    server_ocr_page: 740 # 37%, same basis as prod
     playlist_job_15_songs: *adr008_stage_playlists
     review_session: 500
     weekly_rematch_run: 4
     weekly_rematch_batch: 100
   dev:
     on_device_scan: 1000
-    server_ocr_page: 200
+    server_ocr_page: 370 # 37%, same basis as prod
     playlist_job_15_songs: *adr008_dev_playlists
     review_session: 200
     weekly_rematch_run: 4

@@ -106,3 +106,13 @@ blockExoticSubdeps: true
 # line here is a supply-chain decision and should be reviewed as one.
 allowBuilds:
   esbuild: true
+  # false, and checked rather than assumed: tesseract.js's only install script is
+  # `opencollective-postinstall || true`, a donation banner. It is not a build, the `||
+  # true` means it can never fail the install, and the OCR engine works without it — the
+  # WASM core arrives as the ordinary `tesseract.js-core` dependency, covered by the
+  # lockfile's integrity hashes like everything else.
+  #
+  # Written out because pnpm leaves a placeholder here demanding an answer, and "it
+  # installed fine with false" is the kind of reasoning that silently becomes "true"
+  # the next time someone hits a confusing error.
+  tesseract.js: false

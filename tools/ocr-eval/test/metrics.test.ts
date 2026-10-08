@@ -201,6 +201,24 @@ describe('aggregation across a corpus', () => {
     expect(score.overall.emptyImages).toBe(1)
   })
 
+  it('reports the share of images that would fall back to the server (FR-M-006)', () => {
+    // The number that replaces usage-model.yaml's assumed 20%, so it feeds the free-tier
+    // Lambda row rather than only the report. Both directions: clean text that parses
+    // confidently must NOT fall back, or the measurement would justify any budget.
+    const lines = ['Bohemian Rhapsody - Queen', 'Under Pressure - Queen']
+    const confident = scoreEngine('good', [truth('a', 'print', lines)], [reading('a', lines)])
+    expect(confident.overall.fallbackShare).toBe(0)
+
+    // Nothing extractable: an empty extraction is a fallback, because from the product's
+    // side "no songs found" and "the engine could not read this" are the same page.
+    const garbage = scoreEngine(
+      'bad',
+      [truth('b', 'print', lines)],
+      [reading('b', ['~~~~', '####'])],
+    )
+    expect(garbage.overall.fallbackShare).toBe(1)
+  })
+
   it('degrading the input makes the score worse', () => {
     // The harness's own must-fail direction, and M2-05a's last done_when. A metric that
     // returns a number for everything proves nothing until it is shown to MOVE.

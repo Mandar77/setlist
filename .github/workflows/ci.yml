@@ -335,6 +335,33 @@ jobs:
             exit 1
           fi
 
+      # M2-05a. The corpus exists in this job and nowhere else, so the engine that can run
+      # on a plain Linux runner is graded here rather than in a job that would have to
+      # render all 620 images again.
+      #
+      # Tesseract.js only. ML Kit needs the Android emulator and is collected there;
+      # Apple Vision is M2-08, deferred with the Apple Developer Program. The harness
+      # joins whatever readings exist, so an engine missing from a run is reported as
+      # absent rather than silently scored.
+      - name: Read the corpus with Tesseract.js
+        run: pnpm -C tools/ocr-eval exec tsx collectors/tesseract/collect.ts
+
+      - name: Grade every engine that reported
+        run: make ocr-eval
+
+      # The report is committed, so a change to it is a reviewable diff rather than a
+      # number that moved in a log. `make ocr-eval` already exits non-zero on a
+      # regression; this catches the other half — a run whose numbers moved without the
+      # report being regenerated.
+      - name: The committed report matches what grading produced
+        run: git diff --exit-code -- docs/reports/ocr-eval.md
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: ocr-readings
+          path: golden/ocr-generated/readings
+
   mobile-emulator:
     name: Mobile on the emulator (M1-01, M1-07)
     runs-on: ubuntu-latest
