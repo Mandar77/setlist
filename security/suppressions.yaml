@@ -89,17 +89,19 @@ suppressions:
       "DynamoDB With Aws Owned CMK", HIGH, in the KICS default catalog. It wants
       SSESpecification.SSEEnabled true, which switches the table from the AWS OWNED key
       to the AWS MANAGED key alias/aws/dynamodb. Read the finding precisely: the table
-      is already encrypted at rest either way, and the question is only which key does
-      it. The AWS-owned key is the free one; the AWS-managed key is a KMS key, and KMS
-      bills per request, so every read and write against this table would start costing
-      money in proportion to traffic. That is not a rounding error against a $0 budget,
-      it is a per-request charge on the hottest path in the system, and ADR-013 has just
-      finished removing a cheaper mistake of exactly that shape. What is accepted: data
-      at rest is encrypted with a key this account does not control the policy of, in a
-      single-tenant account, in a table that holds song titles and idempotency keys and
-      no personal data - and which PED D6 already says is reconstructible from the
-      source text. Appeared only now because it was unreachable before: it matches
-      AWS::DynamoDB::Table, and until ADR-013 the stack rendered a GlobalTable.
+      is encrypted at rest either way, and the only question is which key does it.
+      PED S10.6 chose AWS-owned keys. The owned key is free and sits outside KMS quotas
+      entirely; the managed key would draw on the shared 20,000 free KMS requests a
+      month that the token vault already uses. DynamoDB caches the table key per caller
+      and refreshes it roughly every five minutes of active traffic, so this is not a
+      per-read charge - it is a steady, modest draw on an allowance that is spoken for.
+      What it would buy is a CloudTrail audit trail of key usage, which this project
+      does not need: a single-tenant account whose table holds song titles and
+      idempotency keys, no personal data, and which PED D6 already records as
+      reconstructible from the source text. Spending a reserved quota on an audit trail
+      nobody reads is the wrong trade. Appeared only now because it was unreachable
+      before: it matches AWS::DynamoDB::Table, and until ADR-013 the stack rendered a
+      GlobalTable.
     owner: Mandar77
     opened: 2026-10-04
     expires: 2026-12-31

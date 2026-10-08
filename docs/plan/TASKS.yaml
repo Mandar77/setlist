@@ -1316,10 +1316,11 @@ tasks:
   status: todo
   blocked_on: null
   not_before: null
+  # Apple Vision removed 2026-10-07, now M2-08: at $0 there is no native iOS app beyond
+  # the owner's sideload, so iPhone users get the PWA and Tesseract.js covers them.
   done_when:
     - ML Kit v2 on Android with the model bundled in CI
-    - Apple Vision on iOS, built on a macOS runner
-    - Tesseract.js in the PWA
+    - Tesseract.js in the PWA, which is also what iOS gets
     - each returns lines, boxes and confidence on the golden images in CI
   verify: pnpm -C mobile test:ocr
   evidence: []
@@ -1357,10 +1358,19 @@ tasks:
   # this calls each engine directly on the golden images, which is what makes the number a
   # property of the ENGINE rather than of our capture pipeline. The same harness then grades
   # the integrated path later without being rewritten.
+  #
+  # Apple Vision was REMOVED on 2026-10-07 and is now M2-08. At $0 there is no native iOS
+  # app beyond the owner's sideload - iPhone users get the PWA, which runs Tesseract.js -
+  # so a macOS runner and a Swift CLI would be measuring an engine nothing ships. Two
+  # engines, built in this order: Tesseract.js, then ML Kit.
   done_when:
-    - "each engine is driven directly on the M2-01 golden images, not through the app: Apple Vision via a Swift CLI on a macOS runner, ML Kit via an Android instrumented test, Tesseract.js in Node"
+    - "each engine is driven directly on the M2-01 golden images, not through the app: Tesseract.js in Node first, then ML Kit via an Android instrumented test"
     - "CER and WER via jiwer against `line.text`, and song-level F1 through packages/core against `songTruth` - the corpus carries two truths because a struck-out line has two right answers, and grading either against the other is wrong"
+    - "song-level F1 is the headline per engine and image class, CER and WER are reported as diagnostics, and the handwriting column is LABELLED a best case (ADR-015)"
     - "results broken down by engine AND image class (handwriting, print, screenshot); a single averaged number hides the only distinction the gate cares about"
+    - "the share of images under the FR-M-006 fallback threshold (confidence < 0.6) is reported per engine and image class"
+    - "usage-model.yaml's assumed 20% fallback rate is replaced with the WORSE of the two engines' measured rates, `make estimate` is re-run, and the Lambda GB-s row is reported. A breach is a stop-rule item, not an edit to the budget"
+    - "the ADR-015 routing verdict is stated in the report: if the best engine's handwriting F1 is below 0.78, handwriting scans default to the server engine, re-checked at M2-07"
     - "docs/reports/ocr-eval.md is written by the harness and regressions against the previous report are flagged"
     - "a deliberately degraded input scores worse, proving the metric responds - a harness that reports a number for everything is not yet measuring anything"
   verify: make gate M=M2
@@ -1393,6 +1403,30 @@ tasks:
     - golden/private/incoming/ is git-ignored
     - a test asserts no plaintext image is reachable from a public checkout
   verify: make golden
+  evidence: []
+
+- id: M2-08
+  milestone: M2
+  title: Apple Vision on iOS, and its collector in the eval harness
+  deps: [M2-05a]
+  status: blocked
+  blocked_on: "the Apple Developer Program - $99/year, not enrolled, and a stop-rule item (AUTOPILOT S2.4: an action that costs money)"
+  not_before: null
+  # Split out of M2-03 and M2-05a on 2026-10-07. At $0 there is no native iOS app beyond
+  # the owner's own sideload: distribution through the App Store needs the paid Developer
+  # Program, and TestFlight needs it too. iPhone users get the PWA, which runs
+  # Tesseract.js, so Apple Vision would be an engine nothing ships measured on a macOS
+  # runner nothing else needs.
+  #
+  # Kept as a task rather than deleted because the work is real the moment the program is
+  # paid for, and because the harness's engine contract is already language-agnostic - a
+  # Swift CLI writing <engine>.json is all that is missing on the eval side.
+  done_when:
+    - Apple Vision via a Swift CLI on a macOS runner, writing the same <engine>.json contract as every other collector
+    - Apple Vision in the iOS app for on-device OCR, with the PWA path kept as the fallback
+    - "it joins the existing docs/reports/ocr-eval.md table with no second scoring path - one harness, or the numbers are not comparable"
+    - "the macOS runner's cost is checked against the GitHub Free allowance for public repositories BEFORE the job is added, and recorded"
+  verify: make gate M=M2
   evidence: []
 
 - id: M2-07

@@ -20,9 +20,24 @@ so a file marked `binary` there can never be rewritten by this tool. That matter
 because `--fix` edits files in place, and a heuristic that guesses wrong corrupts a
 binary silently.
 
+## Control bytes, same idea and the same file list
+
+A text file should not contain a NUL, a backspace, or any other C0 control byte. This has
+now happened twice in this repository, both times the same way: a ``\u0000`` escape
+written through a file-authoring tool that decodes escapes, leaving a literal 0x00 in
+committed TypeScript. It is invisible in review, it survives every other gate, and the
+code keeps working - which is what makes it worth a check rather than a habit.
+
+The earlier instance was a 0x08 backspace: ``C:\MinGW\bin`` became ``C:\MinGW<0x08>in``
+when a heredoc ate the escape.
+
+Tab, LF and CR are allowed; CR on its own is left to the CRLF check above. Everything
+else in 0x00-0x1F, plus DEL, is rejected. There is no ``--fix``: deleting a control byte
+is a guess about what was meant, and the two real cases wanted different repairs.
+
 Usage:
-    python tools/check_line_endings.py          # report, exit non-zero if any CRLF
-    python tools/check_line_endings.py --fix    # rewrite them as LF
+    python tools/check_line_endings.py          # report; non-zero if anything is wrong
+    python tools/check_line_endings.py --fix    # rewrite CRLF as LF (never control bytes)
 """
 
 from __future__ import annotations
@@ -63,6 +78,72 @@ def _text_files_with_crlf() -> list[Path]:
     return found
 
 
+#: C0 controls minus tab, LF and CR, plus DEL. Bytes, not characters: this reads files as
+#: bytes so that a file which is not valid UTF-8 is reported rather than crashing the
+#: check that was supposed to find the problem.
+FORBIDDEN_BYTES = frozenset(range(0x00, 0x20)) - {0x09, 0x0A, 0x0D} | {0x7F}
+
+#: How many hits to print per file before summarising. One decoded escape usually means
+#: many, and a wall of identical lines buries the filename that is the actionable part.
+MAX_HITS_SHOWN = 5
+
+
+def _tracked_text_files() -> list[Path]:
+    """Every tracked file git resolves as text.
+
+    Shares `git ls-files --eol` with the CRLF check for the same reason: which files are
+    text is git's decision, and a separate heuristic here would eventually disagree with
+    the one above on some file and make one of the two checks wrong.
+    """
+    out = subprocess.run(
+        ["git", "ls-files", "--eol", "-z"], cwd=ROOT, capture_output=True, check=True
+    ).stdout.decode("utf-8", errors="replace")
+
+    files: list[Path] = []
+    for entry in out.split("\0"):
+        if not entry.strip():
+            continue
+        head, _, rel = entry.partition("\t")
+        if not rel:
+            continue
+        fields = head.split()
+        worktree = next((f for f in fields if f.startswith("w/")), "")
+        # `w/-text` is git's marker for binary. Never inspected: a PNG is full of these
+        # bytes by definition and reporting it would train people to ignore this check.
+        if worktree != "w/-text":
+            files.append(ROOT / rel.strip())
+    return files
+
+
+def control_bytes(path: Path) -> list[tuple[int, int, str]]:
+    """Forbidden bytes in one file, as (offset, byte, printable context)."""
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        return []
+
+    found: list[tuple[int, int, str]] = []
+    for offset, value in enumerate(raw):
+        if value in FORBIDDEN_BYTES:
+            # A window of surrounding text, so the report names the LINE rather than just
+            # an offset nobody can act on. Decoded leniently: the file may not be valid
+            # UTF-8, and that is not this function's problem to raise.
+            window = raw[max(0, offset - 30) : offset + 30]
+            context = window.decode("utf-8", errors="replace").replace("\n", "\\n")
+            found.append((offset, value, context))
+    return found
+
+
+def _files_with_control_bytes() -> list[tuple[Path, list[tuple[int, int, str]]]]:
+    """Tracked text files containing a forbidden control byte."""
+    offenders = []
+    for path in _tracked_text_files():
+        hits = control_bytes(path)
+        if hits:
+            offenders.append((path, hits))
+    return offenders
+
+
 def fix(paths: list[Path]) -> None:
     """Rewrite each file with LF endings, touching nothing else.
 
@@ -74,30 +155,57 @@ def fix(paths: list[Path]) -> None:
         path.write_bytes(raw.replace(b"\r\n", b"\n"))
 
 
-def main(argv: list[str]) -> int:
-    """Entry point."""
-    offenders = _text_files_with_crlf()
-
+def _report_control_bytes() -> int:
+    """Report forbidden control bytes. Never auto-fixed; see the module docstring."""
+    offenders = _files_with_control_bytes()
     if not offenders:
-        print("line endings: clean (no CRLF in any tracked text file)")
+        print("control bytes: clean (no NUL or C0 control in any tracked text file)")
         return 0
 
-    if "--fix" in argv:
+    total = sum(len(hits) for _, hits in offenders)
+    print(f"control bytes: {total} forbidden byte(s) in {len(offenders)} tracked text file(s)\n")
+    for path, hits in offenders:
+        print(f"  {path.relative_to(ROOT).as_posix()}")
+        for offset, value, context in hits[:MAX_HITS_SHOWN]:
+            print(f"    byte 0x{value:02X} at offset {offset}: ...{context}...")
+        if len(hits) > MAX_HITS_SHOWN:
+            print(f"    ... and {len(hits) - MAX_HITS_SHOWN} more")
+    print(
+        "\nNot auto-fixed: removing a control byte is a guess about what was meant."
+        "\n\nThe usual cause is a `\\u0000`-style escape written through a tool that"
+        "\ndecodes escapes, leaving a literal byte in the source. Build the character"
+        "\ninstead — `String.fromCharCode(0)`, `chr(0)` — so the file stays readable."
+    )
+    return 1
+
+
+def main(argv: list[str]) -> int:
+    """Entry point: CRLF first, then control bytes. Both must pass."""
+    offenders = _text_files_with_crlf()
+
+    if offenders and "--fix" in argv:
         fix(offenders)
         print(f"line endings: rewrote {len(offenders)} file(s) as LF")
         for path in offenders:
             print(f"  - {path.relative_to(ROOT).as_posix()}")
-        return 0
+        offenders = []
 
-    print(f"line endings: {len(offenders)} tracked text file(s) contain CRLF\n")
-    for path in offenders:
-        print(f"  - {path.relative_to(ROOT).as_posix()}")
-    print(
-        "\nRun: python tools/check_line_endings.py --fix"
-        '\n\nIf a Python script wrote these, pass newline="\\n" to write_text/open —'
-        "\nor better, do not author files from a script at all (see CLAUDE.md)."
-    )
-    return 1
+    if offenders:
+        print(f"line endings: {len(offenders)} tracked text file(s) contain CRLF\n")
+        for path in offenders:
+            print(f"  - {path.relative_to(ROOT).as_posix()}")
+        print(
+            "\nRun: python tools/check_line_endings.py --fix"
+            '\n\nIf a Python script wrote these, pass newline="\\n" to write_text/open —'
+            "\nor better, do not author files from a script at all (see CLAUDE.md)."
+        )
+    else:
+        print("line endings: clean (no CRLF in any tracked text file)")
+
+    # Both run, and both report, before the exit code is decided: fixing one and being
+    # told about the other on the next run is two round trips for one commit.
+    control = _report_control_bytes()
+    return 1 if offenders or control else 0
 
 
 if __name__ == "__main__":

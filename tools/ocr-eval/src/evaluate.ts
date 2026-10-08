@@ -53,6 +53,8 @@ export interface ImageScore {
   readonly ms: number | null
   /** True when the engine returned nothing for an image that has text. */
   readonly empty: boolean
+  /** True when this page would have been sent to the server engine (FR-M-006). */
+  readonly fallback: boolean
 }
 
 export interface ClassScore {
@@ -75,6 +77,14 @@ export interface ClassScore {
   readonly recall: number
   readonly medianMs: number | null
   readonly emptyImages: number
+  /**
+   * Share of images that would have gone to the server engine (FR-M-006).
+   *
+   * This is the number `usage-model.yaml`'s `server_ocr_page` volume is derived from, and
+   * it was an assumed 20% until it was measured. It feeds the Lambda GB-s row of the
+   * free-tier estimate, so it is a budget input rather than a report line.
+   */
+  readonly fallbackShare: number
 }
 
 export interface EngineScore {
@@ -101,23 +111,57 @@ function median(values: readonly number[]): number | null {
  * a tracklist either, and telling the extractor would flatter the orientation ladder
  * (ADR-002) with information it will not have in production.
  */
-function extractSongs(lines: readonly string[]): { title: string; artist: string | null }[] {
+function extractSongs(
+  lines: readonly string[],
+): { title: string; artist: string | null; confidence: number }[] {
   const result = extractDeterministic(lines.join('\n'))
   // `items` only. Anything ungrounded never reaches a user (ADR-007), so counting it
   // here would score the engine on output the product would refuse to show.
-  return result.items.map(item => ({ title: item.title, artist: item.artist }))
+  return result.items.map(item => ({
+    title: item.title,
+    artist: item.artist,
+    confidence: item.confidence,
+  }))
+}
+
+/** FR-M-006: the server OCR fallback fires below this confidence. */
+export const FALLBACK_CONFIDENCE = 0.6
+
+/**
+ * Would this image have been sent to the server engine?
+ *
+ * FR-M-006 states the threshold per scan, not per song, and a scan is the unit that can
+ * actually be re-OCRed — you cannot re-read one line of a photograph. So the page falls
+ * back if its WEAKEST item is below the threshold, or if nothing was extracted at all.
+ *
+ * That is the conservative reading, and conservative in the direction that matters: this
+ * number replaces the assumed 20% fallback rate in `usage-model.yaml`, which feeds the
+ * Lambda GB-s row of the free-tier estimate. Over-estimating server load makes the gate
+ * harder to pass; under-estimating it is how the budget is blown by a forecast that was
+ * comfortable. A mean would be the lenient reading and would quietly produce the nicer
+ * number.
+ *
+ * An empty extraction counts as fallback rather than as "no songs, nothing to do":
+ * from the product's side those are indistinguishable, and a page the on-device engine
+ * could make nothing of is exactly the page the server exists for.
+ */
+export function needsFallback(items: readonly { readonly confidence: number }[]): boolean {
+  if (items.length === 0) return true
+  return items.some(item => item.confidence < FALLBACK_CONFIDENCE)
 }
 
 export function scoreImage(truth: TruthSpec, reading: EngineReading): ImageScore {
   const hasText = truth.lines.some(line => line.trim() !== '')
+  const extracted = extractSongs(reading.lines)
   return {
     imageId: truth.id,
     imageClass: truth.imageClass,
     cer: cer(truth.lines, reading.lines),
     wer: wer(truth.lines, reading.lines),
-    songs: songF1(truth.songTruth, extractSongs(reading.lines)),
+    songs: songF1(truth.songTruth, extracted),
     ms: reading.ms ?? null,
     empty: hasText && reading.lines.every(line => line.trim() === ''),
+    fallback: needsFallback(extracted),
   }
 }
 
@@ -140,6 +184,7 @@ function aggregate(imageClass: string, scores: readonly ImageScore[]): ClassScor
     recall: scores.length === 0 ? 0 : sum(s => s.songs.recall) / scores.length,
     medianMs: median(scores.map(s => s.ms).filter((ms): ms is number => ms !== null)),
     emptyImages: scores.filter(s => s.empty).length,
+    fallbackShare: scores.length === 0 ? 0 : scores.filter(s => s.fallback).length / scores.length,
   }
 }
 
