@@ -19,7 +19,7 @@ dev = [
     # The DynamoDB Local adapter tests only. Not a dependency of packages/etl itself:
     # the Lambda runtime provides boto3, and a unit test should not need AWS installed
     # to import a pure function.
-    "boto3==1.43.103",
+    "boto3==1.43.106",
     "pytest>=8.3",
     "pytest-cov>=6.0",
     "pytest-randomly>=3.16",
