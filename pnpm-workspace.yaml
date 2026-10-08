@@ -89,6 +89,19 @@ overrides:
   qs: '6.16.0'
   semver: '7.8.5'
   uuid: '11.1.1'
+  # GHSA-pqg4-j6r4-53mv, CVSS 9.2. Reaches us through
+  # react-devtools-core -> react-native -> expo, so it is development tooling rather
+  # than anything in the APK — but a 9.2 that has a fix is fixed, not argued with.
+  #
+  # 1.11.0 and NOT the latest 1.12.0, which is the interesting part: 1.12.0 was
+  # published 5 days ago and our own `minimumReleaseAge` floor is 7, so taking the
+  # newest version would mean overriding the supply-chain control to satisfy the
+  # supply-chain scanner. 1.11.0 is the advisory's fixed version AND is 8 days old, so
+  # it clears both. Dependabot will carry it forward once 1.12.0 matures.
+  shell-quote: '1.11.0'
+  # GHSA-68fv-2mgg-jv7q, CVSS 8.7. Same shape: a fix exists, it is 7 days old, it
+  # clears the cooldown.
+  source-map-js: '1.2.2'
 
 # Sub-dependencies resolved from a git URL, a tarball or a local path rather than the
 # registry. Legitimate uses exist; none of them are here, and each is a way to pull in
