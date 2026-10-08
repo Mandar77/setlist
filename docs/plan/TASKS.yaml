@@ -757,7 +757,7 @@ tasks:
   milestone: M0
   title: ADR-013 - fixed DynamoDB capacity, Application Auto Scaling banned, alarms counted
   deps: [M0A-06]
-  status: doing
+  status: done
   blocked_on: null
   not_before: null
   # One decision, so one task. Splitting it would let the ban land without the removal, or
@@ -784,7 +784,15 @@ tasks:
     - "DescribeAlarms is asserted to be the only new CloudWatch call - sentinel.test.ts already greps the service's own source for GetMetricData, StartQuery, GetQueryResults and GetCostAndUsage, and that must keep passing"
     - "make preflight ENV=dev stays green and make estimate still exits 0"
   verify: make preflight ENV=dev
-  evidence: []
+  evidence:
+    - "capacity is fixed at the budgeted share - dev renders ProvisionedThroughput {Read: 3, Write: 3}, totalling 17 of 25 across the three environments with the reserve of 8 intact: [platform-stack.ts](../../infra/lib/stacks/platform-stack.ts)"
+    - "TableV2 was replaced because it CANNOT express this: CfnGlobalTable's WriteProvisionedThroughputSettings has only writeCapacityAutoScalingSettings and no writeCapacityUnits, verified in aws-cdk-lib 2.270.0, which is why Capacity.fixed() throws on the write side"
+    - "never-use.test.ts's capacity assertion had been iterating an EMPTY SET for two months - it looped over AWS::ApplicationAutoScaling::ScalableTarget, which TableV2 never emits because a GlobalTable carries autoscaling inline. Seventh instrument here found reporting success while doing nothing, first inside the never-use suite: [never-use.test.ts](../../infra/test/never-use.test.ts)"
+    - "the ban catches BOTH shapes and its must-fail fixture is deliberately the inline one, since a resource-type ban passes against a TableV2 that autoscales: [rules.ts SZC-AUTOSCALING](../../infra/nag/rules.ts), [fixtures.ts](../../infra/nag/test/fixtures.ts)"
+    - "the usage sentinel counts account alarms with DescribeAlarms - a free Describe call, not GetMetricData - and reports rather than trips, because an eleventh alarm is $0.10/month and disabling an environment over it would be an outage caused by the guard: [sentinel.ts](../../services/usage-sentinel/src/sentinel.ts)"
+    - "sentinel.test.ts now pins the COMPLETE set of CloudWatch commands the service constructs, so a fifth cannot arrive by being absent from the banned list"
+    - "moving construct exposed a previously-unreachable KICS HIGH (DynamoDB With Aws Owned CMK) which matches AWS::DynamoDB::Table and never matched GlobalTable; accepted under PED S618 with a generated kics-exclude-queries.txt mirroring the Trivy/OSV pattern: [suppressions.yaml](../../security/suppressions.yaml)"
+    - "green end to end: [run 37711462806](https://github.com/Mandar77/setlist/actions/runs/37711462806), make estimate exits 0, 113 infra tests and 84 nag tests pass"
 
 # ---------------------------------------------------------------- CORE (no AWS)
 - id: CORE-01
