@@ -89,7 +89,10 @@ jobs:
           changed="$(git diff --name-only "$base" "$HEAD_SHA" -- \
             mobile \
             packages/core \
+            tools/ocr-eval \
+            tools/golden-images \
             scripts/ci/maestro-flows.sh \
+            scripts/ci/mlkit-collect.sh \
             .github/workflows/ci.yml)"
           if [ -n "$changed" ]; then
             echo "mobile or packages/core changed:"
@@ -540,6 +543,51 @@ jobs:
             adb install -r "$RUNNER_TEMP/apks/prod.apk"
             adb shell pm list packages com.setlist.app
             bash scripts/ci/maestro-flows.sh mobile/.maestro
+
+      # ---------------------------------------------------------------- M2-05a, ML Kit
+      #
+      # Here rather than in the OCR job because ML Kit needs a device and this is the only
+      # job that has one. The corpus is rendered here too: it is 60MB, so passing it
+      # between jobs as an artifact costs more than drawing it again, and coupling the two
+      # jobs would make the OCR gate wait on a 15-minute emulator.
+      - name: Install Chromium to draw the corpus
+        run: pnpm -C packages/core exec playwright install --with-deps chromium
+
+      - name: Render the corpus
+        run: pnpm -C tools/golden-images exec tsx src/cli.ts
+
+      - name: Build the ML Kit collector
+        working-directory: tools/ocr-eval/collectors/mlkit
+        run: ./gradlew --no-daemon :collector:assembleDebug :collector:assembleDebugAndroidTest
+
+      - name: Read the corpus with ML Kit
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          # One command per line: android-emulator-runner runs each in its own `sh -c`.
+          script: |
+            adb shell mkdir -p /sdcard/ocr-corpus
+            adb push golden/ocr-generated/. /sdcard/ocr-corpus/
+            bash scripts/ci/mlkit-collect.sh
+
+      - name: Grade every engine that reported
+        run: |
+          pnpm -C tools/ocr-eval exec tsx collectors/tesseract/collect.ts
+          make ocr-eval
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: ocr-eval-two-engines
+          path: |
+            docs/reports/ocr-eval.md
+            golden/ocr-generated/readings
 
       - name: Keep the Maestro output when a flow fails
         if: failure()

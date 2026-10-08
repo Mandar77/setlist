@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  No activity, no launcher, no permissions.
+
+  This APK exists only as a host process for the instrumented test to run ML Kit inside;
+  nothing is shipped and nothing is launched. Readings are written to the app's own
+  external files directory, which needs no storage permission on any supported API level.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:allowBackup="false"
+        android:label="setlist OCR collector" />
+</manifest>
