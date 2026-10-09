@@ -556,9 +556,21 @@ jobs:
       - name: Render the corpus
         run: pnpm -C tools/golden-images exec tsx src/cli.ts
 
+      # `gradle`, not `./gradlew`, and no wrapper is committed. A Gradle wrapper is a
+      # shell script plus a BINARY jar, and a binary blob in a public repository that CI
+      # executes is exactly the kind of thing this project pins every action SHA to
+      # avoid — the jar's contents are not reviewable in a diff. The action installs a
+      # pinned Gradle instead, which is reviewable and is one less executable to own.
+      #
+      # 9.3.1 matches what `expo prebuild` generates for the app two steps above, so the
+      # runner caches one Gradle distribution rather than two.
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          gradle-version: '9.3.1'
+
       - name: Build the ML Kit collector
         working-directory: tools/ocr-eval/collectors/mlkit
-        run: ./gradlew --no-daemon :collector:assembleDebug :collector:assembleDebugAndroidTest
+        run: gradle --no-daemon :collector:assembleDebug :collector:assembleDebugAndroidTest
 
       - name: Read the corpus with ML Kit
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
