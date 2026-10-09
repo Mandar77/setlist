@@ -562,11 +562,18 @@ jobs:
       # avoid — the jar's contents are not reviewable in a diff. The action installs a
       # pinned Gradle instead, which is reviewable and is one less executable to own.
       #
-      # 9.3.1 matches what `expo prebuild` generates for the app two steps above, so the
-      # runner caches one Gradle distribution rather than two.
+      # 9.8.1, the current stable, and NOT the 9.3.1 that `expo prebuild` generates for
+      # the app two steps above. Matching the app's version was the first attempt — one
+      # cached distribution instead of two — and AGP refused it outright:
+      #
+      #   Minimum supported Gradle version is 9.6.0. Current version is 9.3.1.
+      #
+      # So the saving was never available at AGP 9.4.1. Two distributions it is; the
+      # alternative is pinning this project to an older AGP to save a download, which
+      # trades a real constraint for a cache hit.
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
-          gradle-version: '9.3.1'
+          gradle-version: '9.8.1'
 
       - name: Build the ML Kit collector
         working-directory: tools/ocr-eval/collectors/mlkit

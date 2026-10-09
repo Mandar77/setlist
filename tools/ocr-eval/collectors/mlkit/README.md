@@ -41,4 +41,10 @@ confusing Gradle resolution error rather than as "that does not exist".
 | AGP | 9.4.1 | latest **stable**; the repository's `release` marker points at `9.5.0-alpha08` and this project does not take alphas |
 | `androidx.test.ext:junit` | 1.3.0 | current release |
 | `androidx.test:runner` | 1.7.0 | current release |
-| Gradle | 9.3.1 | matches what `expo prebuild` generates for the app, so CI caches one distribution rather than two |
+| Gradle | 9.8.1 | current stable, and forced upward: AGP 9.4.1 refuses anything below **9.6.0** |
+
+The Gradle pin started at 9.3.1 to match what `expo prebuild` generates for the app, so
+CI would cache one distribution rather than two. AGP rejected it — *"Minimum supported
+Gradle version is 9.6.0"* — so that saving was never available at this AGP. Two
+distributions is the correct answer; pinning to an older AGP to save a download would
+trade a real constraint for a cache hit.
