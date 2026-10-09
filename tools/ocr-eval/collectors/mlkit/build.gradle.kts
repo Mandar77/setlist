@@ -5,13 +5,19 @@
 //
 // AGP 9.4.1 is the latest STABLE. The repository's own `release` marker points at
 // 9.5.0-alpha08; this project does not take alphas.
-// Kotlin 2.4.20 is the latest STABLE from maven-metadata.xml. Worth recording how that
-// was established, because three sources gave three answers: memory said 2.2.20, Maven
-// Central's solr search said 2.2.0 (it does not sort by version), and only the
-// authoritative metadata says 2.4.20 — whose own `release` marker points at 2.5.0-Beta1,
-// which this project does not take either. A version written from any of the first two
-// would have been plausible, well-formed and wrong.
+// No Kotlin plugin, and that is not an omission.
+//
+// This project originally declared `org.jetbrains.kotlin.android`, and AGP refused it:
+//
+//   The 'org.jetbrains.kotlin.android' plugin is no longer required for Kotlin support
+//   since AGP 9.0. Solution: Remove the plugin from this project's build file.
+//
+// AGP 9 compiles Kotlin itself, so declaring the standalone plugin is now an error
+// rather than a redundancy. The Kotlin version follows AGP's bundled one; nothing here
+// pins it, which is why the long-resolved 2.4.20 is gone from this file.
+//
+// Keeping the note because the obvious repair when a Kotlin file fails to compile is to
+// add the Kotlin plugin back, and that is exactly wrong on AGP 9.
 plugins {
     id("com.android.application") version "9.4.1" apply false
-    id("org.jetbrains.kotlin.android") version "2.4.20" apply false
 }

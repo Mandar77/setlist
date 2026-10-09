@@ -39,6 +39,7 @@ confusing Gradle resolution error rather than as "that does not exist".
 | --- | --- | --- |
 | `com.google.mlkit:text-recognition` | 16.0.1 | current release; the bundled model, so nothing downloads at runtime |
 | AGP | 9.4.1 | latest **stable**; the repository's `release` marker points at `9.5.0-alpha08` and this project does not take alphas |
+| Kotlin | *(none declared)* | AGP 9 compiles Kotlin itself; declaring `org.jetbrains.kotlin.android` is an **error**, not a redundancy |
 | `androidx.test.ext:junit` | 1.3.0 | current release |
 | `androidx.test:runner` | 1.7.0 | current release |
 | Gradle | 9.8.1 | current stable, and forced upward: AGP 9.4.1 refuses anything below **9.6.0** |

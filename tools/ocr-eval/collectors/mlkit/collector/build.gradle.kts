@@ -1,6 +1,7 @@
+// AGP only. `org.jetbrains.kotlin.android` is an ERROR on AGP 9, not a redundancy —
+// AGP compiles Kotlin itself since 9.0. See the root build file.
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
 }
 
 android {
@@ -21,11 +22,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlin {
-        compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-        }
-    }
+    // No `kotlin { compilerOptions { jvmTarget } }` block: that is the standalone Kotlin
+    // plugin's DSL and the type it referenced
+    // (org.jetbrains.kotlin.gradle.dsl.JvmTarget) is not on the classpath without it.
+    // AGP's built-in Kotlin takes its JVM target from `compileOptions` above, so the
+    // two cannot drift apart.
 
     // The instrumented test IS the collector: there is no app to ship, only a host
     // process for ML Kit to run inside. Debug signing is correct here for the same
